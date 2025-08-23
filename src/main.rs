@@ -78,7 +78,8 @@ fn main() {
 
                             storage.add_contact(new_contact);
 
-                            println!("Contact added successfully!");                            break;
+                            println!("Contact added successfully!");
+                            break 'add_contact;
                         }
                     }
                     Command::ListContacts => {
@@ -118,7 +119,7 @@ fn main() {
                                 storage.delete_contact(index);
 
                                 println!("Contact deleted successfully!");
-                                break;
+                                break 'delete_contact;
                             } else {
                                 println!("Name not found in contact list");
                                 continue 'delete_contact;
