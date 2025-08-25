@@ -42,11 +42,17 @@ impl ContactStore {
         }
     }
 
-    pub fn get_index_by_name(&self, name: &String) -> Option<usize> {
-        let index = self
+    pub fn get_indices_by_name(&self, name: &String) -> Option<Vec<usize>> {
+        let indices: Vec<usize> = self
             .contact_list()
             .iter()
-            .position(|cont| &cont.name == name);
-        index
+            .enumerate()
+            .filter(|(_, cont)| &cont.name == name)
+            .map(|(idx, _)| idx)
+            .collect();
+        if indices.is_empty() {
+            return None;
+        }
+        Some(indices)
     }
 }
