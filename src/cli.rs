@@ -1,5 +1,8 @@
 use crate::domain::{Command, Contact};
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    num::ParseIntError,
+};
 
 // OUTPUT FUNCTIONS
 pub fn show_menu() {
@@ -13,7 +16,7 @@ pub fn show_menu() {
 }
 
 pub fn confirm_action(action: &str) {
-    println!("Are you sure you want to {}? (y/n)", action);
+    println!("\nAre you sure you want to {}\n? (y/n)", action);
     print!("> ");
     io::stdout().flush().unwrap();
 }
@@ -43,6 +46,13 @@ pub fn get_input_to_lower() -> String {
         .read_line(&mut input)
         .expect("Failed to read line");
     input.trim().to_string().to_lowercase()
+}
+
+pub fn get_input_as_int() -> Result<i32, ParseIntError> {
+    let mut value: String = String::new();
+    io::stdin().read_line(&mut value).expect("Input failed");
+
+    value.trim().parse::<i32>()
 }
 
 // passers
