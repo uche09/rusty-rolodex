@@ -15,11 +15,8 @@ fn main() {
     println!("\n\n--- Contact BOOK ---\n");
 
     'outerloop: loop {
-        cli::show_menu();
 
-        let action = cli::get_input();
-
-        match cli::get_command(&action) {
+        match cli::parse_command_from_menu() {
             Ok(command) => {
                 // User entered valid command
 

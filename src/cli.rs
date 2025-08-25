@@ -5,7 +5,7 @@ use std::{
 };
 
 // OUTPUT FUNCTIONS
-pub fn show_menu() {
+pub fn parse_command_from_menu() -> Result<Command, String> {
     println!("\n");
     println!("1. Add Contact");
     println!("2. List Contacts");
@@ -13,6 +13,16 @@ pub fn show_menu() {
     println!("4. Exit");
     print!("> ");
     io::stdout().flush().unwrap();
+
+    let action = get_input();
+
+    match action.as_str() {
+        "1" => Ok(Command::AddContact),
+        "2" => Ok(Command::ListContacts),
+        "3" => Ok(Command::DeleteContact),
+        "4" => Ok(Command::Exit),
+        _ => Err("Invalid command.".to_string()),
+    }
 }
 
 pub fn confirm_action(action: &str) {
@@ -53,15 +63,4 @@ pub fn get_input_as_int() -> Result<i32, ParseIntError> {
     io::stdin().read_line(&mut value).expect("Input failed");
 
     value.trim().parse::<i32>()
-}
-
-// passers
-pub fn get_command(input: &str) -> Result<Command, String> {
-    match input {
-        "1" => Ok(Command::AddContact),
-        "2" => Ok(Command::ListContacts),
-        "3" => Ok(Command::DeleteContact),
-        "4" => Ok(Command::Exit),
-        _ => Err("Invalid command.".to_string()),
-    }
 }
