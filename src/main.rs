@@ -3,6 +3,7 @@ mod domain;
 mod store;
 mod validation;
 
+use std::io::{self, Write};
 use std::process::exit;
 
 use crate::domain::{Command, Contact, ContactStore};
@@ -88,6 +89,8 @@ fn main() {
                             continue 'outerloop;
                         }
 
+                        println!("***YOUR CONTACTS***");
+
                         for contact in storage.contact_list().iter() {
                             println!();
                             println!("{}", cli::display_contact(contact));
@@ -103,26 +106,87 @@ fn main() {
                                 continue 'outerloop;
                             }
 
-                            if let Some(index) = storage.get_index_by_name(&name) {
-                                // Confirm action
-                                let message = format!(
-                                    "delete this contact from your contact list \n{}\n",
-                                    cli::display_contact(&storage.contact_list()[index])
-                                );
-                                cli::confirm_action(&message);
+                            // Get index for all contact having exactly same name
+                            let indices = storage.get_indices_by_name(&name);
 
-                                let consent = cli::get_input_to_lower();
-                                if consent != 'y'.to_string() {
-                                    continue 'outerloop;
+                            match indices {
+                                Some(indices) => {
+                                    let contact_list = storage.contact_list();
+                                    let mut match_count = 1;
+
+                                    // Handle contact with identical name match
+                                    if indices.len() > 1 {
+                                        println!(
+                                            "\nWe found multiple match for this name \"{}\"",
+                                            &name
+                                        );
+                                        println!(
+                                            "Enter the correspondint number to delete desired contact"
+                                        );
+
+                                        for index in &indices {
+                                            println!(
+                                                "\n{}. {}",
+                                                match_count,
+                                                cli::display_contact(&contact_list[*index])
+                                            );
+                                            match_count += 1;
+                                        }
+                                        print!("> ");
+                                        io::stdout().flush().unwrap();
+
+                                        let selected = cli::get_input_as_int();
+                                        let selected = selected.unwrap_or(0);
+
+                                        if selected < 1 || selected > indices.len() as i32 {
+                                            println!("Invalid choice");
+                                            continue 'delete_contact;
+                                        }
+
+                                        // confirm action
+                                        let message = format!(
+                                            "delete this contact from your contact list \n{}\n",
+                                            cli::display_contact(
+                                                &contact_list[indices[selected as usize - 1_usize]]
+                                            )
+                                        );
+
+                                        cli::confirm_action(&message);
+
+                                        let consent = cli::get_input_to_lower();
+                                        if consent != 'y'.to_string() {
+                                            continue 'outerloop;
+                                        }
+
+                                        let _ = storage
+                                            .delete_contact(indices[selected as usize - 1_usize]);
+                                        println!("Contact deleted successfully!");
+                                        break 'delete_contact;
+                                    } else {
+                                        // Handle single single contact match
+
+                                        // Confirm action
+                                        let message = format!(
+                                            "delete this contact from your contact list \n{}\n",
+                                            cli::display_contact(&contact_list[indices[0]])
+                                        );
+                                        cli::confirm_action(&message);
+
+                                        let consent = cli::get_input_to_lower();
+                                        if consent != 'y'.to_string() {
+                                            continue 'outerloop;
+                                        }
+
+                                        let _ = storage.delete_contact(indices[0]);
+
+                                        println!("Contact deleted successfully!");
+                                        break 'delete_contact;
+                                    }
                                 }
-
-                                storage.delete_contact(index);
-
-                                println!("Contact deleted successfully!");
-                                break 'delete_contact;
-                            } else {
-                                println!("Name not found in contact list");
-                                continue 'delete_contact;
+                                _ => {
+                                    println!("Name not found in contact list");
+                                    continue 'delete_contact;
+                                }
                             }
                         }
                     }
