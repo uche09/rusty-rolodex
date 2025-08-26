@@ -1,12 +1,12 @@
-# Contact Book 2
+# Rusty Rolodex
 ```
-   ____ ___  _   _ _____  _    ____ _____   ____   ___   ___  _  ______  
-  / ___/ _ \| \ | |_   _|/ \  / ___|_   _| | __ ) / _ \ / _ \| |/ /___ \ 
- | |  | | | |  \| | | | / _ \| |     | |   |  _ \| | | | | | | ' /  __) |
- | |__| |_| | |\  | | |/ ___ \ |___  | |   | |_) | |_| | |_| | . \ / __/ 
-  \____\___/|_| \_| |_/_/   \_\____| |_|   |____/ \___/ \___/|_|\_\_____|
+  _____________________ ____________________________  __
+___  __ \_  __ \__  / __  __ \__  __ \__  ____/_  |/ /
+__  /_/ /  / / /_  /  _  / / /_  / / /_  __/  __    / 
+_  _, _// /_/ /_  /___/ /_/ /_  /_/ /_  /___  _    |  
+/_/ |_| \____/ /_____/\____/ /_____/ /_____/  /_/|_|  
                                                                          
- A Simple Rust CLI Contact Manager                                                                        
+ Mastery Track (Beginner → Expert, One Project)                           
 ```
 
 [![Rust Version](https://img.shields.io/badge/Rust-1.78+-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
@@ -14,90 +14,151 @@
 
 ---
 
-## Features
+
+Rusty Rolodex is a single evolving project — Rusty Rolodex — that grows from an in‑memory CLI address book into a production‑grade, test‑covered, CI/CD‑deployed tool.  
+Check out more about [Rusty-Rolodex](https://gist.github.com/Iamdavidonuh/062da8918a2d333b2150c74cae6bd525)
+
+## Current Features
 - Add a new contact with name, phone number and email
 - View all saved contacts
 - Search for a contact by name
 - Delete a contact by name
 - Basic user input handling and validation
-- Save contacts to a file so that data is persistent across sessions.
+<!-- - Save contacts to a file so that data is persistent across sessions.
 - Update existing contacts.
-- Display contacts alphabetically.
+- Display contacts alphabetically. -->
+
 
 ## What I Learned
 Working on this project helped me practice and understand:
 - **Structs**: Using structs to represent a `Contact` with name and phone fields.
+- **Enum**: Using represent unique variants like user possible action/command.
 - **Vectors**: Storing and managing a dynamic list of contacts.
 - **Ownership and Borrowing**: Handling references properly when adding, searching, and deleting contacts.
 - **Pattern Matching**: Using `match` statements to control user options and handle possible errors.
 - **Input/Output**: Reading user input from the terminal and processing it.
-- **Error Handling**: Managing common issues like invalid input and empty searches.
-- **Regex**: Validating user inputs like phone number and email using regex pattern.
+- **Error Handling**: Managing common issues like invalid input and empty searches and also using rust powerful features for error handling like `Result<T, E>`.
+<!-- - **Regex**: Validating user inputs like phone number and email using regex pattern. -->
 
 ## Challenges Encountered
-- Managing **borrowing and ownership rules**, especially when modifying the list of contacts.
+- Managing **borrowing and ownership rules**, especially when parsing variables to some built-in construct without knowing if they consume the value (take ownership) or reference them by default.
 - Handling **mutable and immutable references** correctly without causing borrow checker errors.
-- Implementing a simple yet reliable **search** and **delete** function without crashing the program on bad input.
 - Keeping the program **interactive** and **user-friendly** while avoiding panics.
 
-And I was able to over come these challenges to the best of my knowledge yet.
+And I was able to overcome these challenges to the best of my knowledge yet. And thankfully I always have `cargo clippy` to help me catch and properly explain the cause of errors.
 
 ## Example Usage
 
 ```bash
---- Contact Book ---
-
-Select your action:
-1. Add a new contact
-2. View all contacts
-3. Delete a contact by name
-4. Edit an existing contact
-5. Search for a contact by name
-6.Exit
- 1
-
-Contact name:
-Alice
-
-contact number:
-01234567890
-
-Contact Email:
-example@gmail.com
-
-Do you want to save this contact?
-1. Yes
-2. No
-1
-
-Contact saved!
-
-Select your action:
-1. Add a new contact
-2. View all contacts
-3. Delete a contact by name
-4. Edit an existing contact
-5. Search for a contact by name
-6.Exit
-2
-
-YOUR CONTACTS
-
-Name: Alice
-Phone: 01234567890
-Email: example@gmail.com
+--- Contact BOOK ---
 
 
-Select your action:
-1. Add a new contact
-2. View all contacts
-3. Delete a contact by name
-4. Edit an existing contact
-5. Search for a contact by name
-6.Exit
-6
+
+1. Add Contact
+2. List Contacts
+3. Delete Contact
+4. Exit
+> 1
+
+Enter contact name 
+* to go back: 
+
+
+Invalid Name input.
+
+Enter contact name 
+* to go back: 
+Uche
+
+Enter contact number:
+abcdefghijklmn
+
+Invalid Number input.
+
+Enter contact name 
+* to go back: 
+Uche
+
+Enter contact number:
+12345678901
+
+Enter contact email.
+uche.uche
+
+Invalid email input.
+
+Enter contact name 
+* to go back: 
+Uche
+
+Enter contact number:
+12345678901
+
+Enter contact email.
+uche@gmail.com
+Are you sure you want to add this contact to your contact list 
+Name: Uche
+Number: 12345678901
+Email: uche@gmail.com
+? (y/n)
+> y
+Contact added successfully!
+
+
+1. Add Contact
+2. List Contacts
+3. Delete Contact
+4. Exit
+> 2
+
+Name: Uche
+Number: 12345678901
+Email: uche@gmail.com
+
+
+1. Add Contact
+2. List Contacts
+3. Delete Contact
+4. Exit
+> 3
+Search contact by name to DELETE or * to go back
+uche
+Name not found in contact list
+Search contact by name to DELETE or * to go back
+*   
+
+
+1. Add Contact
+2. List Contacts
+3. Delete Contact
+4. Exit
+> 3
+Search contact by name to DELETE or * to go back
+Uche
+Are you sure you want to delete this contact from your contact list 
+Name: Uche
+Number: 12345678901
+Email: uche@gmail.com
+? (y/n)
+> y
+Contact deleted successfully!
+
+
+1. Add Contact
+2. List Contacts
+3. Delete Contact
+4. Exit
+> 2
+No contact in contact list! 
+
+
+1. Add Contact
+2. List Contacts
+3. Delete Contact
+4. Exit
+> 4
+
 Bye!
-
 ```
 
 ## How to Run
@@ -107,13 +168,13 @@ Bye!
 2. Clone the repository:
 
 ```bash
-git clone https://github.com/uche09/contact_book2.git
+git clone https://github.com/uche09/rusty-rolodex.git
 ```
 
 3. Navigate to the project directory:
 
 ```bash
-cd contact_book2
+cd rusty-rolodex
 ```
 
 4. Build and run the project:

@@ -135,11 +135,8 @@ src/main.rs:
 println!("\n\n--- Contact BOOK ---\n");
 
 'outerloop: loop {
-    cli::show_menu();
 
-    let action = cli::get_input();
-
-    match cli::get_command(&action) {
+    match cli::parse_command_from_menu() {
         Ok(command) => {
             // User entered valid command
 
@@ -185,7 +182,7 @@ While I was creating the program workflow, I identified areas that requires user
 ```rust src/cli.rs
 src/cli.rs:
 
-pub fn show_menu() {
+pub fn parse_command_from_menu() -> Result<Command, String> {
     println!("\n");
     println!("1. Add Contact");
     println!("2. List Contacts");
@@ -193,6 +190,16 @@ pub fn show_menu() {
     println!("4. Exit");
     print!("> ");
     io::stdout().flush().unwrap();
+
+    let action = get_input();
+
+    match action.as_str() {
+        "1" => Ok(Command::AddContact),
+        "2" => Ok(Command::ListContacts),
+        "3" => Ok(Command::DeleteContact),
+        "4" => Ok(Command::Exit),
+        _ => Err("Invalid command.".to_string()),
+    }
 }
 
 pub fn get_input() -> String {
@@ -201,16 +208,6 @@ pub fn get_input() -> String {
         .read_line(&mut input)
         .expect("Failed to read line");
     input.trim().to_string()
-}
-
-pub fn get_command(input: &str) -> Result<Command, String> {
-    match input {
-        "1" => Ok(Command::AddContact),
-        "2" => Ok(Command::ListContacts),
-        "3" => Ok(Command::DeleteContact),
-        "4" => Ok(Command::Exit),
-        _ => Err("Invalid command.".to_string()),
-    }
 }
 ```
 
