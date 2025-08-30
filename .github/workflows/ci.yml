@@ -1,0 +1,37 @@
+name: Pull Request Test
+
+on:
+    pull_request:
+        branches:
+            - main
+
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+
+        strategy:
+            matrix:
+                rust-version: [1.8]
+
+
+        steps:
+            - uses: actions/checkout@5
+
+
+            - name: Set up rust environment 
+              uses: moonrepo/setup-rust@v1
+              with:
+                toolchain: ${{ matrix.rust-version }}
+
+            
+            - name: Run Code checker (clippy) and Format correction
+              run:  |
+                cargo clippy
+                cargo fmt
+            
+            - name: Run Test
+              run: cargo test
+
+            - name: Compile code with Optimization
+              run: cargo build --release
