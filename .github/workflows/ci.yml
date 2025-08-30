@@ -16,7 +16,7 @@ jobs:
 
 
         steps:
-            - uses: actions/checkout@5
+            - uses: actions/checkout@3
 
 
             - name: Set up rust environment 
