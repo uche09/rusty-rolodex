@@ -1,16 +1,19 @@
 mod cli;
 mod domain;
+mod helper;
 mod store;
 mod validation;
 
 use std::io::{self, Write};
 use std::process::exit;
 
-use crate::domain::{Command, Contact, ContactStore};
+use crate::domain::{Command, Contact, Storage};
+use crate::store::ContactStore;
 use crate::validation::{contact_exist, validate_email, validate_name, validate_number};
 
 fn main() {
-    let mut storage = ContactStore::new();
+    let mut storage = Storage::new();
+    let _ = storage.load();
 
     println!("\n\n--- Contact BOOK ---\n");
 
@@ -187,6 +190,7 @@ fn main() {
                         }
                     }
                     Command::Exit => {
+                        let _ = storage.save();
                         println!("\nBye!");
                         exit(0);
                     }

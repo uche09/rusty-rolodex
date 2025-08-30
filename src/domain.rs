@@ -1,6 +1,7 @@
-use crate::store::Store;
+use crate::store::{ContactStore, Store};
+use std::io;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Contact {
     pub name: String,
     pub phone: String,
@@ -14,13 +15,13 @@ pub enum Command {
     Exit,
 }
 
-pub struct ContactStore {
+pub struct Storage {
     store: Store,
 }
 
-impl ContactStore {
+impl Storage {
     pub fn new() -> Self {
-        ContactStore {
+        Storage {
             store: Store::new(),
         }
     }
@@ -54,5 +55,15 @@ impl ContactStore {
             return None;
         }
         Some(indices)
+    }
+}
+
+impl ContactStore for Storage {
+    fn load(&mut self) -> io::Result<()> {
+        self.store.load()
+    }
+
+    fn save(&mut self) -> io::Result<()> {
+        self.store.save()
     }
 }
