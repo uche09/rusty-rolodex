@@ -20,16 +20,15 @@ impl Store {
         // Now using OpenOptions to open file if already exist
         // Or create one
         let file = OpenOptions::new()
-        .read(true)   // READ from file during instanciation
-        .write(true)
-        .create(true)
-        .open(FILE_PATH)?;
-        Ok(
-            Store {
-                mem: Vec::new(),
-                file,
-            }
-        )
+            .read(true) // READ from file during instanciation
+            .write(true)
+            .truncate(false)
+            .create(true)
+            .open(FILE_PATH)?;
+        Ok(Store {
+            mem: Vec::new(),
+            file,
+        })
     }
 
     fn create_file_parent() -> Result<(), AppError> {
@@ -62,10 +61,10 @@ impl ContactStore for Store {
 
     fn save(&mut self) -> Result<(), AppError> {
         self.file = OpenOptions::new()
-        .write(true)   // WRITE to file on save
-        .truncate(true)
-        .open(FILE_PATH)?;
-    
+            .write(true) // WRITE to file on save
+            .truncate(true)
+            .open(FILE_PATH)?;
+
         let data = helper::serialize_contacts(&self.mem);
         self.file.write_all(data.as_bytes())?;
 

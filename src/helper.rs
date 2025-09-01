@@ -121,15 +121,13 @@ mod tests {
             }
         );
 
-        Ok(
-            assert_eq!(
-                storage.mem[1],
-                Contact {
-                    name: "Mom".to_string(),
-                    phone: "98765432109".to_string(),
-                    email: "ucheuche@gmail.com".to_string(),
-                }
-            )
-        )
+        Ok(assert_eq!(
+            storage.mem[1],
+            Contact {
+                name: "Mom".to_string(),
+                phone: "98765432109".to_string(),
+                email: "ucheuche@gmail.com".to_string(),
+            }
+        ))
     }
 }

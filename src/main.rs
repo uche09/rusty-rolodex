@@ -13,7 +13,7 @@ use crate::errors::AppError;
 use crate::store::ContactStore;
 use crate::validation::{contact_exist, validate_email, validate_name, validate_number};
 
-fn main() -> Result<(), AppError>{
+fn main() -> Result<(), AppError> {
     let mut storage = Storage::new()?;
 
     // In case of error
@@ -172,7 +172,7 @@ fn main() -> Result<(), AppError>{
 
                                         if let Err(e) = cli::confirm_action(&message) {
                                             eprintln!("{}", e);
-                                            break 'delete_contact
+                                            break 'delete_contact;
                                         }
 
                                         let consent = cli::get_input_to_lower();
@@ -180,7 +180,9 @@ fn main() -> Result<(), AppError>{
                                             continue 'outerloop;
                                         }
 
-                                        match storage.delete_contact(indices[selected as usize - 1_usize]){
+                                        match storage
+                                            .delete_contact(indices[selected as usize - 1_usize])
+                                        {
                                             Ok(_) => {
                                                 println!("Contact deleted successfully!");
                                                 break 'delete_contact;
@@ -190,7 +192,6 @@ fn main() -> Result<(), AppError>{
                                                 break 'delete_contact;
                                             }
                                         }
-
                                     } else {
                                         // Handle single single contact match
 
@@ -221,19 +222,16 @@ fn main() -> Result<(), AppError>{
                             }
                         }
                     }
-                    Command::Exit => {
-                        match storage.save() {
-                            Ok(_) => {
-                                println!("\nBye!");
-                                exit(0);
-                            }
-                            Err(e) => {
-                                eprintln!("{}", e);
-                                continue 'outerloop
-                            }
+                    Command::Exit => match storage.save() {
+                        Ok(_) => {
+                            println!("\nBye!");
+                            exit(0);
                         }
-                        
-                    }
+                        Err(e) => {
+                            eprintln!("{}", e);
+                            continue 'outerloop;
+                        }
+                    },
                 }
             }
             Err(message) => {
