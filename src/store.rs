@@ -1,7 +1,8 @@
 use crate::domain::Contact;
+use crate::errors::AppError;
 use crate::helper;
 use std::fs::{self, File};
-use std::io::{self, BufReader, Write};
+use std::io::{BufReader, Write};
 use std::path::Path;
 
 pub const FILE_PATH: &str = "./.instance/contacts.txt";
@@ -34,13 +35,13 @@ impl Store {
 }
 
 pub trait ContactStore {
-    fn load(&mut self) -> io::Result<()>;
+    fn load(&mut self) -> Result<(), AppError>;
 
-    fn save(&mut self) -> io::Result<()>;
+    fn save(&mut self) -> Result<(), AppError>;
 }
 
 impl ContactStore for Store {
-    fn load(&mut self) -> io::Result<()> {
+    fn load(&mut self) -> Result<(), AppError> {
         // Read text from file
         let file = File::open(FILE_PATH)?;
         let reader = BufReader::new(file);
@@ -49,7 +50,7 @@ impl ContactStore for Store {
         Ok(())
     }
 
-    fn save(&mut self) -> io::Result<()> {
+    fn save(&mut self) -> Result<(), AppError> {
         let data = helper::serialize_contacts(&self.mem);
         self.file.write_all(data.as_bytes())?;
 

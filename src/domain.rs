@@ -1,5 +1,7 @@
-use crate::store::{ContactStore, Store};
-use std::io;
+use crate::{
+    errors::AppError,
+    store::{ContactStore, Store},
+};
 
 #[derive(Debug, PartialEq)]
 pub struct Contact {
@@ -59,11 +61,11 @@ impl Storage {
 }
 
 impl ContactStore for Storage {
-    fn load(&mut self) -> io::Result<()> {
+    fn load(&mut self) -> Result<(), AppError> {
         self.store.load()
     }
 
-    fn save(&mut self) -> io::Result<()> {
+    fn save(&mut self) -> Result<(), AppError> {
         self.store.save()
     }
 }

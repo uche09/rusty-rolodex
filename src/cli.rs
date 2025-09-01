@@ -1,18 +1,19 @@
 use crate::domain::{Command, Contact};
+use crate::errors::AppError;
 use std::{
     io::{self, Write},
     num::ParseIntError,
 };
 
 // OUTPUT FUNCTIONS
-pub fn parse_command_from_menu() -> Result<Command, String> {
+pub fn parse_command_from_menu() -> Result<Command, AppError> {
     println!("\n");
     println!("1. Add Contact");
     println!("2. List Contacts");
     println!("3. Delete Contact");
     println!("4. Exit");
     print!("> ");
-    io::stdout().flush().unwrap();
+    io::stdout().flush()?;
 
     let action = get_input();
 
@@ -21,14 +22,15 @@ pub fn parse_command_from_menu() -> Result<Command, String> {
         "2" => Ok(Command::ListContacts),
         "3" => Ok(Command::DeleteContact),
         "4" => Ok(Command::Exit),
-        _ => Err("Invalid command.".to_string()),
+        _ => Err(AppError::ParseCommand(action)),
     }
 }
 
-pub fn confirm_action(action: &str) {
+pub fn confirm_action(action: &str) -> Result<(), AppError> {
     println!("\nAre you sure you want to {}\n? (y/n)", action);
     print!("> ");
-    io::stdout().flush().unwrap();
+    io::stdout().flush()?;
+    Ok(())
 }
 
 pub fn display_contact(contact: &Contact) -> String {

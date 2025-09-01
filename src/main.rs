@@ -1,5 +1,6 @@
 mod cli;
 mod domain;
+mod errors;
 mod helper;
 mod store;
 mod validation;
@@ -8,12 +9,17 @@ use std::io::{self, Write};
 use std::process::exit;
 
 use crate::domain::{Command, Contact, Storage};
+use crate::errors::AppError;
 use crate::store::ContactStore;
 use crate::validation::{contact_exist, validate_email, validate_name, validate_number};
 
 fn main() {
     let mut storage = Storage::new();
-    let _ = storage.load();
+
+    // In case of error
+    if let Err(e) = storage.load() {
+        eprintln!("Unable to load contacts {}", e);
+    }
 
     println!("\n\n--- Contact BOOK ---\n");
 
@@ -34,7 +40,11 @@ fn main() {
                             }
 
                             if !validate_name(&name) {
-                                println!("\nInvalid Name input.");
+                                eprintln!(
+                                    "{}",
+                                    AppError::Validation("\nInvalid Name input.".to_string())
+                                );
+
                                 continue 'add_contact;
                             }
 
@@ -43,7 +53,11 @@ fn main() {
                             let phone = cli::get_input();
 
                             if !validate_number(&phone) {
-                                println!("\nInvalid Number input.");
+                                eprintln!(
+                                    "{}",
+                                    AppError::Validation("\nInvalid Number input.".to_string())
+                                );
+
                                 continue 'add_contact;
                             }
 
@@ -52,7 +66,11 @@ fn main() {
                             let email = cli::get_input();
 
                             if !validate_email(&email) {
-                                println!("\nInvalid email input.");
+                                eprintln!(
+                                    "{}",
+                                    AppError::Validation("\nInvalid email input.".to_string())
+                                );
+
                                 continue 'add_contact;
                             }
 
@@ -69,7 +87,9 @@ fn main() {
                                 "add this contact to your contact list \n{}\n",
                                 cli::display_contact(&new_contact)
                             );
-                            cli::confirm_action(&message);
+                            if let Err(e) = cli::confirm_action(&message) {
+                                eprintln!("{}", e);
+                            }
 
                             let consent = cli::get_input_to_lower();
                             if consent != 'y'.to_string() {
@@ -150,7 +170,9 @@ fn main() {
                                             )
                                         );
 
-                                        cli::confirm_action(&message);
+                                        if let Err(e) = cli::confirm_action(&message) {
+                                            eprintln!("{}", e);
+                                        }
 
                                         let consent = cli::get_input_to_lower();
                                         if consent != 'y'.to_string() {
@@ -169,7 +191,9 @@ fn main() {
                                             "delete this contact from your contact list \n{}\n",
                                             cli::display_contact(&contact_list[indices[0]])
                                         );
-                                        cli::confirm_action(&message);
+                                        if let Err(e) = cli::confirm_action(&message) {
+                                            eprintln!("{}", e);
+                                        }
 
                                         let consent = cli::get_input_to_lower();
                                         if consent != 'y'.to_string() {
