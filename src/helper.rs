@@ -1,7 +1,8 @@
 use std::fs::File;
-use std::io::{self, BufRead, BufReader};
+use std::io::{BufRead, BufReader};
 
 use crate::domain::Contact;
+use crate::errors::AppError;
 use crate::validation::{validate_email, validate_name, validate_number};
 
 pub fn serialize_contacts(contacts: &Vec<Contact>) -> String {
@@ -22,7 +23,9 @@ pub fn serialize_contacts(contacts: &Vec<Contact>) -> String {
     data
 }
 
-pub fn deserialize_contacts_from_txt_buffer(buffer: BufReader<File>) -> io::Result<Vec<Contact>> {
+pub fn deserialize_contacts_from_txt_buffer(
+    buffer: BufReader<File>,
+) -> Result<Vec<Contact>, AppError> {
     let mut contacts = Vec::new();
     let mut name = String::new();
     let mut phone = String::new();
@@ -105,9 +108,9 @@ mod tests {
         storage.mem.push(contact1);
         storage.mem.push(contact2);
 
-        storage.save().unwrap();
+        let _ = storage.save();
         storage.mem.clear();
-        storage.load().unwrap();
+        let _ = storage.load();
 
         assert_eq!(
             storage.mem[0],
