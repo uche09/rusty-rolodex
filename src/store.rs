@@ -14,23 +14,26 @@ pub struct Store {
 }
 
 impl Store {
-    pub fn new() -> Self {
-        Store::create_file_parent();
-        let file = File::create(FILE_PATH).unwrap();
-        Store {
-            mem: Vec::new(),
-            file,
-        }
+    pub fn new() -> Result<Self, AppError> {
+        Store::create_file_parent()?;
+        let file = File::create(FILE_PATH)?;
+        Ok(
+            Store {
+                mem: Vec::new(),
+                file,
+            }
+        )
     }
 
-    fn create_file_parent() {
+    fn create_file_parent() -> Result<(), AppError> {
         let path = Path::new(FILE_PATH);
 
         if let Some(parent) = path.parent() {
             if !parent.exists() {
-                fs::create_dir_all(parent).unwrap();
+                fs::create_dir_all(parent)?;
             }
         }
+        Ok(())
     }
 }
 

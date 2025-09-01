@@ -22,10 +22,12 @@ pub struct Storage {
 }
 
 impl Storage {
-    pub fn new() -> Self {
-        Storage {
-            store: Store::new(),
-        }
+    pub fn new() -> Result<Storage, AppError> {
+        Ok(
+            Storage {
+                store: Store::new()?,
+            }
+        )
     }
 
     pub fn add_contact(&mut self, contact: Contact) {
@@ -36,12 +38,12 @@ impl Storage {
         &self.store.mem
     }
 
-    pub fn delete_contact(&mut self, index: usize) -> Result<(), String> {
+    pub fn delete_contact(&mut self, index: usize) -> Result<(), AppError> {
         if index < self.store.mem.len() {
             self.store.mem.remove(index);
             Ok(())
         } else {
-            Err("No found".to_string())
+            Err(AppError::NotFound("Contact".to_string()))
         }
     }
 

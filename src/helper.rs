@@ -90,8 +90,8 @@ mod tests {
     }
 
     #[test]
-    fn check_deserialization_from_file() {
-        let mut storage = Store::new();
+    fn check_deserialization_from_file() -> Result<(), AppError> {
+        let mut storage = Store::new()?;
 
         let contact1 = Contact {
             name: "Uche".to_string(),
@@ -121,13 +121,15 @@ mod tests {
             }
         );
 
-        assert_eq!(
-            storage.mem[1],
-            Contact {
-                name: "Mom".to_string(),
-                phone: "98765432109".to_string(),
-                email: "ucheuche@gmail.com".to_string(),
-            }
+        Ok(
+            assert_eq!(
+                storage.mem[1],
+                Contact {
+                    name: "Mom".to_string(),
+                    phone: "98765432109".to_string(),
+                    email: "ucheuche@gmail.com".to_string(),
+                }
+            )
         )
     }
 }

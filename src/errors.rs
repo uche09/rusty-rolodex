@@ -3,6 +3,7 @@ use core::fmt;
 #[derive(Debug)]
 pub enum AppError {
     Io(std::io::Error),
+    NotFound(String),
     ParseCommand(String),
     ParseInt(std::num::ParseIntError),
     Validation(String),
@@ -25,6 +26,9 @@ impl fmt::Display for AppError {
         match self {
             AppError::Io(e) => {
                 write!(f, "I/O error while accessing a file or resource: {}", e)
+            }
+            AppError::NotFound(item) => {
+                write!(f, "{} Not found", item)
             }
             AppError::ParseCommand(cmd) => {
                 write!(f, "Unrecognized command: '{}'", cmd)

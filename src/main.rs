@@ -13,8 +13,8 @@ use crate::errors::AppError;
 use crate::store::ContactStore;
 use crate::validation::{contact_exist, validate_email, validate_name, validate_number};
 
-fn main() {
-    let mut storage = Storage::new();
+fn main() -> Result<(), AppError>{
+    let mut storage = Storage::new()?;
 
     // In case of error
     if let Err(e) = storage.load() {
@@ -152,7 +152,7 @@ fn main() {
                                             match_count += 1;
                                         }
                                         print!("> ");
-                                        io::stdout().flush().unwrap();
+                                        io::stdout().flush()?;
 
                                         let selected = cli::get_input_as_int();
                                         let selected = selected.unwrap_or(0);
@@ -172,6 +172,7 @@ fn main() {
 
                                         if let Err(e) = cli::confirm_action(&message) {
                                             eprintln!("{}", e);
+                                            break 'delete_contact
                                         }
 
                                         let consent = cli::get_input_to_lower();
@@ -179,10 +180,17 @@ fn main() {
                                             continue 'outerloop;
                                         }
 
-                                        let _ = storage
-                                            .delete_contact(indices[selected as usize - 1_usize]);
-                                        println!("Contact deleted successfully!");
-                                        break 'delete_contact;
+                                        match storage.delete_contact(indices[selected as usize - 1_usize]){
+                                            Ok(_) => {
+                                                println!("Contact deleted successfully!");
+                                                break 'delete_contact;
+                                            }
+                                            Err(e) => {
+                                                eprintln!("{}", e);
+                                                break 'delete_contact;
+                                            }
+                                        }
+
                                     } else {
                                         // Handle single single contact match
 
