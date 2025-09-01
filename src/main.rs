@@ -222,15 +222,23 @@ fn main() -> Result<(), AppError>{
                         }
                     }
                     Command::Exit => {
-                        let _ = storage.save();
-                        println!("\nBye!");
-                        exit(0);
+                        match storage.save() {
+                            Ok(_) => {
+                                println!("\nBye!");
+                                exit(0);
+                            }
+                            Err(e) => {
+                                eprintln!("{}", e);
+                                continue 'outerloop
+                            }
+                        }
+                        
                     }
                 }
             }
             Err(message) => {
                 // User entered invalid command
-                println!("{}", message);
+                eprintln!("{}", message);
                 continue 'outerloop;
             }
         }

@@ -1,7 +1,7 @@
 use crate::domain::Contact;
 use crate::errors::AppError;
 use crate::helper;
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{BufReader, Write};
 use std::path::Path;
 
@@ -16,7 +16,14 @@ pub struct Store {
 impl Store {
     pub fn new() -> Result<Self, AppError> {
         Store::create_file_parent()?;
-        let file = File::create(FILE_PATH)?;
+
+        // Now using OpenOptions to open file if already exist
+        // Or create one
+        let file = OpenOptions::new()
+        .read(true)   // READ from file during instanciation
+        .write(true)
+        .create(true)
+        .open(FILE_PATH)?;
         Ok(
             Store {
                 mem: Vec::new(),
@@ -54,6 +61,11 @@ impl ContactStore for Store {
     }
 
     fn save(&mut self) -> Result<(), AppError> {
+        self.file = OpenOptions::new()
+        .write(true)   // WRITE to file on save
+        .truncate(true)
+        .open(FILE_PATH)?;
+    
         let data = helper::serialize_contacts(&self.mem);
         self.file.write_all(data.as_bytes())?;
 
