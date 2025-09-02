@@ -8,6 +8,7 @@ mod validation;
 use std::io::{self, Write};
 use std::process::exit;
 
+use crate::cli::get_input;
 use crate::domain::{Command, Contact, Storage};
 use crate::errors::AppError;
 use crate::store::ContactStore;
@@ -32,46 +33,36 @@ fn main() -> Result<(), AppError> {
                     Command::AddContact => {
                         'add_contact: loop {
                             // Get contact name
-                            println!("\nEnter contact name \n* to go back: ");
-                            let name = cli::get_input();
+                            let name = cli::retry(
+                                "Enter contact name",
+                                cli::get_input,
+                                Some(validate_name),
+                            );
 
                             if name == '*'.to_string() {
                                 continue 'outerloop;
                             }
 
-                            if !validate_name(&name) {
-                                eprintln!(
-                                    "{}",
-                                    AppError::Validation("\nInvalid Name input.".to_string())
-                                );
-
-                                continue 'add_contact;
-                            }
-
                             // Get contact number
-                            println!("\nEnter contact number:");
-                            let phone = cli::get_input();
+                            let phone = cli::retry(
+                                "Enter contact number",
+                                get_input,
+                                Some(validate_number),
+                            );
 
-                            if !validate_number(&phone) {
-                                eprintln!(
-                                    "{}",
-                                    AppError::Validation("\nInvalid Number input.".to_string())
-                                );
-
-                                continue 'add_contact;
+                            if phone == '*'.to_string() {
+                                continue 'outerloop;
                             }
 
                             // Get contact email
-                            println!("\nEnter contact email.");
-                            let email = cli::get_input();
+                            let email = cli::retry(
+                                "Enter contact email address",
+                                get_input,
+                                Some(validate_email),
+                            );
 
-                            if !validate_email(&email) {
-                                eprintln!(
-                                    "{}",
-                                    AppError::Validation("\nInvalid email input.".to_string())
-                                );
-
-                                continue 'add_contact;
+                            if email == '*'.to_string() {
+                                continue 'outerloop;
                             }
 
                             // Create a contact
@@ -91,7 +82,11 @@ fn main() -> Result<(), AppError> {
                                 eprintln!("{}", e);
                             }
 
-                            let consent = cli::get_input_to_lower();
+                            let consent = cli::retry(
+                                "",
+                                cli::get_input_to_lower,
+                                None::<fn(&String) -> bool>,
+                            );
                             if consent != 'y'.to_string() {
                                 continue 'outerloop;
                             }
@@ -118,8 +113,11 @@ fn main() -> Result<(), AppError> {
                     Command::DeleteContact => {
                         'delete_contact: loop {
                             // Search contact by name
-                            println!("Search contact by name to DELETE or * to go back");
-                            let name = cli::get_input();
+                            let name = cli::retry(
+                                "Search contact by name to DELETE",
+                                cli::get_input,
+                                None::<fn(&String) -> bool>,
+                            );
 
                             if name == '*'.to_string() {
                                 continue 'outerloop;
@@ -175,7 +173,11 @@ fn main() -> Result<(), AppError> {
                                             break 'delete_contact;
                                         }
 
-                                        let consent = cli::get_input_to_lower();
+                                        let consent = cli::retry(
+                                            "",
+                                            cli::get_input_to_lower,
+                                            None::<fn(&String) -> bool>,
+                                        );
                                         if consent != 'y'.to_string() {
                                             continue 'outerloop;
                                         }
@@ -204,7 +206,11 @@ fn main() -> Result<(), AppError> {
                                             eprintln!("{}", e);
                                         }
 
-                                        let consent = cli::get_input_to_lower();
+                                        let consent = cli::retry(
+                                            "",
+                                            cli::get_input_to_lower,
+                                            None::<fn(&String) -> bool>,
+                                        );
                                         if consent != 'y'.to_string() {
                                             continue 'outerloop;
                                         }

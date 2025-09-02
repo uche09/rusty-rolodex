@@ -1,18 +1,18 @@
 use crate::domain::Contact;
 
-pub fn validate_name(name: &str) -> bool {
+pub fn validate_name(name: &String) -> bool {
     // Must be alphabetic and non-empty
     // Name may contain spaces between alphabets
     name.chars().count() > 0 && name.chars().all(|c| c.is_alphabetic() || c.is_whitespace())
 }
 
-pub fn validate_number(phone: &str) -> bool {
+pub fn validate_number(phone: &String) -> bool {
     // Must be at least 10 digits
     // Must contain only digits
     phone.chars().count() >= 10 && phone.chars().all(|c| c.is_ascii_digit())
 }
 
-pub fn validate_email(email: &str) -> bool {
+pub fn validate_email(email: &String) -> bool {
     // Email can be empty
     // Or email must contain '@' char and contain '.' char after
     email.chars().count() < 1

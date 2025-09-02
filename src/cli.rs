@@ -1,9 +1,6 @@
 use crate::domain::{Command, Contact};
 use crate::errors::AppError;
-use std::{
-    io::{self, Write},
-    num::ParseIntError,
-};
+use std::io::{self, Write};
 
 // OUTPUT FUNCTIONS
 pub fn parse_command_from_menu() -> Result<Command, AppError> {
@@ -15,7 +12,10 @@ pub fn parse_command_from_menu() -> Result<Command, AppError> {
     print!("> ");
     io::stdout().flush()?;
 
-    let action = get_input();
+    let action = match get_input() {
+        Ok(input) => input,
+        Err(e) => e.to_string(),
+    };
 
     match action.as_str() {
         "1" => Ok(Command::AddContact),
@@ -44,25 +44,58 @@ pub fn display_contact(contact: &Contact) -> String {
 }
 
 // INPUT FUNCTIONS
-pub fn get_input() -> String {
+pub fn get_input() -> Result<String, AppError> {
     let mut input = String::new();
-    io::stdin()
-        .read_line(&mut input)
-        .expect("Failed to read line");
-    input.trim().to_string()
+    io::stdin().read_line(&mut input)?;
+    Ok(input.trim().to_string())
 }
 
-pub fn get_input_to_lower() -> String {
+pub fn get_input_to_lower() -> Result<String, AppError> {
     let mut input = String::new();
-    io::stdin()
-        .read_line(&mut input)
-        .expect("Failed to read line");
-    input.trim().to_string().to_lowercase()
+    io::stdin().read_line(&mut input)?;
+    Ok(input.trim().to_string().to_lowercase())
 }
 
-pub fn get_input_as_int() -> Result<i32, ParseIntError> {
+pub fn get_input_as_int() -> Result<i32, AppError> {
     let mut value: String = String::new();
-    io::stdin().read_line(&mut value).expect("Input failed");
+    io::stdin().read_line(&mut value)?;
 
-    value.trim().parse::<i32>()
+    Ok(value.trim().parse::<i32>()?)
+}
+
+pub fn retry<F, T, V>(prompt: &str, f: F, valid: Option<V>) -> T
+where
+    F: Fn() -> Result<T, AppError>,
+    V: Fn(&T) -> bool,
+    T: PartialEq<String>,
+{
+    'input: loop {
+        println!("\n{} \n* to go back: ", prompt);
+        let input = f();
+
+        // Check if input function returned error else destructure
+        let input = match input {
+            Ok(data) => data,
+            Err(e) => {
+                eprintln!("{e}");
+                continue;
+            }
+        };
+
+        if input == "*".to_string() {
+            break 'input input; // return value from loop
+        }
+
+        // validate input
+        if let Some(ref validator) = valid {
+            if !validator(&input) {
+                eprintln!("{}", AppError::Validation("\nInvalid input.".to_string()));
+
+                continue;
+            }
+
+            break 'input input; // return value from loop
+        }
+        break 'input input; // return value from loop
+    }
 }
