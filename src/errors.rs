@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn confirm_validation_error() {
-        if !validate_number("abc") {
+        if !validate_number(&"abc".to_string()) {
             let err = AppError::Validation("\nInvalid Number input.".to_string());
 
             assert_eq!(

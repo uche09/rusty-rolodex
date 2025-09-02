@@ -47,13 +47,13 @@ pub fn deserialize_contacts_from_txt_buffer(
             };
             contacts.push(contact);
             continue;
-        } else if validate_number(line) {
+        } else if validate_number(&line.to_string()) {
             phone = line.to_string();
             continue;
-        } else if validate_email(line) {
+        } else if validate_email(&line.to_string()) {
             email = line.to_string();
             continue;
-        } else if validate_name(line) {
+        } else if validate_name(&line.to_string()) {
             name = line.to_string();
             continue;
         }
