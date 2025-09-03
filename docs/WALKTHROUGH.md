@@ -11,6 +11,14 @@
     - [Validation (validation.rs)](#7-validation-validationrs)
     - [Verification & Test](#8-verification--test)
 
+* [**Week 2 Walkthrough**](#rusty-rolodex---week-2-walkthrough)
+    - [Persistent Memory](#persistent-memory)
+    - [GitHub Workflow](#github-workflow)
+    - [Custom Error Message](#custom-error-message)
+    - [Test](#test)
+    - [Generic function](#generic-function)
+    - [Demo](#demo-week-2)
+
 
 
 
@@ -361,6 +369,52 @@ git commit -m "<message>"
 git push
 ```
 `git push` command required me to input my github username and password (Personal access token) to complete execution.
+
+
+
+## Rusty Rolodex - Week 2 Walkthrough
+
+### Persistent Memory
++ I was able to allow application save contacts in a persistent memory (.txt file), enabling application to retain contacts even after exiting.  
++ The file .txt file is stored in .instance folder delibrately to "protect" storage file from less technical curious users and prevent uninteded data loss.  
++ Contact data is formated and 'in' and 'out' by `helper::serialize_contacts()` and `helper::deserialize_contacts_from_txt_buffer()` respectively to prevent format errors, as current project specification at the time this version was implemented disallow the use of external crates.
++ Contact data is read into the program immediately the program starts, and stored back when the program is exited. This is to prevent I/O delay overhead during program execution if contact data grows.
+
+![project interaction screenshots](./media/rolodex-persistence.png)
+![project interaction screenshots](./media/rolodex-persistence2.png)
+![project interaction screenshots](./media/rolodex-persistence3.png)
+
+
+### GitHub Workflow
+I was able to integrate GitHub worflow for continuous integration. The `ci.yml` file does the following job:
+* On Pull Request
+    + Sets up ubuntu environment for workflow server.
+    + Sets up environment with the `actions/checkout@v4`
+    + Sets up rust environment using the `moonrepo/setup-rust@v1`
+    + Install rust version 1.8 with toolchain
+    + Run code checker and format correction with `cargo clippy` and `cargo fmt`.
+    + Run project tests `cargo test` to ensure new changes passes all tests.
+    + Build project with --release optimization.
+
+![CI screenshot](./media/rolodex-CI-v2.png)
+
+### Custom Error Message
+I create an `enum AppError` and implemented the `From` trait and display trait on the variants to map and display errors like IO errors, invalid input, wrong command in a unified user friendly manner.
+
+### Test
+I created unit test to test application functionalities such as:
+* Memory persistency.
+* Adding contact.
+* Removing contact.
+* Serialization and Deserialization of contact data to persistent file storage.
+* AppError parsing and message.
+
+### Generic function
+I created a generic function `cli::retry<F, T, V>() -> T` that accepts input functions validate and returns value from the users input to reduce duplicated input logic.
+
+
+### Demo week 2
+![Demo GIF](./media/rolodex-demoV2.gif)
 
 
 

@@ -57,3 +57,13 @@ Removed: For deprecated or removed features.
         - `validate_email()`
         - `contact_exist()`
 - Documentation
+
+
+## v0.1-week-2 (2-09-2025)
+
+### Added
+- Allow memory persistency by storing contact in .txt file.
+- GitHub workflow to test branch on PR.
+- Custom error messages with `enum AppError` for a unified custom Error handling.
+- Tests features.
+- Generic function to reduce duplicate input logic.
