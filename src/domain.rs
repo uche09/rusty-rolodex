@@ -1,9 +1,10 @@
 use crate::{
     errors::AppError,
-    store::{ContactStore, Store},
+    store::{FileStore, MemStore},
 };
+// use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Contact {
     pub name: String,
     pub phone: String,
@@ -18,27 +19,29 @@ pub enum Command {
 }
 
 pub struct Storage {
-    store: Store,
+    pub file_store: FileStore,
+    pub mem_store: MemStore,
 }
 
 impl Storage {
-    pub fn new() -> Result<Storage, AppError> {
+    pub fn new(path: &str) -> Result<Storage, AppError> {
         Ok(Storage {
-            store: Store::new()?,
+            file_store: FileStore::new(path)?,
+            mem_store: MemStore::new(),
         })
     }
 
     pub fn add_contact(&mut self, contact: Contact) {
-        self.store.mem.push(contact);
+        self.mem_store.data.push(contact);
     }
 
     pub fn contact_list(&self) -> &Vec<Contact> {
-        &self.store.mem
+        &self.mem_store.data
     }
 
     pub fn delete_contact(&mut self, index: usize) -> Result<(), AppError> {
-        if index < self.store.mem.len() {
-            self.store.mem.remove(index);
+        if index < self.mem_store.data.len() {
+            self.mem_store.data.remove(index);
             Ok(())
         } else {
             Err(AppError::NotFound("Contact".to_string()))
@@ -60,23 +63,15 @@ impl Storage {
     }
 }
 
-impl ContactStore for Storage {
-    fn load(&mut self) -> Result<(), AppError> {
-        self.store.load()
-    }
-
-    fn save(&mut self) -> Result<(), AppError> {
-        self.store.save()
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::store::ContactStore;
+
     use super::*;
 
     #[test]
     fn adds_persistent_contact() -> Result<(), AppError> {
-        let mut storage = Storage::new()?;
+        let mut storage = Storage::new("./.instance/contacts.txt")?;
 
         let new_contact = Contact {
             name: "Uche".to_string(),
@@ -85,9 +80,9 @@ mod tests {
         };
 
         storage.add_contact(new_contact);
-        storage.save()?;
-        storage.store.mem.clear();
-        storage.load()?;
+        storage.file_store.save(&storage.mem_store.data)?;
+        storage.mem_store.data.clear();
+        storage.mem_store.data = storage.file_store.load()?;
 
         assert_eq!(
             storage.contact_list()[0],
@@ -102,7 +97,7 @@ mod tests {
 
     #[test]
     fn delete_persistent_contact() -> Result<(), AppError> {
-        let mut storage = Storage::new()?;
+        let mut storage = Storage::new("./.instance/contacts.txt")?;
 
         let contact1 = Contact {
             name: "Uche".to_string(),
@@ -119,17 +114,17 @@ mod tests {
         storage.add_contact(contact1);
         storage.add_contact(contact2);
 
-        storage.save()?;
-        storage.store.mem.clear();
+        storage.file_store.save(&storage.mem_store.data)?;
+        storage.mem_store.data.clear();
 
-        storage.load()?;
+        storage.mem_store.data = storage.file_store.load()?;
         storage.delete_contact(0)?;
-        storage.save()?;
+        storage.file_store.save(&storage.mem_store.data)?;
 
-        storage.store.mem.clear();
-        storage.load()?;
+        storage.mem_store.data.clear();
+        storage.mem_store.data = storage.file_store.load()?;
 
-        assert_eq!(storage.store.mem.len(), 1);
+        assert_eq!(storage.mem_store.data.len(), 1);
 
         assert_ne!(
             storage.contact_list()[0],

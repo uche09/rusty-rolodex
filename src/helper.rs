@@ -64,7 +64,8 @@ pub fn deserialize_contacts_from_txt_buffer(
 
 #[cfg(test)]
 mod tests {
-    use crate::store::{ContactStore, Store};
+    use crate::domain::Storage;
+    use crate::store::ContactStore;
 
     use super::*;
 
@@ -91,7 +92,7 @@ mod tests {
 
     #[test]
     fn check_deserialization_from_file() -> Result<(), AppError> {
-        let mut storage = Store::new()?;
+        let mut storage = Storage::new("./.instance/contacts.txt")?;
 
         let contact1 = Contact {
             name: "Uche".to_string(),
@@ -105,15 +106,15 @@ mod tests {
             email: "ucheuche@gmail.com".to_string(),
         };
 
-        storage.mem.push(contact1);
-        storage.mem.push(contact2);
+        storage.mem_store.data.push(contact1);
+        storage.mem_store.data.push(contact2);
 
-        let _ = storage.save();
-        storage.mem.clear();
-        let _ = storage.load();
+        storage.file_store.save(&storage.mem_store.data)?;
+        storage.mem_store.data.clear();
+        storage.mem_store.data = storage.file_store.load()?;
 
         assert_eq!(
-            storage.mem[0],
+            storage.mem_store.data[0],
             Contact {
                 name: "Uche".to_string(),
                 phone: "012345678901".to_string(),
@@ -122,7 +123,7 @@ mod tests {
         );
 
         Ok(assert_eq!(
-            storage.mem[1],
+            storage.mem_store.data[1],
             Contact {
                 name: "Mom".to_string(),
                 phone: "98765432109".to_string(),

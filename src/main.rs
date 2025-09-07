@@ -15,12 +15,16 @@ use crate::store::ContactStore;
 use crate::validation::{contact_exist, validate_email, validate_name, validate_number};
 
 fn main() -> Result<(), AppError> {
-    let mut storage = Storage::new()?;
+    let mut storage = Storage::new("./.instance/contacts.txt")?;
 
     // In case of error
-    if let Err(e) = storage.load() {
-        eprintln!("Unable to load contacts {}", e);
-    }
+    storage.mem_store.data = match storage.file_store.load() {
+        Ok(contacts) => contacts,
+        Err(e) => {
+            eprintln!("Unable to load contacts {}", e);
+            Vec::new()
+        }
+    };
 
     println!("\n\n--- Contact BOOK ---\n");
 
@@ -228,7 +232,7 @@ fn main() -> Result<(), AppError> {
                             }
                         }
                     }
-                    Command::Exit => match storage.save() {
+                    Command::Exit => match storage.file_store.save(&storage.mem_store.data) {
                         Ok(_) => {
                             println!("\nBye!");
                             exit(0);

@@ -1,38 +1,31 @@
 use crate::domain::Contact;
 use crate::errors::AppError;
 use crate::helper;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::{BufReader, Write};
 use std::path::Path;
 
-pub const FILE_PATH: &str = "./.instance/contacts.txt";
+// pub const FILE_PATH: &str = "./.instance/contacts.txt";
 
-#[allow(unused)]
-pub struct Store {
-    pub mem: Vec<Contact>,
-    pub file: File,
+pub struct FileStore {
+    path: String,
 }
 
-impl Store {
-    pub fn new() -> Result<Self, AppError> {
-        Store::create_file_parent()?;
+pub struct MemStore {
+    pub data: Vec<Contact>,
+}
 
-        // Now using OpenOptions to open file if already exist
-        // Or create one
-        let file = OpenOptions::new()
-            .read(true) // READ from file during instanciation
-            .write(true)
-            .truncate(false)
-            .create(true)
-            .open(FILE_PATH)?;
-        Ok(Store {
-            mem: Vec::new(),
-            file,
+impl FileStore {
+    pub fn new(path: &str) -> Result<Self, AppError> {
+        FileStore::create_file_parent(path)?;
+
+        Ok(FileStore {
+            path: path.to_string(),
         })
     }
 
-    fn create_file_parent() -> Result<(), AppError> {
-        let path = Path::new(FILE_PATH);
+    fn create_file_parent(path: &str) -> Result<(), AppError> {
+        let path = Path::new(path);
 
         if let Some(parent) = path.parent() {
             if !parent.exists() {
@@ -44,30 +37,52 @@ impl Store {
 }
 
 pub trait ContactStore {
-    fn load(&mut self) -> Result<(), AppError>;
+    fn load(&self) -> Result<Vec<Contact>, AppError>;
 
-    fn save(&mut self) -> Result<(), AppError>;
+    fn save(&self, contacts: &Vec<Contact>) -> Result<(), AppError>;
 }
 
-impl ContactStore for Store {
-    fn load(&mut self) -> Result<(), AppError> {
+impl ContactStore for FileStore {
+    fn load(&self) -> Result<Vec<Contact>, AppError> {
         // Read text from file
-        let file = File::open(FILE_PATH)?;
+        // Using OpenOptions to open file if already exist
+        // Or create one
+        let file = OpenOptions::new()
+            .read(true) 
+            .write(true)
+            .truncate(false)
+            .create(true)
+            .open(&self.path)?;
         let reader = BufReader::new(file);
         let contacts = helper::deserialize_contacts_from_txt_buffer(reader)?;
-        self.mem = contacts;
-        Ok(())
+        Ok(contacts)
     }
 
-    fn save(&mut self) -> Result<(), AppError> {
-        self.file = OpenOptions::new()
+    fn save(&self, contacts: &Vec<Contact>) -> Result<(), AppError> {
+        let mut file = OpenOptions::new()
             .write(true) // WRITE to file on save
             .truncate(true)
-            .open(FILE_PATH)?;
+            .open(&self.path)?;
 
-        let data = helper::serialize_contacts(&self.mem);
-        self.file.write_all(data.as_bytes())?;
+        let data = helper::serialize_contacts(contacts);
+        file.write_all(data.as_bytes())?;
 
+        Ok(())
+    }
+}
+
+impl MemStore {
+    pub fn new() -> Self {
+        Self { data: Vec::new() }
+    }
+}
+
+impl ContactStore for MemStore {
+    fn load(&self) -> Result<Vec<Contact>, AppError> {
+        Ok(self.data.clone())
+    }
+
+    fn save(&self, _contacts: &Vec<Contact>) -> Result<(), AppError> {
         Ok(())
     }
 }
