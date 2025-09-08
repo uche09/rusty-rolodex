@@ -48,7 +48,7 @@ impl ContactStore for FileStore {
         // Using OpenOptions to open file if already exist
         // Or create one
         let file = OpenOptions::new()
-            .read(true) 
+            .read(true)
             .write(true)
             .truncate(false)
             .create(true)

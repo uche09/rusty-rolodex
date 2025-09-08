@@ -89,7 +89,7 @@ fn main() -> Result<(), AppError> {
                             let consent = cli::retry(
                                 "",
                                 cli::get_input_to_lower,
-                                None::<fn(&String) -> bool>,
+                                None::<fn(&String) -> Result<bool, AppError>>,
                             );
                             if consent != 'y'.to_string() {
                                 continue 'outerloop;
@@ -120,7 +120,7 @@ fn main() -> Result<(), AppError> {
                             let name = cli::retry(
                                 "Search contact by name to DELETE",
                                 cli::get_input,
-                                None::<fn(&String) -> bool>,
+                                None::<fn(&String) -> Result<bool, AppError>>,
                             );
 
                             if name == '*'.to_string() {
@@ -180,7 +180,7 @@ fn main() -> Result<(), AppError> {
                                         let consent = cli::retry(
                                             "",
                                             cli::get_input_to_lower,
-                                            None::<fn(&String) -> bool>,
+                                            None::<fn(&String) -> Result<bool, AppError>>,
                                         );
                                         if consent != 'y'.to_string() {
                                             continue 'outerloop;
@@ -213,7 +213,7 @@ fn main() -> Result<(), AppError> {
                                         let consent = cli::retry(
                                             "",
                                             cli::get_input_to_lower,
-                                            None::<fn(&String) -> bool>,
+                                            None::<fn(&String) -> Result<bool, AppError>>,
                                         );
                                         if consent != 'y'.to_string() {
                                             continue 'outerloop;

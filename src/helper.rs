@@ -38,7 +38,9 @@ pub fn deserialize_contacts_from_txt_buffer(
         if line == "{" {
             // Start of a new contact format
             continue;
-        } else if line == "}" {
+        }
+
+        if line == "}" {
             // End of a contact format
             let contact = Contact {
                 name: name.clone(),
@@ -47,15 +49,27 @@ pub fn deserialize_contacts_from_txt_buffer(
             };
             contacts.push(contact);
             continue;
-        } else if validate_number(&line.to_string()) {
-            phone = line.to_string();
-            continue;
-        } else if validate_email(&line.to_string()) {
-            email = line.to_string();
-            continue;
-        } else if validate_name(&line.to_string()) {
-            name = line.to_string();
-            continue;
+        }
+
+        if let Ok(t) = validate_name(&line.to_string()) {
+            if t {
+                name = line.to_string();
+                continue;
+            }
+        }
+
+        if let Ok(t) = validate_number(&line.to_string()) {
+            if t {
+                phone = line.to_string();
+                continue;
+            }
+        }
+
+        if let Ok(t) = validate_email(&line.to_string()) {
+            if t {
+                email = line.to_string();
+                continue;
+            }
         }
     }
 

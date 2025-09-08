@@ -66,7 +66,7 @@ pub fn get_input_as_int() -> Result<i32, AppError> {
 pub fn retry<F, T, V>(prompt: &str, f: F, valid: Option<V>) -> T
 where
     F: Fn() -> Result<T, AppError>,
-    V: Fn(&T) -> bool,
+    V: Fn(&T) -> Result<bool, AppError>,
     T: PartialEq<String>,
 {
     'input: loop {
@@ -88,10 +88,12 @@ where
 
         // validate input
         if let Some(ref validator) = valid {
-            if !validator(&input) {
-                eprintln!("{}", AppError::Validation("\nInvalid input.".to_string()));
+            if let Ok(t) = validator(&input) {
+                if !t {
+                    eprintln!("{}", AppError::Validation("\nInvalid input.".to_string()));
 
-                continue;
+                    continue;
+                }
             }
 
             break 'input input; // return value from loop
