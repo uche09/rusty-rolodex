@@ -66,8 +66,8 @@ pub fn get_input_as_int() -> Result<i32, AppError> {
 pub fn retry<F, T, V>(prompt: &str, f: F, valid: Option<V>) -> T
 where
     F: Fn() -> Result<T, AppError>,
-    V: Fn(&T) -> bool,
-    T: PartialEq<String>,
+    V: Fn(&str) -> Result<bool, AppError>,
+    T: AsRef<str>,
 {
     'input: loop {
         println!("\n{} \n* to go back: ", prompt);
@@ -82,16 +82,18 @@ where
             }
         };
 
-        if input == "*".to_string() {
+        if input.as_ref() == "*" {
             break 'input input; // return value from loop
         }
 
         // validate input
         if let Some(ref validator) = valid {
-            if !validator(&input) {
-                eprintln!("{}", AppError::Validation("\nInvalid input.".to_string()));
+            if let Ok(t) = validator(input.as_ref()) {
+                if !t {
+                    eprintln!("{}", AppError::Validation("\nInvalid input.".to_string()));
 
-                continue;
+                    continue;
+                }
             }
 
             break 'input input; // return value from loop

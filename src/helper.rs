@@ -5,7 +5,7 @@ use crate::domain::Contact;
 use crate::errors::AppError;
 use crate::validation::{validate_email, validate_name, validate_number};
 
-pub fn serialize_contacts(contacts: &Vec<Contact>) -> String {
+pub fn serialize_contacts(contacts: &[Contact]) -> String {
     let mut data = String::new();
 
     for contact in contacts {
@@ -38,7 +38,9 @@ pub fn deserialize_contacts_from_txt_buffer(
         if line == "{" {
             // Start of a new contact format
             continue;
-        } else if line == "}" {
+        }
+
+        if line == "}" {
             // End of a contact format
             let contact = Contact {
                 name: name.clone(),
@@ -47,15 +49,27 @@ pub fn deserialize_contacts_from_txt_buffer(
             };
             contacts.push(contact);
             continue;
-        } else if validate_number(&line.to_string()) {
-            phone = line.to_string();
-            continue;
-        } else if validate_email(&line.to_string()) {
-            email = line.to_string();
-            continue;
-        } else if validate_name(&line.to_string()) {
-            name = line.to_string();
-            continue;
+        }
+
+        if let Ok(t) = validate_name(line) {
+            if t {
+                name = line.to_string();
+                continue;
+            }
+        }
+
+        if let Ok(t) = validate_number(line) {
+            if t {
+                phone = line.to_string();
+                continue;
+            }
+        }
+
+        if let Ok(t) = validate_email(line) {
+            if t {
+                email = line.to_string();
+                continue;
+            }
         }
     }
 
@@ -64,7 +78,8 @@ pub fn deserialize_contacts_from_txt_buffer(
 
 #[cfg(test)]
 mod tests {
-    use crate::store::{ContactStore, Store};
+    use crate::domain::Storage;
+    use crate::store::ContactStore;
 
     use super::*;
 
@@ -90,8 +105,8 @@ mod tests {
     }
 
     #[test]
-    fn check_deserialization_from_file() -> Result<(), AppError> {
-        let mut storage = Store::new()?;
+    fn check_deserialization_from_txt() -> Result<(), AppError> {
+        let mut storage = Storage::new()?;
 
         let contact1 = Contact {
             name: "Uche".to_string(),
@@ -105,15 +120,15 @@ mod tests {
             email: "ucheuche@gmail.com".to_string(),
         };
 
-        storage.mem.push(contact1);
-        storage.mem.push(contact2);
+        storage.mem_store.data.push(contact1);
+        storage.mem_store.data.push(contact2);
 
-        let _ = storage.save();
-        storage.mem.clear();
-        let _ = storage.load();
+        storage.file_store.save(&storage.mem_store.data)?;
+        storage.mem_store.data.clear();
+        storage.mem_store.data = storage.file_store.load()?;
 
         assert_eq!(
-            storage.mem[0],
+            storage.mem_store.data[0],
             Contact {
                 name: "Uche".to_string(),
                 phone: "012345678901".to_string(),
@@ -122,7 +137,7 @@ mod tests {
         );
 
         Ok(assert_eq!(
-            storage.mem[1],
+            storage.mem_store.data[1],
             Contact {
                 name: "Mom".to_string(),
                 phone: "98765432109".to_string(),
