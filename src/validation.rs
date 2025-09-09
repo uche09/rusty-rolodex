@@ -1,27 +1,27 @@
 use crate::{domain::Contact, errors::AppError};
 use regex::Regex;
 
-pub fn validate_name(name: &String) -> Result<bool, AppError> {
+pub fn validate_name(name: &str) -> Result<bool, AppError> {
     // Must begin with alphabet
     // Name may contain spaces, hyphens, and apostrophe between alphabets
     // Name may end with number or alphabet
     let re = Regex::new(r"^[A-Za-z][A-Za-z\s'-]*\w*$")?;
-    Ok(re.is_match(&name))
+    Ok(re.is_match(name))
 }
 
-pub fn validate_number(phone: &String) -> Result<bool, AppError> {
+pub fn validate_number(phone: &str) -> Result<bool, AppError> {
     // Must be between 10 to 15 digits digits
     // Phone number may begin with + signifying a country code
     // Every other character aside the "+" must be a digit.
     let re = Regex::new(r"^\+?\d{10,15}$")?;
-    Ok(re.is_match(&phone))
+    Ok(re.is_match(phone))
 }
 
-pub fn validate_email(email: &String) -> Result<bool, AppError> {
+pub fn validate_email(email: &str) -> Result<bool, AppError> {
     // Email can be empty
     // Or email must contain '@' char and contain '.' char somewhere after after
     let re = Regex::new(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")?;
-    Ok(email.is_empty() || re.is_match(&email))
+    Ok(email.is_empty() || re.is_match(email))
 }
 
 pub fn contact_exist(contact: &Contact, contactlist: &[Contact]) -> bool {
@@ -35,42 +35,37 @@ fn phone_number_matches(phone1: &str, phone2: &str) -> bool {
     let phone1: Vec<char> = phone1.chars().collect();
     let phone2: Vec<char> = phone2.chars().collect();
 
-    let rest_of_phone1: &[char];
-    let rest_of_phone2: &[char];
-
     // Quick exit if number if entire number matches
-    if phone1.len() > 8 {
-        if phone1 == phone2 {
-            return true;
-        }
+    if phone1.len() > 8 && phone1 == phone2 {
+        return true;
     }
 
-    if phone1[0] == '+' {
+    let rest_of_phone1: &[char] = if phone1[0] == '+' {
         // filter country code eg. +234 and collect the rest of phone number
         let [_plus, _code1, _code2, _code3, rest @ ..] = phone1.as_slice() else {
             return false;
         };
 
-        rest_of_phone1 = rest;
+        rest
     } else {
         let [_zero, rest @ ..] = phone1.as_slice() else {
             return false;
         };
-        rest_of_phone1 = rest;
-    }
+        rest
+    };
 
-    if phone2[0] == '+' {
+    let rest_of_phone2: &[char] = if phone2[0] == '+' {
         let [_plus, _code1, _code2, _code3, rest @ ..] = phone2.as_slice() else {
             return false;
         };
 
-        rest_of_phone2 = rest;
+        rest
     } else {
         let [_zero, rest @ ..] = phone2.as_slice() else {
             return false;
         };
-        rest_of_phone2 = rest;
-    }
+        rest
+    };
 
     if rest_of_phone1.is_empty() || rest_of_phone2.is_empty() {
         return false;

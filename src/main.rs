@@ -11,20 +11,13 @@ use std::process::exit;
 use crate::cli::get_input;
 use crate::domain::{Command, Contact, Storage};
 use crate::errors::AppError;
-use crate::store::ContactStore;
+use crate::store::{ContactStore, load_migrated_contact};
 use crate::validation::{contact_exist, validate_email, validate_name, validate_number};
 
 fn main() -> Result<(), AppError> {
-    let mut storage = Storage::new("./.instance/contacts.txt")?;
+    let mut storage = Storage::new()?;
 
-    // In case of error
-    storage.mem_store.data = match storage.file_store.load() {
-        Ok(contacts) => contacts,
-        Err(e) => {
-            eprintln!("Unable to load contacts {}", e);
-            Vec::new()
-        }
-    };
+    storage.mem_store.data = load_migrated_contact(&storage)?;
 
     println!("\n\n--- Contact BOOK ---\n");
 
@@ -89,7 +82,7 @@ fn main() -> Result<(), AppError> {
                             let consent = cli::retry(
                                 "",
                                 cli::get_input_to_lower,
-                                None::<fn(&String) -> Result<bool, AppError>>,
+                                None::<fn(&str) -> Result<bool, AppError>>,
                             );
                             if consent != 'y'.to_string() {
                                 continue 'outerloop;
@@ -120,7 +113,7 @@ fn main() -> Result<(), AppError> {
                             let name = cli::retry(
                                 "Search contact by name to DELETE",
                                 cli::get_input,
-                                None::<fn(&String) -> Result<bool, AppError>>,
+                                None::<fn(&str) -> Result<bool, AppError>>,
                             );
 
                             if name == '*'.to_string() {
@@ -180,10 +173,45 @@ fn main() -> Result<(), AppError> {
                                         let consent = cli::retry(
                                             "",
                                             cli::get_input_to_lower,
-                                            None::<fn(&String) -> Result<bool, AppError>>,
+                                            None::<fn(&str) -> Result<bool, AppError>>,
                                         );
                                         if consent != 'y'.to_string() {
                                             continue 'outerloop;
+                                        }
+
+                                        // if contact exist in txt and contacts are now stored in json or vice versa,
+                                        // Avoid PARTIAL DELETE
+                                        if storage.storage_choice.is_json()
+                                            && storage.file_store.load()?.contains(
+                                                &storage.mem_store.data[selected as usize - 1],
+                                            )
+                                        {
+                                            let contact =
+                                                &storage.mem_store.data[selected as usize - 1];
+                                            let mut txt_contacts = storage.file_store.load()?;
+
+                                            if let Some(contact_index) =
+                                                txt_contacts.iter().position(|cont| cont == contact)
+                                            {
+                                                txt_contacts.remove(contact_index);
+                                                storage.file_store.save(&txt_contacts)?;
+                                            }
+                                        } else if storage.storage_choice.is_txt()
+                                            && storage.json_store.load()?.contains(
+                                                &storage.mem_store.data[selected as usize - 1],
+                                            )
+                                        {
+                                            let contact =
+                                                &storage.mem_store.data[selected as usize - 1];
+                                            let mut json_contacts = storage.json_store.load()?;
+
+                                            if let Some(contact_index) = json_contacts
+                                                .iter()
+                                                .position(|cont| cont == contact)
+                                            {
+                                                json_contacts.remove(contact_index);
+                                            }
+                                            storage.json_store.save(&json_contacts)?;
                                         }
 
                                         match storage
@@ -213,7 +241,7 @@ fn main() -> Result<(), AppError> {
                                         let consent = cli::retry(
                                             "",
                                             cli::get_input_to_lower,
-                                            None::<fn(&String) -> Result<bool, AppError>>,
+                                            None::<fn(&str) -> Result<bool, AppError>>,
                                         );
                                         if consent != 'y'.to_string() {
                                             continue 'outerloop;
@@ -232,16 +260,40 @@ fn main() -> Result<(), AppError> {
                             }
                         }
                     }
-                    Command::Exit => match storage.file_store.save(&storage.mem_store.data) {
-                        Ok(_) => {
+                    Command::Exit => {
+                        if storage.storage_choice.is_mem() {
                             println!("\nBye!");
                             exit(0);
                         }
-                        Err(e) => {
-                            eprintln!("{}", e);
-                            continue 'outerloop;
+
+                        if storage.storage_choice.is_txt() {
+                            match storage.file_store.save(&storage.mem_store.data) {
+                                Ok(_) => {
+                                    println!("\nBye!");
+                                    exit(0);
+                                }
+                                Err(e) => {
+                                    eprintln!("Unable to store contacts '{}'", e);
+                                    println!("\nBye!");
+                                    exit(1);
+                                }
+                            }
                         }
-                    },
+
+                        if storage.storage_choice.is_json() {
+                            match storage.save_json(&storage.mem_store.data) {
+                                Ok(_) => {
+                                    println!("\nBye!");
+                                    exit(0);
+                                }
+                                Err(e) => {
+                                    eprintln!("Unable to store contacts '{}'", e);
+                                    println!("\nBye!");
+                                    exit(1);
+                                }
+                            }
+                        }
+                    }
                 }
             }
             Err(message) => {

@@ -1,9 +1,9 @@
 use core::fmt;
-use regex;
 
 #[derive(Debug)]
 pub enum AppError {
     Io(std::io::Error),
+    JsonPerser(serde_json::Error),
     NotFound(String),
     ParseCommand(String),
     ParseInt(std::num::ParseIntError),
@@ -14,6 +14,12 @@ pub enum AppError {
 impl From<std::io::Error> for AppError {
     fn from(err: std::io::Error) -> Self {
         AppError::Io(err)
+    }
+}
+
+impl From<serde_json::Error> for AppError {
+    fn from(err: serde_json::Error) -> Self {
+        AppError::JsonPerser(err)
     }
 }
 
@@ -34,6 +40,10 @@ impl fmt::Display for AppError {
         match self {
             AppError::Io(e) => {
                 write!(f, "I/O error while accessing a file or resource: {}", e)
+            }
+
+            AppError::JsonPerser(e) => {
+                write!(f, "JSON parser failed '{}'", e)
             }
             AppError::NotFound(item) => {
                 write!(f, "{} Not found", item)

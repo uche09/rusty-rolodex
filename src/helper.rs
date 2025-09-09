@@ -5,7 +5,7 @@ use crate::domain::Contact;
 use crate::errors::AppError;
 use crate::validation::{validate_email, validate_name, validate_number};
 
-pub fn serialize_contacts(contacts: &Vec<Contact>) -> String {
+pub fn serialize_contacts(contacts: &[Contact]) -> String {
     let mut data = String::new();
 
     for contact in contacts {
@@ -51,21 +51,21 @@ pub fn deserialize_contacts_from_txt_buffer(
             continue;
         }
 
-        if let Ok(t) = validate_name(&line.to_string()) {
+        if let Ok(t) = validate_name(line) {
             if t {
                 name = line.to_string();
                 continue;
             }
         }
 
-        if let Ok(t) = validate_number(&line.to_string()) {
+        if let Ok(t) = validate_number(line) {
             if t {
                 phone = line.to_string();
                 continue;
             }
         }
 
-        if let Ok(t) = validate_email(&line.to_string()) {
+        if let Ok(t) = validate_email(line) {
             if t {
                 email = line.to_string();
                 continue;
@@ -105,8 +105,8 @@ mod tests {
     }
 
     #[test]
-    fn check_deserialization_from_file() -> Result<(), AppError> {
-        let mut storage = Storage::new("./.instance/contacts.txt")?;
+    fn check_deserialization_from_txt() -> Result<(), AppError> {
+        let mut storage = Storage::new()?;
 
         let contact1 = Contact {
             name: "Uche".to_string(),
