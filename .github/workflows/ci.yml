@@ -10,19 +10,14 @@ jobs:
     CI:
         runs-on: ubuntu-latest
 
-        strategy:
-            matrix:
-                rust-version: [1.8]
-
-
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v3
 
 
             - name: Set up rust environment 
-              uses: moonrepo/setup-rust@v1
+              uses: actions-rs/toolchain@v1
               with:
-                toolchain: ${{ matrix.rust-version }}
+                toolchain: stable
 
             
             - name: Run Code checker (clippy) and Format correction
@@ -31,7 +26,7 @@ jobs:
                 cargo fmt
             
             - name: Run Test
-              run: cargo test
+              run: cargo test -- --test-threads=1
 
             - name: Compile code with Optimization
               run: cargo build --release

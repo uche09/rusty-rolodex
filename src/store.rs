@@ -163,6 +163,7 @@ mod tests {
     #[test]
     fn migrates_contact() -> Result<(), AppError> {
         let mut storage = Storage::new()?;
+        storage.mem_store.data.clear();
 
         let contact1 = Contact {
             name: "Uche".to_string(),
@@ -186,17 +187,26 @@ mod tests {
 
         storage.mem_store.data = load_migrated_contact(&storage)?;
 
-        assert!(
-            storage.contact_list().contains(&Contact {
+        assert!(storage.mem_store.data.len() == 2);
+
+        assert_eq!(
+            storage.contact_list()[1], Contact {
                 name: "Uche".to_string(),
                 phone: "01234567890".to_string(),
                 email: "ucheuche@gmail.com".to_string(),
-            }) && storage.contact_list().contains(&Contact {
+            }
+        );
+            
+        assert_eq!(
+            storage.contact_list()[0], Contact {
                 name: "Alex".to_string(),
                 phone: "+44731484372".to_string(),
                 email: "".to_string(),
-            })
+            }
         );
+
+        storage.mem_store.data.clear();
+        storage.save()?;
 
         Ok(())
     }
