@@ -348,7 +348,11 @@ mod tests {
 
         storage.mem_store.data = load_migrated_contact(&storage)?;
 
-        storage.delete_contact(0)?;
+        let index = storage.get_indices_by_name(&"Uche".to_string()).unwrap_or_default();
+
+        assert!(!index.is_empty());
+
+        storage.delete_contact(index[0])?;
         storage.save()?;
 
         storage.mem_store.data.clear();

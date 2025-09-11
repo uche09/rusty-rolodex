@@ -419,4 +419,35 @@ I created a generic function `cli::retry<F, T, V>() -> T` that accepts input fun
 
 
 
+## Rusty Rolodex - Week 3 Walkthrough
+
+### Regex
++ I was able to reinforce my input validation with Regular-expression (Regex) pattern.
+
+### Number Match
++ I was able to implement `validation::phone_number_matches()` to match phone numbers with or without country code eg +234123456789 and 0123456789 will match.
+
+### JSON Persistence
++ I was able to implement `struct JsonStore` to parse and store contact in json format using the `serde` crate.
+
+### Environment variable for storage choice
++ According to project specification, I implemented program to accept and switch between user prefered storage type either just memory, as text file or in JSON format (mem, txt, json).
+
+### Data Migration
++ I implemented program to migrate stored data (contacts) from initial to current storage type whenever user switches their prefered storage type.
+
+### Command Line Argument Parser (clap)
++ I refined the project to accept run and accept input as command line arguements using the `clap` crate.
++ Using clap has tremendously improved code structure and CLI.
++ Users can parse their prefered storage type directly to env var as an argument `rusty-rolodex -- --storage_choice json`. Storage choice is set to 'json' by default.
+
+### Test
++ Wrote test to test new features and functionality.
+![CI test pass screenshot](./media/rolodex-ci-v3.png)
+
+### Demo week 2
+![screenshot project with clap](./media/rolodex-clapv3.png)
+
+
+
 [project gist]: (https://gist.github.com/Iamdavidonuh/062da8918a2d333b2150c74cae6bd525)

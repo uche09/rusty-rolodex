@@ -19,6 +19,8 @@ _  _, _// /_/ /_  /___/ /_/ /_  /_/ /_  /___  _    |
 Rusty Rolodex is a single evolving project — Rusty Rolodex — that grows from an in‑memory CLI address book into a production‑grade, test‑covered, CI/CD‑deployed tool.  
 Check out more about [Rusty-Rolodex](https://gist.github.com/Iamdavidonuh/062da8918a2d333b2150c74cae6bd525)
 
+See latest features and changes in [CHANGELOG.md](./docs/CHANGELOG.md) and [WALKTHROUGH.md](./docs/WALKTHROUGH.md)
+
 ![Project Demo](./docs/media/rolodex-demoV2.gif)
 
 ## Current Features
@@ -26,10 +28,9 @@ Check out more about [Rusty-Rolodex](https://gist.github.com/Iamdavidonuh/062da8
 - View all saved contacts
 - Search for a contact by name
 - Delete a contact by name
-- Basic user input handling and validation
-<!-- - Save contacts to a file so that data is persistent across sessions.
-- Update existing contacts.
-- Display contacts alphabetically. -->
+- Command line argument input handling and validation using clap
+- Save contacts to a file so that data is persistent across sessions.
+- List sorted contacts.
 
 
 ## What I Learned
@@ -45,7 +46,10 @@ Working on this project helped me practice and understand:
 - **Trait**: How to implement traits (behavior) that can be implemented (inherited) by other constructs.
 **Generic**: Reduce duplicated logic by implementing once and use it on any data types or constructs.
 **GitHub Workflow**: This project doesn't just aim to improve my rust proficiency, but also aims at making me a better developer by applying standard professional level best practices. I added some branch protection ruleset and implemented a CI workflow using GitHub workflow.
-<!-- - **Regex**: Validating user inputs like phone number and email using regex pattern. -->
+- **Regex**: Validating user inputs like name, phone number and email using regex pattern.
+- **JSON**: Used `serde_json` to parse and store contact in json format.
+- **Clap**: Introduced Command Line Argument Parser in project with `clap` crate.
+- **Test**: Over the course of this project I've been constantly writing unit test to make sure functionalities works as expected, which is also required to pass the github workflow I set up.
 
 ## Challenges Encountered
 - Managing **borrowing and ownership rules**, especially when parsing variables to some built-in construct without knowing if they consume the value (take ownership) or reference them by default.
@@ -58,115 +62,91 @@ And I was able to overcome these challenges to the best of my knowledge yet. And
 ## Example Usage
 
 ```bash
---- Contact BOOK ---
+cargo run add --name Jerry --phone 08861473537
+Contact added successfully
+
+cargo run add --name Alice --phone +234123456789 --email ailce@gmail.com
+Contact added successfully
+
+cargo run add --name james --phone +2348881454872 --email ja.mes@gmail.com
+Contact added successfully
+
+cargo run add --name Jerry --phone +2348861473537
+Error: Validation("Contact with this name and number already exist")
+
+cargo run add --name daniel --phone 07099512124 --email bigD@yahoo.com
+Contact added successfully
+
+cargo run list
+  1. Alice                +234123456789   ailce@gmail.com
+  2. Jerry                08861473537     
+  3. daniel               07099512124     bigD@yahoo.com
+  4. james                +2348881454872  ja.mes@gmail.com
+
+cargo run list --sort name
+  1. Alice                +234123456789   ailce@gmail.com
+  2. daniel               07099512124     bigD@yahoo.com
+  3. james                +2348881454872  ja.mes@gmail.com
+  4. Jerry                08861473537     
+
+cargo run list --sort email
+  1. Jerry                08861473537     
+  2. Alice                +234123456789   ailce@gmail.com
+  3. daniel               07099512124     bigD@yahoo.com
+  4. james                +2348881454872  ja.mes@gmail.com
+
+cargo run add --name Jerry --phone 09422138746 --email jex@gmail.com
+Contact added successfully
+
+cargo run add --name 'Dr Sam' --phone 08111111111 --email info@samclinic.ng
+Contact added successfully
+
+cargo run list
+  1. Alice                +234123456789   ailce@gmail.com
+  2. Dr Sam               08111111111     info@samclinic.ng
+  3. Jerry                08861473537     
+  4. Jerry                09422138746     jex@gmail.com
+  5. daniel               07099512124     bigD@yahoo.com
+  6. james                +2348881454872  ja.mes@gmail.com
 
 
+cargo run delete --name Jerry
 
-1. Add Contact
-2. List Contacts
-3. Delete Contact
-4. Exit
-> 1
+Deleting failed
+Found multiple contacts with this name: Jerry, please provide number. See help
 
-Enter contact name 
-* to go back: 
+cargo run delete -h
+Delete a contact by name provide optional number is case name match multiple contacts
 
+Usage: rusty-rolodex delete [OPTIONS] --name <NAME>
 
-Invalid Name input.
-
-Enter contact name 
-* to go back: 
-Uche
-
-Enter contact number:
-abcdefghijklmn
-
-Invalid Number input.
-
-Enter contact name 
-* to go back: 
-Uche
-
-Enter contact number:
-12345678901
-
-Enter contact email.
-uche.uche
-
-Invalid email input.
-
-Enter contact name 
-* to go back: 
-Uche
-
-Enter contact number:
-12345678901
-
-Enter contact email.
-uche@gmail.com
-Are you sure you want to add this contact to your contact list 
-Name: Uche
-Number: 12345678901
-Email: uche@gmail.com
-? (y/n)
-> y
-Contact added successfully!
+Options:
+      --name <NAME>      Name of contact to delete
+      --number <NUMBER>  Contact number to delete
+  -h, --help             Print help
 
 
-1. Add Contact
-2. List Contacts
-3. Delete Contact
-4. Exit
-> 2
+cargo run delete --name Jerry --number 08861473537
+Contact deleted successfully
 
-Name: Uche
-Number: 12345678901
-Email: uche@gmail.com
+cargo run delete --name Daniel
+Contact Not found
 
+cargo run delete --name daniel
+Contact deleted successfully
 
-1. Add Contact
-2. List Contacts
-3. Delete Contact
-4. Exit
-> 3
-Search contact by name to DELETE or * to go back
-uche
-Name not found in contact list
-Search contact by name to DELETE or * to go back
-*   
+cargo run list
+  1. Alice                +234123456789   ailce@gmail.com
+  2. Dr Sam               08111111111     info@samclinic.ng
+  3. Jerry                09422138746     jex@gmail.com
+  4. james                +2348881454872  ja.mes@gmail.com
 
+cargo run list --sort name
+  1. Alice                +234123456789   ailce@gmail.com
+  2. Dr Sam               08111111111     info@samclinic.ng
+  3. james                +2348881454872  ja.mes@gmail.com
+  4. Jerry                09422138746     jex@gmail.com
 
-1. Add Contact
-2. List Contacts
-3. Delete Contact
-4. Exit
-> 3
-Search contact by name to DELETE or * to go back
-Uche
-Are you sure you want to delete this contact from your contact list 
-Name: Uche
-Number: 12345678901
-Email: uche@gmail.com
-? (y/n)
-> y
-Contact deleted successfully!
-
-
-1. Add Contact
-2. List Contacts
-3. Delete Contact
-4. Exit
-> 2
-No contact in contact list! 
-
-
-1. Add Contact
-2. List Contacts
-3. Delete Contact
-4. Exit
-> 4
-
-Bye!
 ```
 
 ## How to Run
