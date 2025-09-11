@@ -1,11 +1,29 @@
 use crate::{domain::Contact, errors::AppError};
 use regex::Regex;
 
+pub enum ValidationReq {
+    __,
+}
+
+impl ValidationReq {
+    pub fn name_req() -> String {
+        "Name must begin with alphabet, may contain spaces, dot, hyphen, and apostrophe between alphabets\
+        and may end with number or alphabet".to_string()
+    }
+
+    pub fn phone_req() -> String {
+        "Number must contain 10 to 15 digits, may begin with + and all digits".to_string()
+    }
+
+    pub fn email_req() -> String {
+        "Email can be empty, or must be a valid email".to_string()
+    }
+}
 pub fn validate_name(name: &str) -> Result<bool, AppError> {
     // Must begin with alphabet
     // Name may contain spaces, hyphens, and apostrophe between alphabets
     // Name may end with number or alphabet
-    let re = Regex::new(r"^[A-Za-z][A-Za-z\s'-]*\w*$")?;
+    let re = Regex::new(r"^[A-Za-z][A-Za-z\s'-\.]*\w*$")?;
     Ok(re.is_match(name))
 }
 
@@ -31,7 +49,7 @@ pub fn contact_exist(contact: &Contact, contactlist: &[Contact]) -> bool {
         .any(|cont| cont.name == contact.name && phone_number_matches(&cont.phone, &contact.phone))
 }
 
-fn phone_number_matches(phone1: &str, phone2: &str) -> bool {
+pub fn phone_number_matches(phone1: &str, phone2: &str) -> bool {
     let phone1: Vec<char> = phone1.chars().collect();
     let phone2: Vec<char> = phone2.chars().collect();
 

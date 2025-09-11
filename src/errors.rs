@@ -5,7 +5,6 @@ pub enum AppError {
     Io(std::io::Error),
     JsonPerser(serde_json::Error),
     NotFound(String),
-    ParseCommand(String),
     ParseInt(std::num::ParseIntError),
     RegexError(regex::Error),
     Validation(String),
@@ -47,9 +46,6 @@ impl fmt::Display for AppError {
             }
             AppError::NotFound(item) => {
                 write!(f, "{} Not found", item)
-            }
-            AppError::ParseCommand(cmd) => {
-                write!(f, "Unrecognized command: '{}'", cmd)
             }
             AppError::ParseInt(e) => {
                 write!(f, "Invalid number format: {}", e)
