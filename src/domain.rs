@@ -205,6 +205,10 @@ mod tests {
                 email: "ucheuche@gmail.com".to_string(),
             }
         );
+
+        storage.mem_store.data.clear();
+        storage.file_store.save(&storage.mem_store.data)?;
+        storage.json_store.save(&storage.mem_store.data)?;
         Ok(())
     }
 
@@ -231,7 +235,8 @@ mod tests {
         storage.mem_store.data.clear();
 
         storage.mem_store.data = storage.file_store.load()?;
-        storage.delete_contact(0)?;
+        let index = storage.get_indices_by_name(&"Uche".to_string()).unwrap_or_default();
+        storage.delete_contact(index[0])?;
         storage.file_store.save(&storage.mem_store.data)?;
 
         storage.mem_store.data.clear();
@@ -247,6 +252,10 @@ mod tests {
                 email: "ucheuche@gmail.com".to_string(),
             }
         );
+
+        storage.mem_store.data.clear();
+        storage.file_store.save(&storage.mem_store.data)?;
+        storage.json_store.save(&storage.mem_store.data)?;
 
         Ok(())
     }
@@ -310,6 +319,10 @@ mod tests {
             }
         );
 
+        storage.mem_store.data.clear();
+        storage.json_store.save(&storage.mem_store.data)?;
+        storage.file_store.save(&storage.mem_store.data)?;
+
         Ok(())
     }
 
@@ -321,6 +334,7 @@ mod tests {
             }
 
             let mut storage = Storage::new()?;
+            storage.mem_store.data.clear();
 
             let contact1 = Contact {
                 name: "Uche".to_string(),
@@ -345,12 +359,15 @@ mod tests {
         }
 
         let mut storage = Storage::new()?;
+        storage.mem_store.data.clear();
 
         storage.mem_store.data = load_migrated_contact(&storage)?;
 
-        let index = storage.get_indices_by_name(&"Uche".to_string()).unwrap_or_default();
+        assert!(storage.mem_store.data.len() == 2);
 
-        assert!(!index.is_empty());
+        let index = storage.get_indices_by_name(&"Alex".to_string()).unwrap_or_default();
+
+        assert!(index.len() == 1);
 
         storage.delete_contact(index[0])?;
         storage.save()?;
@@ -363,11 +380,14 @@ mod tests {
         assert_eq!(
             storage.mem_store.data[0],
             Contact {
-                name: "Alex".to_string(),
+                name: "Uche".to_string(),
                 phone: "01234567890".to_string(),
-                email: "".to_string(),
+                email: "ucheuche@gmail.com".to_string(),
             }
         );
+
+        storage.mem_store.data.clear();
+        storage.save()?;
 
         Ok(())
     }
