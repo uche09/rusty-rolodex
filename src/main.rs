@@ -3,20 +3,18 @@ mod domain;
 mod errors;
 mod helper;
 mod store;
-mod validation;
 
 use std::{env, process::exit};
 
 use clap::Parser;
 
-use crate::cli::{Cli, Commands, SortKey};
-use crate::domain::{Contact, Storage};
-use crate::errors::AppError;
-use crate::store::load_migrated_contact;
-use crate::validation::{
-    ValidationReq, contact_exist, phone_number_matches, validate_email, validate_name,
-    validate_number,
+use crate::cli::{command::Cli, command::Commands, command::SortKey};
+use crate::domain::{
+    contact::{self, Contact, ValidationReq},
+    storage::Storage,
 };
+use crate::errors::AppError;
+use store::file::load_migrated_contact;
 
 fn main() -> Result<(), AppError> {
     let cli = Cli::parse();
@@ -34,23 +32,31 @@ fn main() -> Result<(), AppError> {
     );
 
     match cli.command {
-        Commands::Add { name, phone, email } => {
-            if !validate_name(&name)? {
+        Commands::Add {
+            name,
+            phone,
+            email,
+            tag,
+        } => {
+            let new_contact = Contact {
+                name,
+                phone,
+                email: email.unwrap_or_default(),
+            };
+
+            if !new_contact.validate_name()? {
                 return Err(AppError::Validation(ValidationReq::name_req()));
             }
 
-            if !validate_number(&phone)? {
+            if !new_contact.validate_number()? {
                 return Err(AppError::Validation(ValidationReq::phone_req()));
             }
 
-            let email = email.unwrap_or_default();
-            if !validate_email(&email)? {
+            if !new_contact.validate_email()? {
                 return Err(AppError::Validation(ValidationReq::email_req()));
             }
 
-            let new_contact = Contact { name, phone, email };
-
-            if contact_exist(&new_contact, storage.contact_list()) {
+            if new_contact.already_exist(storage.contact_list()) {
                 return Err(AppError::Validation(
                     "Contact with this name and number already exist".to_string(),
                 ));
@@ -112,7 +118,7 @@ fn main() -> Result<(), AppError> {
                         } else {
                             for index in indices {
                                 if contacts[index].name == name
-                                    && phone_number_matches(&contacts[index].phone, &phone)
+                                    && contact::phone_number_matches(&contacts[index].phone, &phone)
                                 {
                                     storage.delete_contact(index)?;
                                 }

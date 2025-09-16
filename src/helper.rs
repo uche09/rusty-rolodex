@@ -1,9 +1,8 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-use crate::domain::Contact;
+use crate::domain::contact::Contact;
 use crate::errors::AppError;
-use crate::validation::{validate_email, validate_name, validate_number};
 
 pub fn serialize_contacts(contacts: &[Contact]) -> String {
     let mut data = String::new();
@@ -27,6 +26,11 @@ pub fn deserialize_contacts_from_txt_buffer(
     buffer: BufReader<File>,
 ) -> Result<Vec<Contact>, AppError> {
     let mut contacts = Vec::new();
+    let mut test_contact = Contact {
+        name: "".to_string(),
+        phone: "".to_string(),
+        email: "".to_string(),
+    };
     let mut name = String::new();
     let mut phone = String::new();
     let mut email = String::new();
@@ -51,25 +55,22 @@ pub fn deserialize_contacts_from_txt_buffer(
             continue;
         }
 
-        if let Ok(t) = validate_name(line) {
-            if t {
-                name = line.to_string();
-                continue;
-            }
+        test_contact.name = line.to_string();
+        if test_contact.validate_name()? {
+            name = line.to_string();
+            continue;
         }
 
-        if let Ok(t) = validate_number(line) {
-            if t {
-                phone = line.to_string();
-                continue;
-            }
+        test_contact.phone = line.to_string();
+        if test_contact.validate_number()? {
+            phone = line.to_string();
+            continue;
         }
 
-        if let Ok(t) = validate_email(line) {
-            if t {
-                email = line.to_string();
-                continue;
-            }
+        test_contact.email = line.to_string();
+        if test_contact.validate_email()? {
+            email = line.to_string();
+            continue;
         }
     }
 
@@ -78,7 +79,7 @@ pub fn deserialize_contacts_from_txt_buffer(
 
 #[cfg(test)]
 mod tests {
-    use crate::domain::Storage;
+    use crate::domain::storage::Storage;
     use crate::store::ContactStore;
 
     use super::*;
@@ -123,9 +124,9 @@ mod tests {
         storage.mem_store.data.push(contact1);
         storage.mem_store.data.push(contact2);
 
-        storage.file_store.save(&storage.mem_store.data)?;
+        storage.txt_store.save(&storage.mem_store.data)?;
         storage.mem_store.data.clear();
-        storage.mem_store.data = storage.file_store.load()?;
+        storage.mem_store.data = storage.txt_store.load()?;
 
         assert_eq!(
             storage.mem_store.data[0],

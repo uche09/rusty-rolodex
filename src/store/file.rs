@@ -1,37 +1,24 @@
-use crate::domain::{Contact, Storage};
-use crate::errors::AppError;
+use super::*;
 use crate::helper;
 use std::fs::{self, OpenOptions};
 use std::io::{BufReader, Read, Write};
 use std::path::Path;
 
-// pub const FILE_PATH: &str = "./.instance/contacts.txt";
-
-pub struct FileStore {
+pub struct TxtStore {
     pub path: String,
-}
-
-pub struct MemStore {
-    pub data: Vec<Contact>,
 }
 
 pub struct JsonStore {
     pub path: String,
 }
 
-impl FileStore {
+impl TxtStore {
     pub fn new(path: &str) -> Result<Self, AppError> {
         create_file_parent(path)?;
 
-        Ok(FileStore {
+        Ok(TxtStore {
             path: path.to_string(),
         })
-    }
-}
-
-impl MemStore {
-    pub fn new() -> Self {
-        Self { data: Vec::new() }
     }
 }
 
@@ -43,13 +30,7 @@ impl JsonStore {
     }
 }
 
-pub trait ContactStore {
-    fn load(&self) -> Result<Vec<Contact>, AppError>;
-
-    fn save(&self, contacts: &[Contact]) -> Result<(), AppError>;
-}
-
-impl ContactStore for FileStore {
+impl ContactStore for TxtStore {
     fn load(&self) -> Result<Vec<Contact>, AppError> {
         // Read text from file
         // Using OpenOptions to open file if already exist
@@ -76,16 +57,6 @@ impl ContactStore for FileStore {
         let data = helper::serialize_contacts(contacts);
         file.write_all(data.as_bytes())?;
 
-        Ok(())
-    }
-}
-
-impl ContactStore for MemStore {
-    fn load(&self) -> Result<Vec<Contact>, AppError> {
-        Ok(self.data.clone())
-    }
-
-    fn save(&self, _contacts: &[Contact]) -> Result<(), AppError> {
         Ok(())
     }
 }
@@ -141,7 +112,7 @@ pub fn load_migrated_contact(storage: &Storage) -> Result<Vec<Contact>, AppError
     let json_contacts = storage.load_json()?;
 
     if txt_contacts.is_empty() && storage.storage_choice.is_json() {
-        fs::remove_file(Path::new(&storage.file_store.path))?;
+        fs::remove_file(Path::new(&storage.txt_store.path))?;
     } else if json_contacts.is_empty() && storage.storage_choice.is_txt() {
         fs::remove_file(Path::new(&storage.json_store.path))?;
     }
@@ -178,7 +149,7 @@ mod tests {
         };
 
         storage.add_contact(contact1);
-        storage.file_store.save(&storage.mem_store.data)?;
+        storage.txt_store.save(&storage.mem_store.data)?;
         storage.mem_store.data.clear();
 
         storage.add_contact(contact2);
@@ -190,15 +161,17 @@ mod tests {
         assert!(storage.mem_store.data.len() == 2);
 
         assert_eq!(
-            storage.contact_list()[1], Contact {
+            storage.contact_list()[1],
+            Contact {
                 name: "Uche".to_string(),
                 phone: "01234567890".to_string(),
                 email: "ucheuche@gmail.com".to_string(),
             }
         );
-            
+
         assert_eq!(
-            storage.contact_list()[0], Contact {
+            storage.contact_list()[0],
+            Contact {
                 name: "Alex".to_string(),
                 phone: "+44731484372".to_string(),
                 email: "".to_string(),

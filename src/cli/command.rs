@@ -27,6 +27,10 @@ pub enum Commands {
         /// Contact email address
         #[arg(long)]
         email: Option<String>,
+
+        /// Contact tag (school, work, gym)
+        #[arg(long)]
+        tag: Option<String>,
     },
     /// List contacts
     List {

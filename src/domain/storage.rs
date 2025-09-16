@@ -1,17 +1,9 @@
-use dotenv::dotenv;
-
+use super::contact::Contact;
 use crate::{
     errors::AppError,
-    store::{ContactStore, FileStore, JsonStore, MemStore},
+    store::{ContactStore, file, memory},
 };
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Eq, PartialOrd, Ord)]
-pub struct Contact {
-    pub name: String,
-    pub phone: String,
-    pub email: String,
-}
+use dotenv::dotenv;
 
 #[derive(Debug)]
 pub enum StorageChoice {
@@ -21,18 +13,18 @@ pub enum StorageChoice {
 }
 
 pub struct Storage {
-    pub file_store: FileStore,
-    pub json_store: JsonStore,
-    pub mem_store: MemStore,
+    pub txt_store: file::TxtStore,
+    pub json_store: file::JsonStore,
+    pub mem_store: memory::MemStore,
     pub storage_choice: StorageChoice,
 }
 
 impl Storage {
     pub fn new() -> Result<Storage, AppError> {
         Ok(Storage {
-            file_store: FileStore::new("./.instance/contacts.txt")?,
-            json_store: JsonStore::new("./.instance/contacts.json"),
-            mem_store: MemStore::new(),
+            txt_store: file::TxtStore::new("./.instance/contacts.txt")?,
+            json_store: file::JsonStore::new("./.instance/contacts.json"),
+            mem_store: memory::MemStore::new(),
             storage_choice: parse_storage_choice(),
         })
     }
@@ -50,13 +42,10 @@ impl Storage {
             // if contact exist in txt and contacts are now stored in json or vice versa,
             // Avoid PARTIAL DELETE
             if self.storage_choice.is_json()
-                && self
-                    .file_store
-                    .load()?
-                    .contains(&self.mem_store.data[index])
+                && self.txt_store.load()?.contains(&self.mem_store.data[index])
             {
                 let selected_contact = &self.mem_store.data[index];
-                let mut txt_contacts = self.file_store.load()?;
+                let mut txt_contacts = self.txt_store.load()?;
 
                 // Match selected contact in legacy file
                 if let Some(contact_index) = txt_contacts
@@ -65,7 +54,7 @@ impl Storage {
                 {
                     // Delete match from legacy file
                     txt_contacts.remove(contact_index);
-                    self.file_store.save(&txt_contacts)?;
+                    self.txt_store.save(&txt_contacts)?;
                 }
             } else if self.storage_choice.is_txt()
                 && self
@@ -99,7 +88,7 @@ impl Storage {
         }
 
         if self.storage_choice.is_txt() {
-            match self.file_store.save(&self.mem_store.data) {
+            match self.txt_store.save(&self.mem_store.data) {
                 Ok(_) => Ok(()),
                 Err(e) => Err(e),
             }?;
@@ -116,7 +105,7 @@ impl Storage {
     }
 
     pub fn load_txt(&self) -> Result<Vec<Contact>, AppError> {
-        self.file_store.load()
+        self.txt_store.load()
     }
 
     pub fn load_json(&self) -> Result<Vec<Contact>, AppError> {
@@ -180,7 +169,7 @@ pub fn parse_storage_choice() -> StorageChoice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::store::{ContactStore, load_migrated_contact};
+    use crate::store::{ContactStore, file::load_migrated_contact};
 
     #[test]
     fn adds_persistent_contact_with_txt() -> Result<(), AppError> {
@@ -193,9 +182,9 @@ mod tests {
         };
 
         storage.add_contact(new_contact);
-        storage.file_store.save(&storage.mem_store.data)?;
+        storage.txt_store.save(&storage.mem_store.data)?;
         storage.mem_store.data.clear();
-        storage.mem_store.data = storage.file_store.load()?;
+        storage.mem_store.data = storage.txt_store.load()?;
 
         assert_eq!(
             storage.contact_list()[0],
@@ -207,7 +196,7 @@ mod tests {
         );
 
         storage.mem_store.data.clear();
-        storage.file_store.save(&storage.mem_store.data)?;
+        storage.txt_store.save(&storage.mem_store.data)?;
         storage.json_store.save(&storage.mem_store.data)?;
         Ok(())
     }
@@ -231,16 +220,18 @@ mod tests {
         storage.add_contact(contact1);
         storage.add_contact(contact2);
 
-        storage.file_store.save(&storage.mem_store.data)?;
+        storage.txt_store.save(&storage.mem_store.data)?;
         storage.mem_store.data.clear();
 
-        storage.mem_store.data = storage.file_store.load()?;
-        let index = storage.get_indices_by_name(&"Uche".to_string()).unwrap_or_default();
+        storage.mem_store.data = storage.txt_store.load()?;
+        let index = storage
+            .get_indices_by_name(&"Uche".to_string())
+            .unwrap_or_default();
         storage.delete_contact(index[0])?;
-        storage.file_store.save(&storage.mem_store.data)?;
+        storage.txt_store.save(&storage.mem_store.data)?;
 
         storage.mem_store.data.clear();
-        storage.mem_store.data = storage.file_store.load()?;
+        storage.mem_store.data = storage.txt_store.load()?;
 
         assert_eq!(storage.mem_store.data.len(), 1);
 
@@ -254,7 +245,7 @@ mod tests {
         );
 
         storage.mem_store.data.clear();
-        storage.file_store.save(&storage.mem_store.data)?;
+        storage.txt_store.save(&storage.mem_store.data)?;
         storage.json_store.save(&storage.mem_store.data)?;
 
         Ok(())
@@ -321,7 +312,7 @@ mod tests {
 
         storage.mem_store.data.clear();
         storage.json_store.save(&storage.mem_store.data)?;
-        storage.file_store.save(&storage.mem_store.data)?;
+        storage.txt_store.save(&storage.mem_store.data)?;
 
         Ok(())
     }
@@ -365,7 +356,9 @@ mod tests {
 
         assert!(storage.mem_store.data.len() == 2);
 
-        let index = storage.get_indices_by_name(&"Alex".to_string()).unwrap_or_default();
+        let index = storage
+            .get_indices_by_name(&"Alex".to_string())
+            .unwrap_or_default();
 
         assert!(index.len() == 1);
 
@@ -373,7 +366,7 @@ mod tests {
         storage.save()?;
 
         storage.mem_store.data.clear();
-        storage.mem_store.data = storage.file_store.load()?;
+        storage.mem_store.data = storage.txt_store.load()?;
 
         assert_eq!(storage.mem_store.data.len(), 1);
 
