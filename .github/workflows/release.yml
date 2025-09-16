@@ -1,0 +1,25 @@
+name: Release for Ubuntu
+
+on:
+    push:
+        branches:
+            - main
+        tags:
+            - "v*"
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        
+        steps:
+            - uses: actions/checkout@v3
+            - uses: actions-rs/toolchain@v1
+              with:
+                toolchain: stable
+
+            - name: Compile code for Ubuntu
+              run : cargo build --release
+
+            - uses: softprops/action-gh-release@v1
+              with:
+                files: target/release/rusty-rolodex
