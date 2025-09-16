@@ -2,8 +2,6 @@ name: Release for Ubuntu
 
 on:
     push:
-        branches:
-            - main
         tags:
             - "v*"
 
@@ -19,7 +17,12 @@ jobs:
 
             - name: Compile code for Ubuntu
               run : cargo build --release
+            
+            - name: Package binary
+              run: |
+                cd target/release
+                tar czf ../../rusty-rolodex-${GITHUB_REF_NAME}-ubuntu-x86_64.tar.gz rusty-rolodex
 
             - uses: softprops/action-gh-release@v2
               with:
-                files: target/release/rusty-rolodex
+                files: rusty-rolodex-${GITHUB_REF_NAME}-ubuntu-x86_64.tar.gz
