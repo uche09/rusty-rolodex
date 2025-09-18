@@ -4,6 +4,7 @@ use crate::{
     store::{ContactStore, file, memory},
 };
 use dotenv::dotenv;
+use std::{fs, path::Path};
 
 #[derive(Debug)]
 pub enum StorageChoice {
@@ -39,42 +40,6 @@ impl Storage {
 
     pub fn delete_contact(&mut self, index: usize) -> Result<(), AppError> {
         if index < self.mem_store.data.len() {
-            // if contact exist in txt and contacts are now stored in json or vice versa,
-            // Avoid PARTIAL DELETE
-            if self.storage_choice.is_json()
-                && self.txt_store.load()?.contains(&self.mem_store.data[index])
-            {
-                let selected_contact = &self.mem_store.data[index];
-                let mut txt_contacts = self.txt_store.load()?;
-
-                // Match selected contact in legacy file
-                if let Some(contact_index) = txt_contacts
-                    .iter()
-                    .position(|cont| cont == selected_contact)
-                {
-                    // Delete match from legacy file
-                    txt_contacts.remove(contact_index);
-                    self.txt_store.save(&txt_contacts)?;
-                }
-            } else if self.storage_choice.is_txt()
-                && self
-                    .json_store
-                    .load()?
-                    .contains(&self.mem_store.data[index])
-            {
-                let selected_contact = &self.mem_store.data[index];
-                let mut json_contacts = self.json_store.load()?;
-
-                // Match selected contact in legacy file
-                if let Some(contact_index) = json_contacts
-                    .iter()
-                    .position(|cont| cont == selected_contact)
-                {
-                    json_contacts.remove(contact_index);
-                }
-                self.json_store.save(&json_contacts)?;
-            }
-
             self.mem_store.data.remove(index);
             Ok(())
         } else {
@@ -88,17 +53,18 @@ impl Storage {
         }
 
         if self.storage_choice.is_txt() {
-            match self.txt_store.save(&self.mem_store.data) {
-                Ok(_) => Ok(()),
-                Err(e) => Err(e),
-            }?;
+            self.save_txt(&self.mem_store.data)?
         }
 
         if self.storage_choice.is_json() {
-            match self.save_json(&self.mem_store.data) {
-                Ok(_) => Ok(()),
-                Err(e) => Err(e),
-            }?;
+            self.save_json(&self.mem_store.data)?;
+        }
+
+        // Delete migrated storage file for COMPLETE MIGRATION
+        if self.storage_choice.is_json() && Path::new(&self.txt_store.path).exists() {
+            fs::remove_file(Path::new(&self.txt_store.path))?;
+        } else if self.storage_choice.is_txt() && Path::new(&self.txt_store.path).exists() {
+            fs::remove_file(Path::new(&self.json_store.path))?;
         }
 
         Ok(())
@@ -114,6 +80,10 @@ impl Storage {
 
     pub fn save_json(&self, contacts: &[Contact]) -> Result<(), AppError> {
         self.json_store.save(contacts)
+    }
+
+    pub fn save_txt(&self, contacts: &[Contact]) -> Result<(), AppError> {
+        self.txt_store.save(contacts)
     }
 
     pub fn get_indices_by_name(&self, name: &String) -> Option<Vec<usize>> {
@@ -169,7 +139,7 @@ pub fn parse_storage_choice() -> StorageChoice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::store::{ContactStore, file::load_migrated_contact};
+    use crate::store::ContactStore;
 
     #[test]
     fn adds_persistent_contact_with_txt() -> Result<(), AppError> {
@@ -179,6 +149,7 @@ mod tests {
             name: "Uche".to_string(),
             phone: "01234567890".to_string(),
             email: "ucheuche@gmail.com".to_string(),
+            tag: "".to_string(),
         };
 
         storage.add_contact(new_contact);
@@ -192,6 +163,7 @@ mod tests {
                 name: "Uche".to_string(),
                 phone: "01234567890".to_string(),
                 email: "ucheuche@gmail.com".to_string(),
+                tag: "".to_string(),
             }
         );
 
@@ -209,12 +181,14 @@ mod tests {
             name: "Uche".to_string(),
             phone: "01234567890".to_string(),
             email: "ucheuche@gmail.com".to_string(),
+            tag: "".to_string(),
         };
 
         let contact2 = Contact {
             name: "Alex".to_string(),
             phone: "01234567890".to_string(),
             email: "".to_string(),
+            tag: "".to_string(),
         };
 
         storage.add_contact(contact1);
@@ -241,6 +215,7 @@ mod tests {
                 name: "Uche".to_string(),
                 phone: "01234567890".to_string(),
                 email: "ucheuche@gmail.com".to_string(),
+                tag: "".to_string(),
             }
         );
 
@@ -259,12 +234,14 @@ mod tests {
             name: "Uche".to_string(),
             phone: "01234567890".to_string(),
             email: "ucheuche@gmail.com".to_string(),
+            tag: "".to_string(),
         };
 
         let contact2 = Contact {
             name: "Alex".to_string(),
             phone: "01234567890".to_string(),
             email: "".to_string(),
+            tag: "".to_string(),
         };
 
         storage.add_contact(contact1);
@@ -281,6 +258,7 @@ mod tests {
                 name: "Uche".to_string(),
                 phone: "01234567890".to_string(),
                 email: "ucheuche@gmail.com".to_string(),
+                tag: "".to_string(),
             }
         );
 
@@ -290,6 +268,7 @@ mod tests {
                 name: "Alex".to_string(),
                 phone: "01234567890".to_string(),
                 email: "".to_string(),
+                tag: "".to_string(),
             }
         );
 
@@ -307,80 +286,13 @@ mod tests {
                 name: "Uche".to_string(),
                 phone: "01234567890".to_string(),
                 email: "ucheuche@gmail.com".to_string(),
+                tag: "".to_string(),
             }
         );
 
         storage.mem_store.data.clear();
         storage.json_store.save(&storage.mem_store.data)?;
         storage.txt_store.save(&storage.mem_store.data)?;
-
-        Ok(())
-    }
-
-    #[test]
-    fn check_partial_delete() -> Result<(), AppError> {
-        {
-            unsafe {
-                std::env::set_var("STORAGE_CHOICE", "txt");
-            }
-
-            let mut storage = Storage::new()?;
-            storage.mem_store.data.clear();
-
-            let contact1 = Contact {
-                name: "Uche".to_string(),
-                phone: "01234567890".to_string(),
-                email: "ucheuche@gmail.com".to_string(),
-            };
-
-            let contact2 = Contact {
-                name: "Alex".to_string(),
-                phone: "01234567890".to_string(),
-                email: "".to_string(),
-            };
-
-            storage.add_contact(contact1);
-            storage.add_contact(contact2);
-
-            storage.save()?
-        }
-
-        unsafe {
-            std::env::set_var("STORAGE_CHOICE", "json");
-        }
-
-        let mut storage = Storage::new()?;
-        storage.mem_store.data.clear();
-
-        storage.mem_store.data = load_migrated_contact(&storage)?;
-
-        assert!(storage.mem_store.data.len() == 2);
-
-        let index = storage
-            .get_indices_by_name(&"Alex".to_string())
-            .unwrap_or_default();
-
-        assert!(index.len() == 1);
-
-        storage.delete_contact(index[0])?;
-        storage.save()?;
-
-        storage.mem_store.data.clear();
-        storage.mem_store.data = storage.txt_store.load()?;
-
-        assert_eq!(storage.mem_store.data.len(), 1);
-
-        assert_eq!(
-            storage.mem_store.data[0],
-            Contact {
-                name: "Uche".to_string(),
-                phone: "01234567890".to_string(),
-                email: "ucheuche@gmail.com".to_string(),
-            }
-        );
-
-        storage.mem_store.data.clear();
-        storage.save()?;
 
         Ok(())
     }

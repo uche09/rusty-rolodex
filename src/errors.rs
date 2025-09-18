@@ -81,6 +81,7 @@ mod tests {
             name: "".to_string(),
             phone: "abc".to_string(),
             email: "".to_string(),
+            tag: "".to_string(),
         };
 
         if let Ok(t) = contact.validate_number() {

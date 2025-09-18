@@ -7,6 +7,7 @@ pub struct Contact {
     pub name: String,
     pub phone: String,
     pub email: String,
+    pub tag: String,
 }
 
 pub enum ValidationReq {

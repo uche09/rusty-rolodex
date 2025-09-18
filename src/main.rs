@@ -42,6 +42,7 @@ fn main() -> Result<(), AppError> {
                 name,
                 phone,
                 email: email.unwrap_or_default(),
+                tag: tag.unwrap_or_default(),
             };
 
             if !new_contact.validate_name()? {

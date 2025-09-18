@@ -10,16 +10,25 @@ pub fn serialize_contacts(contacts: &[Contact]) -> String {
     for contact in contacts {
         let ser_contact = format!(
             "{{\n\
-        {}\n\
-        {}\n\
-        {}\n\
+        name: {}\n\
+        phone: {}\n\
+        email: {}\n\
+        tag: {}\n\
         }}\n",
-            contact.name, contact.phone, contact.email
+            contact.name, contact.phone, contact.email, contact.tag
         );
 
         data.push_str(&ser_contact);
     }
     data
+}
+
+fn split_annotation(line: &str) -> (Option<&str>, &str) {
+    if let Some((key, value)) = line.split_once(':') {
+        (Some(key.trim()), value.trim())
+    } else {
+        (None, line.trim())
+    }
 }
 
 pub fn deserialize_contacts_from_txt_buffer(
@@ -30,46 +39,70 @@ pub fn deserialize_contacts_from_txt_buffer(
         name: "".to_string(),
         phone: "".to_string(),
         email: "".to_string(),
+        tag: "".to_string(),
     };
-    let mut name = String::new();
-    let mut phone = String::new();
-    let mut email = String::new();
+    let mut name = "".to_string();
+    let mut phone = "".to_string();
+    let mut email = "".to_string();
+    let mut tag: String = "".to_string();
 
     for line in buffer.lines() {
         let line = line?;
-        let line = line.trim();
+        let (key, value) = split_annotation(&line);
 
-        if line == "{" {
+        if value == "{" {
             // Start of a new contact format
             continue;
         }
 
-        if line == "}" {
+        if value == "}" {
             // End of a contact format
             let contact = Contact {
                 name: name.clone(),
                 phone: phone.clone(),
                 email: email.clone(),
+                tag: tag.clone(),
             };
             contacts.push(contact);
             continue;
         }
 
-        test_contact.name = line.to_string();
-        if test_contact.validate_name()? {
-            name = line.to_string();
+        if key == Some("name") {
+            name = value.to_string();
             continue;
+        } else if key.is_none() {
+            test_contact.name = value.to_string();
+            if test_contact.validate_name()? {
+                name = value.to_string();
+                continue;
+            }
         }
 
-        test_contact.phone = line.to_string();
-        if test_contact.validate_number()? {
-            phone = line.to_string();
+        if key == Some("phone") {
+            phone = value.to_string();
             continue;
+        } else if key.is_none() {
+            test_contact.phone = value.to_string();
+            if test_contact.validate_number()? {
+                phone = value.to_string();
+                continue;
+            }
         }
 
-        test_contact.email = line.to_string();
-        if test_contact.validate_email()? {
-            email = line.to_string();
+        if key.is_some() && key == Some("email") {
+            email = value.to_string();
+            continue;
+        } else if key.is_none() {
+            test_contact.email = value.to_string();
+            if test_contact.validate_email()? {
+                email = value.to_string();
+                continue;
+            }
+            print!("Failed email validation");
+        }
+
+        if key.is_some() && key == Some("tag") {
+            tag = value.to_string();
             continue;
         }
     }
@@ -90,6 +123,7 @@ mod tests {
             name: "Uche".to_string(),
             phone: "012345678901".to_string(),
             email: "ucheuche@gmail.com".to_string(),
+            tag: "".to_string(),
         }];
 
         let ser_data = serialize_contacts(&contacts);
@@ -97,9 +131,10 @@ mod tests {
         assert_eq!(
             ser_data,
             "{\n\
-            Uche\n\
-            012345678901\n\
-            ucheuche@gmail.com\n\
+            name: Uche\n\
+            phone: 012345678901\n\
+            email: ucheuche@gmail.com\n\
+            tag: \n\
         }\n"
             .to_string()
         )
@@ -113,12 +148,14 @@ mod tests {
             name: "Uche".to_string(),
             phone: "012345678901".to_string(),
             email: String::new(),
+            tag: "".to_string(),
         };
 
         let contact2 = Contact {
             name: "Mom".to_string(),
             phone: "98765432109".to_string(),
             email: "ucheuche@gmail.com".to_string(),
+            tag: "".to_string(),
         };
 
         storage.mem_store.data.push(contact1);
@@ -134,6 +171,7 @@ mod tests {
                 name: "Uche".to_string(),
                 phone: "012345678901".to_string(),
                 email: String::new(),
+                tag: "".to_string(),
             }
         );
 
@@ -143,6 +181,7 @@ mod tests {
                 name: "Mom".to_string(),
                 phone: "98765432109".to_string(),
                 email: "ucheuche@gmail.com".to_string(),
+                tag: "".to_string(),
             }
         ))
     }

@@ -73,6 +73,11 @@ impl ContactStore for JsonStore {
         let mut data = String::new();
         file.read_to_string(&mut data)?;
 
+        // serde_json will give an error if data is empty
+        if data.is_empty() {
+            return Ok(Vec::new());
+        }
+
         Ok(serde_json::from_str(&data)?)
     }
 
@@ -108,13 +113,15 @@ pub fn create_file_parent(path: &str) -> Result<(), AppError> {
 }
 
 pub fn load_migrated_contact(storage: &Storage) -> Result<Vec<Contact>, AppError> {
-    let txt_contacts = storage.load_txt()?;
-    let json_contacts = storage.load_json()?;
+    let mut txt_contacts: Vec<Contact> = Vec::new();
+    let mut json_contacts: Vec<Contact> = Vec::new();
 
-    if txt_contacts.is_empty() && storage.storage_choice.is_json() {
-        fs::remove_file(Path::new(&storage.txt_store.path))?;
-    } else if json_contacts.is_empty() && storage.storage_choice.is_txt() {
-        fs::remove_file(Path::new(&storage.json_store.path))?;
+    if Path::new(&storage.txt_store.path).exists() {
+        txt_contacts = storage.load_txt()?;
+    }
+
+    if Path::new(&storage.json_store.path).exists() {
+        json_contacts = storage.load_json()?;
     }
 
     let mut migrated_contact = json_contacts;
@@ -140,12 +147,14 @@ mod tests {
             name: "Uche".to_string(),
             phone: "01234567890".to_string(),
             email: "ucheuche@gmail.com".to_string(),
+            tag: "".to_string(),
         };
 
         let contact2 = Contact {
             name: "Alex".to_string(),
             phone: "+44731484372".to_string(),
             email: "".to_string(),
+            tag: "".to_string(),
         };
 
         storage.add_contact(contact1);
@@ -166,6 +175,7 @@ mod tests {
                 name: "Uche".to_string(),
                 phone: "01234567890".to_string(),
                 email: "ucheuche@gmail.com".to_string(),
+                tag: "".to_string(),
             }
         );
 
@@ -175,6 +185,7 @@ mod tests {
                 name: "Alex".to_string(),
                 phone: "+44731484372".to_string(),
                 email: "".to_string(),
+                tag: "".to_string(),
             }
         );
 
