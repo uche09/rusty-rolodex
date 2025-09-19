@@ -140,4 +140,18 @@ mod tests {
         assert!(!phone_number_matches(&phone_f1, &phone_f2)); // Take note of '!' operator
         assert!(!phone_number_matches(&phone_g1, &phone_g2)); // Take not of '!' operator
     }
+
+
+     #[test]
+    fn email_validation() -> Result<(), AppError> {
+        let contact = Contact{
+            name: "Uche".to_string(),
+            phone: "08132165498".to_string(),
+            email: "foo@bar".to_string(),
+            tag: "".to_string(),
+        };
+
+        assert!(!contact.validate_email()?);
+        Ok(())
+    }
 }
