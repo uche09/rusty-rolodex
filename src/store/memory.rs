@@ -8,14 +8,29 @@ impl MemStore {
     pub fn new() -> Self {
         Self { data: Vec::new() }
     }
+
+    pub fn iter(&self) -> MemStoreIter<'_> {
+        MemStoreIter {
+            inner: &self.data,
+            idx: 0,
+        }
+    }
 }
 
-impl ContactStore for MemStore {
-    fn load(&self) -> Result<Vec<Contact>, AppError> {
-        Ok(self.data.clone())
-    }
+pub struct MemStoreIter<'a> {
+    inner: &'a [Contact],
+    idx: usize,
+}
 
-    fn save(&self, _contacts: &[Contact]) -> Result<(), AppError> {
-        Ok(())
+impl<'a> Iterator for MemStoreIter<'a> {
+    type Item = &'a Contact;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx >= self.inner.len() {
+            return None;
+        }
+        let contact = &self.inner[self.idx];
+        self.idx += 1;
+        Some(contact)
     }
 }

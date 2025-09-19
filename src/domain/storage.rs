@@ -24,7 +24,7 @@ impl Storage {
     pub fn new() -> Result<Storage, AppError> {
         Ok(Storage {
             txt_store: file::TxtStore::new("./.instance/contacts.txt")?,
-            json_store: file::JsonStore::new("./.instance/contacts.json"),
+            json_store: file::JsonStore::new("./.instance/contacts.json")?,
             mem_store: memory::MemStore::new(),
             storage_choice: parse_storage_choice(),
         })
@@ -34,8 +34,9 @@ impl Storage {
         self.mem_store.data.push(contact);
     }
 
-    pub fn contact_list(&self) -> &Vec<Contact> {
-        &self.mem_store.data
+    pub fn contact_list(&self) -> Vec<&Contact> {
+        let contacts = self.mem_store.iter().collect();
+        contacts
     }
 
     pub fn delete_contact(&mut self, index: usize) -> Result<(), AppError> {
@@ -53,7 +54,7 @@ impl Storage {
         }
 
         if self.storage_choice.is_txt() {
-            self.save_txt(&self.mem_store.data)?
+            self.save_txt(&self.mem_store.data)?;
         }
 
         if self.storage_choice.is_json() {
@@ -63,7 +64,7 @@ impl Storage {
         // Delete migrated storage file for COMPLETE MIGRATION
         if self.storage_choice.is_json() && Path::new(&self.txt_store.path).exists() {
             fs::remove_file(Path::new(&self.txt_store.path))?;
-        } else if self.storage_choice.is_txt() && Path::new(&self.txt_store.path).exists() {
+        } else if self.storage_choice.is_txt() && Path::new(&self.json_store.path).exists() {
             fs::remove_file(Path::new(&self.json_store.path))?;
         }
 
@@ -159,7 +160,7 @@ mod tests {
 
         assert_eq!(
             storage.contact_list()[0],
-            Contact {
+            &Contact {
                 name: "Uche".to_string(),
                 phone: "01234567890".to_string(),
                 email: "ucheuche@gmail.com".to_string(),
@@ -210,7 +211,7 @@ mod tests {
         assert_eq!(storage.mem_store.data.len(), 1);
 
         assert_ne!(
-            storage.contact_list()[0],
+            *storage.contact_list()[0],
             Contact {
                 name: "Uche".to_string(),
                 phone: "01234567890".to_string(),
@@ -281,7 +282,7 @@ mod tests {
         assert_eq!(storage.mem_store.data.len(), 1);
 
         assert_ne!(
-            storage.contact_list()[0],
+            *storage.contact_list()[0],
             Contact {
                 name: "Uche".to_string(),
                 phone: "01234567890".to_string(),

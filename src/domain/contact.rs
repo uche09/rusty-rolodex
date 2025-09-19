@@ -2,7 +2,7 @@ use super::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Eq, PartialOrd, Ord)]
 pub struct Contact {
     pub name: String,
     pub phone: String,
@@ -53,7 +53,7 @@ impl Contact {
         Ok(self.email.is_empty() || re.is_match(&self.email))
     }
 
-    pub fn already_exist(&self, contactlist: &[Contact]) -> bool {
+    pub fn already_exist(&self, contactlist: &[&Contact]) -> bool {
         // Check if contact alread exist in contactlist
         contactlist
             .iter()

@@ -23,10 +23,12 @@ impl TxtStore {
 }
 
 impl JsonStore {
-    pub fn new(path: &str) -> Self {
-        Self {
+    pub fn new(path: &str) -> Result<Self, AppError> {
+        create_file_parent(path)?;
+
+        Ok(Self {
             path: path.to_string(),
-        }
+        })
     }
 }
 
@@ -116,11 +118,11 @@ pub fn load_migrated_contact(storage: &Storage) -> Result<Vec<Contact>, AppError
     let mut txt_contacts: Vec<Contact> = Vec::new();
     let mut json_contacts: Vec<Contact> = Vec::new();
 
-    if Path::new(&storage.txt_store.path).exists() {
+    if fs::exists(Path::new(&storage.txt_store.path))? {
         txt_contacts = storage.load_txt()?;
     }
 
-    if Path::new(&storage.json_store.path).exists() {
+    if fs::exists(Path::new(&storage.json_store.path))? {
         json_contacts = storage.load_json()?;
     }
 
@@ -170,7 +172,7 @@ mod tests {
         assert!(storage.mem_store.data.len() == 2);
 
         assert_eq!(
-            storage.contact_list()[1],
+            *storage.contact_list()[1],
             Contact {
                 name: "Uche".to_string(),
                 phone: "01234567890".to_string(),
@@ -180,7 +182,7 @@ mod tests {
         );
 
         assert_eq!(
-            storage.contact_list()[0],
+            *storage.contact_list()[0],
             Contact {
                 name: "Alex".to_string(),
                 phone: "+44731484372".to_string(),
