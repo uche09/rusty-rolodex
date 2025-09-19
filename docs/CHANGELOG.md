@@ -1,5 +1,24 @@
 # Changelog
 
+## TABLE OF CONTENTS
+* [**Week 1**](#v01-week-1-22-08-2025)
+    - [Added](#added)
+
+* [**Week 2**](#v01-week-2-2-09-2025)
+    - [Added](#added-1)
+
+* [**Week 3**](#v01-week-3-11-09-2025)
+    - [Added](#added-2)
+    - [Changes](#changes)
+    - [Fixed](#fixed)
+
+* [**Week 4**](#v01-week-4-_-09-2025)
+    - [Added](#added-3)
+    - [Changes](#changes-1)
+    - [Fixed](#fixed-1)
+
+
+
 ## v0.1-week-1 (22-08-2025)
 
 <!--
@@ -69,7 +88,7 @@ Removed: For deprecated or removed features.
 - Generic function to reduce duplicate input logic.
 
 
-## v0.1-week-3 (_-09-2025)
+## v0.1-week-3 (11-09-2025)
 
 ### Added
 - Regex validation
@@ -86,3 +105,27 @@ Removed: For deprecated or removed features.
 ### Fixed
 - **Partial Delete** in cases where storage choice changes from txt to json or vice versa, all contacts are read (migrated) from initial storage and saved in the current storage choice but the storage file is preserved. When a contact that was migrated is deleted from the current storage choice, a copy of it is migrated back from initial storage when app restarts.  
 This fix ensures all copies are deleted.
+
+
+
+## v0.1-week-4 (_-09-2025)
+
+### Added
+- GitHub workflow for realease.
+- Optional Tag field to Contact to categorize contacts e.g. --tag Family.
+- Implemented the `Iterator` trait on MemStore to iterate through data field. Also implemented `iter()` function on MemStore.
+- List command now uses tag to filter contact in contact list.
+
+
+
+### Changes
+- Refactor project into modulatized directory.
+- Contact validations are now implementation (methods) of `enum Contact`.
+- `enum Contact` no longer derive the `#[derive(Clone)]` trait due the implementation of iterator on MemStore.
+- `storage.contact_list()` now uses the `MemStore::iter()` function. Modified callers of `storage.contact_list()` to adapt to new changes.
+
+
+### Fixed
+- **Misplacing Contact Values Using data annotation:** When reading contacts form .txt file, `helper::deserialize_contacts_from_txt_buffer()` initially used the contact data validators like `new_contact.validate_name()` to assign the value being read to the proper field. The values of the recently added Tag field would mostly pass the name validation hence can be accidentally **misplaced** for name value. Proactively solved this by adding data annotation to `helper::serialize_contacts()`, so that each value has it annotated field. The `helper::deserialize_contacts_from_txt_buffer()` function also allow backward compatibility by reading the data annotation (key) as an optional data, and defaults to using initial verification method if value has no annotation.
+- **Complete Migration && Eradication of partial delete:** Simplified migratoin to allow `Storage.save()` delete initial storage file once all contact is saved on new storage choice (complete migration). The discontinuation of preserving initial storage file has completely eradicated the issue of partial delete, and has simplified the `Storage.delete()` logic.
+- **Faulty Logic:** `Storage::save()` had a faulty logic that was resulting to a `Error: Io(Os { code: 2, kind: NotFound, message: "No such file or directory" })` error when storage choice is set to txt.

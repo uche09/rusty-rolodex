@@ -63,7 +63,7 @@ impl fmt::Display for AppError {
 #[cfg(test)]
 mod tests {
 
-    use crate::validation::validate_number;
+    use crate::domain::contact::Contact;
 
     use super::*;
 
@@ -77,7 +77,14 @@ mod tests {
 
     #[test]
     fn confirm_validation_error() {
-        if let Ok(t) = validate_number(&"abc".to_string()) {
+        let contact = Contact {
+            name: "".to_string(),
+            phone: "abc".to_string(),
+            email: "".to_string(),
+            tag: "".to_string(),
+        };
+
+        if let Ok(t) = contact.validate_number() {
             if !t {
                 let err = AppError::Validation("\nInvalid Number input.".to_string());
 

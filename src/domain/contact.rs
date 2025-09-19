@@ -1,5 +1,14 @@
-use crate::{domain::Contact, errors::AppError};
+use super::*;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Eq, PartialOrd, Ord)]
+pub struct Contact {
+    pub name: String,
+    pub phone: String,
+    pub email: String,
+    pub tag: String,
+}
 
 pub enum ValidationReq {
     __,
@@ -19,34 +28,37 @@ impl ValidationReq {
         "Email can be empty, or must be a valid email".to_string()
     }
 }
-pub fn validate_name(name: &str) -> Result<bool, AppError> {
-    // Must begin with alphabet
-    // Name may contain spaces, hyphens, and apostrophe between alphabets
-    // Name may end with number or alphabet
-    let re = Regex::new(r"^[A-Za-z][A-Za-z\s'-\.]*\w*$")?;
-    Ok(re.is_match(name))
-}
 
-pub fn validate_number(phone: &str) -> Result<bool, AppError> {
-    // Must be between 10 to 15 digits digits
-    // Phone number may begin with + signifying a country code
-    // Every other character aside the "+" must be a digit.
-    let re = Regex::new(r"^\+?\d{10,15}$")?;
-    Ok(re.is_match(phone))
-}
+impl Contact {
+    pub fn validate_name(&self) -> Result<bool, AppError> {
+        // Must begin with alphabet
+        // Name may contain spaces, hyphens, and apostrophe between alphabets
+        // Name may end with number or alphabet
+        let re = Regex::new(r"^[A-Za-z][A-Za-z\s'-\.]*\w*$")?;
+        Ok(re.is_match(&self.name))
+    }
 
-pub fn validate_email(email: &str) -> Result<bool, AppError> {
-    // Email can be empty
-    // Or email must contain '@' char and contain '.' char somewhere after after
-    let re = Regex::new(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")?;
-    Ok(email.is_empty() || re.is_match(email))
-}
+    pub fn validate_number(&self) -> Result<bool, AppError> {
+        // Must be between 10 to 15 digits digits
+        // Phone number may begin with + signifying a country code
+        // Every other character aside the "+" must be a digit.
+        let re = Regex::new(r"^\+?\d{10,15}$")?;
+        Ok(re.is_match(&self.phone))
+    }
 
-pub fn contact_exist(contact: &Contact, contactlist: &[Contact]) -> bool {
-    // Check if contact alread exist in contactlist
-    contactlist
-        .iter()
-        .any(|cont| cont.name == contact.name && phone_number_matches(&cont.phone, &contact.phone))
+    pub fn validate_email(&self) -> Result<bool, AppError> {
+        // Email can be empty
+        // Or email must contain '@' char and contain '.' char somewhere after after
+        let re = Regex::new(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")?;
+        Ok(self.email.is_empty() || re.is_match(&self.email))
+    }
+
+    pub fn already_exist(&self, contactlist: &[&Contact]) -> bool {
+        // Check if contact alread exist in contactlist
+        contactlist
+            .iter()
+            .any(|cont| cont.name == self.name && phone_number_matches(&cont.phone, &self.phone))
+    }
 }
 
 pub fn phone_number_matches(phone1: &str, phone2: &str) -> bool {
@@ -95,7 +107,7 @@ pub fn phone_number_matches(phone1: &str, phone2: &str) -> bool {
 #[cfg(test)]
 mod tests {
 
-    use crate::validation::phone_number_matches;
+    use super::*;
 
     #[test]
     fn confirm_phone_number_matches() {

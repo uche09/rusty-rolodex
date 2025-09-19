@@ -3,20 +3,18 @@ mod domain;
 mod errors;
 mod helper;
 mod store;
-mod validation;
 
 use std::{env, process::exit};
 
 use clap::Parser;
 
-use crate::cli::{Cli, Commands, SortKey};
-use crate::domain::{Contact, Storage};
-use crate::errors::AppError;
-use crate::store::load_migrated_contact;
-use crate::validation::{
-    ValidationReq, contact_exist, phone_number_matches, validate_email, validate_name,
-    validate_number,
+use crate::cli::{command::Cli, command::Commands, command::SortKey};
+use crate::domain::{
+    contact::{self, Contact, ValidationReq},
+    storage::Storage,
 };
+use crate::errors::AppError;
+use store::file::load_migrated_contact;
 
 fn main() -> Result<(), AppError> {
     let cli = Cli::parse();
@@ -34,23 +32,32 @@ fn main() -> Result<(), AppError> {
     );
 
     match cli.command {
-        Commands::Add { name, phone, email } => {
-            if !validate_name(&name)? {
+        Commands::Add {
+            name,
+            phone,
+            email,
+            tag,
+        } => {
+            let new_contact = Contact {
+                name,
+                phone,
+                email: email.unwrap_or_default(),
+                tag: tag.unwrap_or_default(),
+            };
+
+            if !new_contact.validate_name()? {
                 return Err(AppError::Validation(ValidationReq::name_req()));
             }
 
-            if !validate_number(&phone)? {
+            if !new_contact.validate_number()? {
                 return Err(AppError::Validation(ValidationReq::phone_req()));
             }
 
-            let email = email.unwrap_or_default();
-            if !validate_email(&email)? {
+            if !new_contact.validate_email()? {
                 return Err(AppError::Validation(ValidationReq::email_req()));
             }
 
-            let new_contact = Contact { name, phone, email };
-
-            if contact_exist(&new_contact, storage.contact_list()) {
+            if new_contact.already_exist(&storage.contact_list()[0..]) {
                 return Err(AppError::Validation(
                     "Contact with this name and number already exist".to_string(),
                 ));
@@ -65,8 +72,6 @@ fn main() -> Result<(), AppError> {
 
         // Listing contacts
         Commands::List { sort, tag } => {
-            let _tag = tag; // TODO
-
             if storage.contact_list().is_empty() {
                 println!("No contact yet");
                 exit(0);
@@ -84,9 +89,34 @@ fn main() -> Result<(), AppError> {
                 }
             }
 
+            if let Some(tag) = tag {
+                let filtered_contacts: Vec<&Contact> = storage
+                    .mem_store
+                    .iter()
+                    .filter(|c| c.tag.to_lowercase() == tag.to_lowercase())
+                    .collect();
+
+                if filtered_contacts.is_empty() {
+                    println!("Found no contact with this {{{}}} tag", tag);
+                    return Ok(());
+                }
+
+                for (mut i, c) in filtered_contacts.iter().enumerate() {
+                    i += 1;
+                    println!(
+                        "{i:>3}. {:<20} {:15} {:^30} {:<15}",
+                        c.name, c.phone, c.email, c.tag
+                    );
+                }
+                return Ok(());
+            }
+
             for (mut i, c) in storage.contact_list().iter().enumerate() {
                 i += 1;
-                println!("{i:>3}. {:<20} {:<15} {}", c.name, c.phone, c.email);
+                println!(
+                    "{i:>3}. {:<20} {:15} {:^30} {:<15}",
+                    c.name, c.phone, c.email, c.tag
+                );
             }
 
             Ok(())
@@ -94,7 +124,6 @@ fn main() -> Result<(), AppError> {
 
         // Delete Contact
         Commands::Delete { name, phone } => {
-            let contacts = storage.contact_list().clone();
             let indices = storage.get_indices_by_name(&name);
 
             let phone = phone.unwrap_or_default();
@@ -111,8 +140,9 @@ fn main() -> Result<(), AppError> {
                             exit(0);
                         } else {
                             for index in indices {
-                                if contacts[index].name == name
-                                    && phone_number_matches(&contacts[index].phone, &phone)
+                                let contact = storage.contact_list()[index];
+                                if contact.name == name
+                                    && contact::phone_number_matches(&contact.phone, &phone)
                                 {
                                     storage.delete_contact(index)?;
                                 }
