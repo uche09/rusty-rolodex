@@ -1,5 +1,6 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
+use std::fs;
 
 fn listing_format(i: i32, name: &str, phone: &str, email: &str, tag: &str) -> String {
     format!("{i:>3}. {name:<20} {phone:15} {email:^30} {tag:<15}")
@@ -7,6 +8,7 @@ fn listing_format(i: i32, name: &str, phone: &str, email: &str, tag: &str) -> St
 
 #[test]
 fn add_contact() {
+    let _ = fs::remove_file("./.instance/contacts.json");
     // Add a contact
     Command::cargo_bin("rusty-rolodex")
         .unwrap()
