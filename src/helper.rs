@@ -175,7 +175,7 @@ mod tests {
             }
         );
 
-        Ok(assert_eq!(
+        assert_eq!(
             storage.mem_store.data[1],
             Contact {
                 name: "Mom".to_string(),
@@ -183,6 +183,11 @@ mod tests {
                 email: "ucheuche@gmail.com".to_string(),
                 tag: "".to_string(),
             }
-        ))
+        );
+
+        storage.mem_store.data.clear();
+        storage.txt_store.save(&storage.mem_store.data)?;
+        storage.json_store.save(&storage.mem_store.data)?;
+        Ok(())
     }
 }

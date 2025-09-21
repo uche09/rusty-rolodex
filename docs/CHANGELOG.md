@@ -115,6 +115,7 @@ This fix ensures all copies are deleted.
 - Optional Tag field to Contact to categorize contacts e.g. --tag Family.
 - Implemented the `Iterator` trait on MemStore to iterate through data field. Also implemented `iter()` function on MemStore.
 - List command now uses tag to filter contact in contact list.
+- Integration (Black Box) test.
 
 
 
@@ -123,6 +124,8 @@ This fix ensures all copies are deleted.
 - Contact validations are now implementation (methods) of `enum Contact`.
 - `enum Contact` no longer derive the `#[derive(Clone)]` trait due the implementation of iterator on MemStore.
 - `storage.contact_list()` now uses the `MemStore::iter()` function. Modified callers of `storage.contact_list()` to adapt to new changes.
+- Name validator now rejects value longer than 50 characters.
+- Email validator now rejects value longer than 254 characters.
 
 
 ### Fixed

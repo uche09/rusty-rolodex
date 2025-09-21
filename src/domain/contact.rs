@@ -16,8 +16,9 @@ pub enum ValidationReq {
 
 impl ValidationReq {
     pub fn name_req() -> String {
-        "Name must begin with alphabet, may contain spaces, dot, hyphen, and apostrophe between alphabets\
-        and may end with number or alphabet".to_string()
+        "Name must begin with alphabet, may contain spaces, dot, hyphen, and apostrophe between alphabets \
+        and may end with number or alphabet. Name must not exceed 50 characters"
+        .to_string()
     }
 
     pub fn phone_req() -> String {
@@ -25,7 +26,7 @@ impl ValidationReq {
     }
 
     pub fn email_req() -> String {
-        "Email can be empty, or must be a valid email".to_string()
+        "Email can be empty, or must be a valid email. Must not exceed 254 characters".to_string()
     }
 }
 
@@ -34,8 +35,9 @@ impl Contact {
         // Must begin with alphabet
         // Name may contain spaces, hyphens, and apostrophe between alphabets
         // Name may end with number or alphabet
+        // Not more than 50 characters
         let re = Regex::new(r"^[A-Za-z][A-Za-z\s'-\.]*\w*$")?;
-        Ok(re.is_match(&self.name))
+        Ok((self.name.len() <= 50) && re.is_match(&self.name))
     }
 
     pub fn validate_number(&self) -> Result<bool, AppError> {
@@ -49,8 +51,9 @@ impl Contact {
     pub fn validate_email(&self) -> Result<bool, AppError> {
         // Email can be empty
         // Or email must contain '@' char and contain '.' char somewhere after after
+        // Not more than 254 characters
         let re = Regex::new(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")?;
-        Ok(self.email.is_empty() || re.is_match(&self.email))
+        Ok(self.email.is_empty() || (re.is_match(&self.email) && self.email.len() <= 254))
     }
 
     pub fn already_exist(&self, contactlist: &[&Contact]) -> bool {
@@ -139,5 +142,18 @@ mod tests {
         assert!(phone_number_matches(&phone_e1, &phone_e2));
         assert!(!phone_number_matches(&phone_f1, &phone_f2)); // Take note of '!' operator
         assert!(!phone_number_matches(&phone_g1, &phone_g2)); // Take not of '!' operator
+    }
+
+    #[test]
+    fn email_validation() -> Result<(), AppError> {
+        let contact = Contact {
+            name: "Uche".to_string(),
+            phone: "08132165498".to_string(),
+            email: "foo@bar".to_string(),
+            tag: "".to_string(),
+        };
+
+        assert!(!contact.validate_email()?);
+        Ok(())
     }
 }
