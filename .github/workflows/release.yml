@@ -24,8 +24,13 @@ jobs:
             - name: Package binary
               run: |
                 cd target/release
-                tar czf ../../rusty-rolodex-${GITHUB_REF_NAME}-ubuntu-x86_64.tar.gz rusty-rolodex
+                tar czf ../../rusty-rolodex-${{ github.ref_name }}-ubuntu-x86_64.tar.gz rusty-rolodex
+                cd ../../
 
-            - uses: softprops/action-gh-release@v2
+            - name: Upload to GitHub Release
+              uses: softprops/action-gh-release@v2
               with:
-                files: rusty-rolodex-${GITHUB_REF_NAME}-ubuntu-x86_64.tar.gz
+                files: ./rusty-rolodex-${{ github.ref_name }}-ubuntu-x86_64.tar.gz
+              
+              env:
+                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
