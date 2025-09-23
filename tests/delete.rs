@@ -5,7 +5,7 @@ use std::fs;
 #[test]
 fn deleting_contacts() {
     let _ = fs::remove_file("./.instance/contacts.json");
-    
+
     // Attempt to delete non existing contact
     Command::cargo_bin("rusty-rolodex")
         .unwrap()

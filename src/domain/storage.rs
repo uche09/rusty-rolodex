@@ -1,8 +1,4 @@
-use super::contact::Contact;
-use crate::{
-    errors::AppError,
-    store::{ContactStore, file, memory},
-};
+use super::*;
 use dotenv::dotenv;
 use std::{fs, path::Path};
 
@@ -25,7 +21,7 @@ impl Storage {
         Ok(Storage {
             txt_store: file::TxtStore::new("./.instance/contacts.txt")?,
             json_store: file::JsonStore::new("./.instance/contacts.json")?,
-            mem_store: memory::MemStore::new(),
+            mem_store: memory::MemStore::default(),
             storage_choice: parse_storage_choice(),
         })
     }
@@ -140,7 +136,6 @@ pub fn parse_storage_choice() -> StorageChoice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::store::ContactStore;
 
     #[test]
     fn adds_persistent_contact_with_txt() -> Result<(), AppError> {

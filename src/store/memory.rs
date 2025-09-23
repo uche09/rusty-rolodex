@@ -1,14 +1,11 @@
 use super::*;
 
+#[derive(Default)]
 pub struct MemStore {
     pub data: Vec<Contact>,
 }
 
 impl MemStore {
-    pub fn new() -> Self {
-        Self { data: Vec::new() }
-    }
-
     pub fn iter(&self) -> MemStoreIter<'_> {
         MemStoreIter {
             inner: &self.data,

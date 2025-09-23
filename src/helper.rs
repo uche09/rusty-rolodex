@@ -1,8 +1,6 @@
+use crate::prelude::{AppError, Contact};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-
-use crate::domain::contact::Contact;
-use crate::errors::AppError;
 
 pub fn serialize_contacts(contacts: &[Contact]) -> String {
     let mut data = String::new();
@@ -113,7 +111,7 @@ pub fn deserialize_contacts_from_txt_buffer(
 #[cfg(test)]
 mod tests {
     use crate::domain::storage::Storage;
-    use crate::store::ContactStore;
+    use crate::prelude::ContactStore;
 
     use super::*;
 
