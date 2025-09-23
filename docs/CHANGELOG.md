@@ -12,7 +12,7 @@
     - [Changes](#changes)
     - [Fixed](#fixed)
 
-* [**Week 4**](#v01-week-4-_-09-2025)
+* [**Week 4**](#v01-week-4-23-09-2025)
     - [Added](#added-3)
     - [Changes](#changes-1)
     - [Fixed](#fixed-1)
@@ -108,14 +108,15 @@ This fix ensures all copies are deleted.
 
 
 
-## v0.1-week-4 (_-09-2025)
+## v0.1-week-4 (23-09-2025)
 
 ### Added
-- GitHub workflow for realease.
+- GitHub workflow for release.
 - Optional Tag field to Contact to categorize contacts e.g. --tag Family.
 - Implemented the `Iterator` trait on MemStore to iterate through data field. Also implemented `iter()` function on MemStore.
 - List command now uses tag to filter contact in contact list.
 - Integration (Black Box) test.
+- Reorganized codebase into library structure according to project specification.
 
 
 
@@ -126,9 +127,11 @@ This fix ensures all copies are deleted.
 - `storage.contact_list()` now uses the `MemStore::iter()` function. Modified callers of `storage.contact_list()` to adapt to new changes.
 - Name validator now rejects value longer than 50 characters.
 - Email validator now rejects value longer than 254 characters.
+- Replace `MemStore::new()` with `#[derive(Default)]` on MemStore struct.
+- Reorganize codebase into library structure.
 
 
 ### Fixed
-- **Misplacing Contact Values Using data annotation:** When reading contacts form .txt file, `helper::deserialize_contacts_from_txt_buffer()` initially used the contact data validators like `new_contact.validate_name()` to assign the value being read to the proper field. The values of the recently added Tag field would mostly pass the name validation hence can be accidentally **misplaced** for name value. Proactively solved this by adding data annotation to `helper::serialize_contacts()`, so that each value has it annotated field. The `helper::deserialize_contacts_from_txt_buffer()` function also allow backward compatibility by reading the data annotation (key) as an optional data, and defaults to using initial verification method if value has no annotation.
-- **Complete Migration && Eradication of partial delete:** Simplified migratoin to allow `Storage.save()` delete initial storage file once all contact is saved on new storage choice (complete migration). The discontinuation of preserving initial storage file has completely eradicated the issue of partial delete, and has simplified the `Storage.delete()` logic.
+- **Misplacing Contact Values Using data annotation:** When reading contacts form .txt file, `helper::deserialize_contacts_from_txt_buffer()` initially used the contact data validators like `new_contact.validate_name()` to assign the value being read to the proper field. The values of the recently added Tag field would mostly pass the name validation hence can be accidentally **misplaced** for name value. I Proactively solved this by adding data annotation to `helper::serialize_contacts()`, so that each value has it annotated field. The `helper::deserialize_contacts_from_txt_buffer()` function also allow backward compatibility by reading the data annotation (key) as an optional data, and defaults to using initial verification method if value has no annotation.
+- **Complete Migration && Eradication of partial delete:** Simplified migration to allow `Storage.save()` delete initial storage file once all contact is saved on new storage choice (complete migration). The discontinuation of preserving initial storage file has completely eradicated the issue of partial delete, and has simplified the `Storage.delete()` logic.
 - **Faulty Logic:** `Storage::save()` had a faulty logic that was resulting to a `Error: Io(Os { code: 2, kind: NotFound, message: "No such file or directory" })` error when storage choice is set to txt.

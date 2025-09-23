@@ -19,6 +19,27 @@
     - [Generic function](#generic-function)
     - [Demo](#demo-week-2)
 
+* [**Week 3 Walkthrough**](#rusty-rolodex---week-3-walkthrough)
+    - [Regex](#regex)
+    - [Number Match](#number-match)
+    - [JSON Persistence](#json-persistence)
+    - [Environment variable for storage choice](#environment-variable-for-storage-choice)
+    - [Data Migration](#data-migration)
+    - [Command Line Argument Parser (clap)](#command-line-argument-parser-clap)
+    - [Test](#test-1)
+    - [Demo](#demo-week-3)
+
+* [**Week 4 Walkthrough**](#rusty-rolodex---week-4-walkthrough)
+    - [GitHub Workflow For Release](#github-workflow-for-release)
+    - [Tag Field](#tag-field)
+    - [Misplacing Contact Values Using data annotation](#misplacing-contact-values-using-data-annotation)
+    - [Complete Migration && Eradication of partial delete](#complete-migration--eradication-of-partial-delete)
+    - [Iterator](#iterator)
+    - [No Clones](#no-clones)
+    - [Integration (Black Box) Test](#integration-black-box-test)
+    - [Micro-Benchmarking](#micro-benchmarking)
+    - [Demo](#demo-week-4)
+
 
 
 
@@ -439,14 +460,68 @@ I created a generic function `cli::retry<F, T, V>() -> T` that accepts input fun
 ### Command Line Argument Parser (clap)
 + I refined the project to accept run and accept input as command line arguements using the `clap` crate.
 + Using clap has tremendously improved code structure and CLI.
-+ Users can parse their prefered storage type directly to env var as an argument `rusty-rolodex -- --storage_choice json`. Storage choice is set to 'json' by default.
++ Users can parse their prefered storage type directly to env var as an argument `rusty-rolodex --storage_choice json`. Storage choice is set to 'json' by default.
 
 ### Test
 + Wrote test to test new features and functionality.
 ![CI test pass screenshot](./media/rolodex-ci-v3.png)
 
-### Demo week 2
+### Demo week 3
 ![screenshot project with clap](./media/rolodex-clapv3.png)
+
+
+
+
+## Rusty Rolodex - Week 4 Walkthrough
+
+### GitHub Workflow For Release
++ I created a GitHub workflow to release a downloadable linux-compatible bin for every version release.
++ The effectiveness will be confirmed on the next version release.
+
+### Tag Field
++ An optional `tag` field has been added to `Contact` enum for categorising contacts according to project spec.
+
+### Misplacing Contact Values Using data annotation
++ When reading contacts form .txt file, `helper::deserialize_contacts_from_txt_buffer()` initially used the contact data validators like `new_contact.validate_name()` to assign the value being read to the proper field. The values of the recently added Tag field would mostly pass the name validation hence can be accidentally **misplaced** for name value. I Proactively solved this by adding data annotation to `helper::serialize_contacts()`, so that each value has it annotated field. The `helper::deserialize_contacts_from_txt_buffer()` function also allow backward compatibility by reading the data annotation (key) as an optional data, and defaults to using initial verification method if value has no annotation.
+
+### Complete Migration && Eradication of partial delete
++ Simplified migration to allow `Storage.save()` delete initial storage file once all contact is saved on new storage choice (complete migration). The discontinuation of preserving initial storage file has completely eradicated the issue of partial delete, and has simplified the `Storage.delete()` logic.
+
+### Iterator
++ I was able to implement the Iterator trait on MemStore to iterate through data field with a lifetime reference. Also implemented `iter()` function on MemStore to allow chainable method call like `filter()`.
++ `storage.contact_list()` now uses the `MemStore::iter()` function. Modified callers of `storage.contact_list()` to adapt to new changes.
++ List command now uses tag to filter contact in contact list.
+
+### No Clones
++ I removed the derived Clone trait `#[derive(Clone)]` from the Contact enum to ensure no expensive copy is made in memory, just lifetime references.
++ Borrow checker passed at compile time with no lifetime error.
+
+### Integration (Black Box) Test
++ I implemented a black box test using the rust `assert_cmd` and `predicate` external crate.
++ The test captures basic usage scenarios like adding a contact, listing contacts to assert added contact exists, deleting contacts, sorting contact list and asserting it output order, filtering contact list with a tag category and asserting other categories was not listed.
++ The test also captures invalid usage like using invalid commands, entering an invalid name, phone number or email.
++ The test also captures extreme cases such as:
+    - Entering an extremely long name, or email, which lead to the modification of the verification function to reject name longer than 50 chars and email longer than 254 chars.
+    - Creating a duplicate contact.
+    - Listing an emply contact list.
+    - Deleting non existing contact.
++ All test passes both locally and on CI.
+
+### Micro-Benchmarking
++ I conducted a micro-benchmarking on the project for performance test.
++ The benchmarking was done using `std::time`  module that comes with rust.
++ The benchmarking was conducted on two sample data, one containing two thousand contact data (denoted as 2K) and the other containing five thousand contact data (denoted as 5K).
++ Each benchmarked time is the calulated average time of at least 10 iterations of the benchmarked action.
++ The `list --sort --tag` command took an average of 24 iteration. This came from a 3 iteration each of 4 selected tag category, which combines one sort variant (e.g. name) on the first 3 iteration and the second sort variant (email) on the next 3 iteration before moving to the next tag category and repeat.
++ Contacts in sample data are randomized and unsorted, except it is a benchmark requirement denoted by (sorted).
++ See [Micro-benchmark report](./perf-notes.md) in the linked doc.
+
+![2k sample data list](./media/list-sample-data-2k.png)
+![Workings of benchmark average time calculator](./media/benchmark-avg-calculator.png)
+
+
+### Demo week 4
+![Demo GIF](./media/rolodex-demoV4.gif)
 
 
 
