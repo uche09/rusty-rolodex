@@ -58,7 +58,7 @@ On invalid input (phone/email/name formats), prints a friendly error and exits w
 List all contacts.
 
 ```text
-Usage: rolodex list [--sort <FIELD>] [--filter-email-domain <DOMAIN>]
+Usage: rolodex list [--sort <FIELD>] [--tag <CATEGORY>]
 ```
 
 **Options:**

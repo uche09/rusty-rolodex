@@ -10,7 +10,7 @@ _  _, _// /_/ /_  /___/ /_/ /_  /_/ /_  /___  _    |
 ```
 
 [![Rust Version](https://img.shields.io/badge/Rust-1.78+-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
-[![Pull Request Test](https://github.com/uche09/rusty-rolodex/actions/workflows/ci.yml/badge.svg)](https://github.com/uche09/rusty-rolodex/actions/workflows/ci.yml)
+[![Push and Pull Request Test](https://github.com/uche09/rusty-rolodex/actions/workflows/ci.yml/badge.svg)](https://github.com/uche09/rusty-rolodex/actions/workflows/ci.yml)
 <!-- [![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)](LICENSE) -->
 
 ---
@@ -19,9 +19,10 @@ _  _, _// /_/ /_  /___/ /_/ /_  /_/ /_  /___  _    |
 Rusty Rolodex is a single evolving project — Rusty Rolodex — that grows from an in‑memory CLI address book into a production‑grade, test‑covered, CI/CD‑deployed tool.  
 Check out more about [Rusty-Rolodex](https://gist.github.com/Iamdavidonuh/062da8918a2d333b2150c74cae6bd525)
 
-See latest features and changes in [CHANGELOG.md](./docs/CHANGELOG.md) and [WALKTHROUGH.md](./docs/WALKTHROUGH.md)
+See latest features and changes in [CHANGELOG.md](./docs/CHANGELOG.md)  
+Also see implementation details on [WALKTHROUGH.md](./docs/WALKTHROUGH.md)
 
-![Project Demo](./docs/media/rolodex-demoV2.gif)
+![Project Demo](./docs/media/rolodex-demoV4.gif)
 
 ## Current Features
 - Add a new contact with name, phone number and email
@@ -49,7 +50,10 @@ Working on this project helped me practice and understand:
 - **Regex**: Validating user inputs like name, phone number and email using regex pattern.
 - **JSON**: Used `serde_json` to parse and store contact in json format.
 - **Clap**: Introduced Command Line Argument Parser in project with `clap` crate.
-- **Test**: Over the course of this project I've been constantly writing unit test to make sure functionalities works as expected, which is also required to pass the github workflow I set up.
+- **Unit Test**: Over the course of this project I've been constantly writing unit test to make sure functionalities works as expected, which is also required to pass the github workflow I set up.
+- **Iterator Trait**: I've learned how to implement `Iterator` trait on my collects to enable lazy iteration.
+- **Lifetime In Rust**: I'm begining to understand lifetime in rust and how it can optimize code performance and using a lifetime reference rather than a time and memory expensive copy.
+- **Integration (Black Box) Test**: Integrated black-box testing into project using the `assert_cmd` and `predicate` external crate. A system testing from outside without referencing internal implementation, just providing input and asserting output, system behavior or response. Treating the system just like a user would.
 
 ## Challenges Encountered
 - Managing **borrowing and ownership rules**, especially when parsing variables to some built-in construct without knowing if they consume the value (take ownership) or reference them by default.
@@ -62,46 +66,50 @@ And I was able to overcome these challenges to the best of my knowledge yet. And
 ## Example Usage
 
 ```bash
-cargo run add --name Jerry --phone 08861473537
-Contact added successfully
+add --name Jerry --phone 08861473537
+# Contact added successfully
 
-cargo run add --name Alice --phone +234123456789 --email ailce@gmail.com
-Contact added successfully
+add --name Alice --phone +234123456789 --email ailce@gmail.com --tag friends
+# Contact added successfully
 
-cargo run add --name james --phone +2348881454872 --email ja.mes@gmail.com
-Contact added successfully
+add --name james --phone +2348881454872 --email ja.mes@gmail.com --tag work
+# Contact added successfully
 
-cargo run add --name Jerry --phone +2348861473537
-Error: Validation("Contact with this name and number already exist")
+add --name Jerry --phone +2348861473537
+# Error: Validation("Contact with this name and number already exist")
 
-cargo run add --name daniel --phone 07099512124 --email bigD@yahoo.com
-Contact added successfully
+add --name daniel --phone 07099512124 --email bigD@yahoo.com --tag friends
+# Contact added successfully
 
-cargo run list
+list
   1. Alice                +234123456789   ailce@gmail.com
   2. Jerry                08861473537     
   3. daniel               07099512124     bigD@yahoo.com
   4. james                +2348881454872  ja.mes@gmail.com
 
-cargo run list --sort name
+list --sort name
   1. Alice                +234123456789   ailce@gmail.com
   2. daniel               07099512124     bigD@yahoo.com
   3. james                +2348881454872  ja.mes@gmail.com
   4. Jerry                08861473537     
 
-cargo run list --sort email
+list --sort email
   1. Jerry                08861473537     
   2. Alice                +234123456789   ailce@gmail.com
   3. daniel               07099512124     bigD@yahoo.com
   4. james                +2348881454872  ja.mes@gmail.com
 
-cargo run add --name Jerry --phone 09422138746 --email jex@gmail.com
-Contact added successfully
+list --tag friends
+  1. Alice                +234123456789   ailce@gmail.com
+  2. daniel               07099512124     bigD@yahoo.com
 
-cargo run add --name 'Dr Sam' --phone 08111111111 --email info@samclinic.ng
-Contact added successfully
+add --name Jerry --phone 09422138746 --email jex@gmail.com --tag family
+# Contact added successfully
 
-cargo run list
+add --name 'Dr Sam' --phone 08111111111 --email info@samclinic.ng
+# Contact added successfully
+
+list
   1. Alice                +234123456789   ailce@gmail.com
   2. Dr Sam               08111111111     info@samclinic.ng
   3. Jerry                08861473537     
@@ -110,13 +118,13 @@ cargo run list
   6. james                +2348881454872  ja.mes@gmail.com
 
 
-cargo run delete --name Jerry
+delete --name Jerry
 
-Deleting failed
-Found multiple contacts with this name: Jerry, please provide number. See help
+# Deleting failed
+# Found multiple contacts with this name: Jerry, please provide number. See help
 
-cargo run delete -h
-Delete a contact by name provide optional number is case name match multiple contacts
+delete -h
+# Delete a contact by name provide optional number is case name match multiple contacts
 
 Usage: rusty-rolodex delete [OPTIONS] --name <NAME>
 
@@ -126,22 +134,22 @@ Options:
   -h, --help             Print help
 
 
-cargo run delete --name Jerry --number 08861473537
-Contact deleted successfully
+delete --name Jerry --phone 08861473537
+# Contact deleted successfully
 
-cargo run delete --name Daniel
-Contact Not found
+delete --name Daniel
+# Contact Not found
 
-cargo run delete --name daniel
-Contact deleted successfully
+delete --name daniel
+# Contact deleted successfully
 
-cargo run list
+list
   1. Alice                +234123456789   ailce@gmail.com
   2. Dr Sam               08111111111     info@samclinic.ng
   3. Jerry                09422138746     jex@gmail.com
   4. james                +2348881454872  ja.mes@gmail.com
 
-cargo run list --sort name
+list --sort name
   1. Alice                +234123456789   ailce@gmail.com
   2. Dr Sam               08111111111     info@samclinic.ng
   3. james                +2348881454872  ja.mes@gmail.com
