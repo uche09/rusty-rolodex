@@ -2,7 +2,7 @@ use super::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Eq, PartialOrd, Ord)]
+#[derive(Debug, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct Contact {
     pub name: String,
     pub phone: String,
@@ -60,9 +60,20 @@ impl Contact {
         // Check if contact alread exist in contactlist
         contactlist
             .iter()
-            .any(|cont| cont.name == self.name && phone_number_matches(&cont.phone, &self.phone))
+            .any(|cont| cont == &self)
     }
 }
+
+impl PartialEq for Contact {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+        &&
+        phone_number_matches(&self.phone, &other.phone)
+    }
+}
+
+impl Eq for Contact {}
+
 
 pub fn phone_number_matches(phone1: &str, phone2: &str) -> bool {
     let phone1: Vec<char> = phone1.chars().collect();
