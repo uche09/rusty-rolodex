@@ -1,19 +1,34 @@
+use chrono::{DateTime, Utc};
+
 use crate::prelude::{AppError, Contact};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::str::FromStr;
 
 pub fn serialize_contacts(contacts: &[Contact]) -> String {
     let mut data = String::new();
 
     for contact in contacts {
+        let created_at_str = contact
+            .created_at
+            .map(|dt| dt.to_string())
+            .unwrap_or_else(|| "".to_string());
+
+        let updated_at_str = contact
+            .updated_at
+            .map(|dt| dt.to_string())
+            .unwrap_or_else(|| "".to_string());
+
         let ser_contact = format!(
             "{{\n\
         name: {}\n\
         phone: {}\n\
         email: {}\n\
         tag: {}\n\
+        created_at: {}\n\
+        updated_at: {}\n\
         }}\n",
-            contact.name, contact.phone, contact.email, contact.tag
+            contact.name, contact.phone, contact.email, contact.tag, created_at_str, updated_at_str,
         );
 
         data.push_str(&ser_contact);
@@ -38,11 +53,15 @@ pub fn deserialize_contacts_from_txt_buffer(
         phone: "".to_string(),
         email: "".to_string(),
         tag: "".to_string(),
+        created_at: None,
+        updated_at: None,
     };
     let mut name = "".to_string();
     let mut phone = "".to_string();
     let mut email = "".to_string();
     let mut tag: String = "".to_string();
+    let mut created_at: Option<DateTime<Utc>> = None;
+    let mut updated_at: Option<DateTime<Utc>> = None;
 
     for line in buffer.lines() {
         let line = line?;
@@ -60,6 +79,8 @@ pub fn deserialize_contacts_from_txt_buffer(
                 phone: phone.clone(),
                 email: email.clone(),
                 tag: tag.clone(),
+                created_at,
+                updated_at,
             };
             contacts.push(contact);
             continue;
@@ -103,6 +124,24 @@ pub fn deserialize_contacts_from_txt_buffer(
             tag = value.to_string();
             continue;
         }
+
+        if key.is_some() && key == Some("created_at") {
+            if value.is_empty() {
+                created_at = None;
+            } else {
+                created_at = Some(DateTime::<Utc>::from_str(value)?.to_utc())
+            }
+            continue;
+        }
+
+        if key.is_some() && key == Some("updated_at") {
+            if value.is_empty() {
+                updated_at = None;
+            } else {
+                updated_at = Some(DateTime::<Utc>::from_str(value)?.to_utc())
+            }
+            continue;
+        }
     }
 
     Ok(contacts)
@@ -116,13 +155,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn check_serialize_contact() {
-        let contacts = vec![Contact {
-            name: "Uche".to_string(),
-            phone: "012345678901".to_string(),
-            email: "ucheuche@gmail.com".to_string(),
-            tag: "".to_string(),
-        }];
+    fn check_serialize_contact() -> Result<(), AppError> {
+        let contacts = vec![Contact::new(
+            "Uche".to_string(),
+            "012345678901".to_string(),
+            "ucheuche@gmail.com".to_string(),
+            "".to_string(),
+        )?];
 
         let ser_data = serialize_contacts(&contacts);
 
@@ -135,26 +174,28 @@ mod tests {
             tag: \n\
         }\n"
             .to_string()
-        )
+        );
+
+        Ok(())
     }
 
     #[test]
     fn check_deserialization_from_txt() -> Result<(), AppError> {
         let mut storage = Storage::new()?;
 
-        let contact1 = Contact {
-            name: "Uche".to_string(),
-            phone: "012345678901".to_string(),
-            email: String::new(),
-            tag: "".to_string(),
-        };
+        let contact1 = Contact::new(
+            "Uche".to_string(),
+            "012345678901".to_string(),
+            String::new(),
+            "".to_string(),
+        )?;
 
-        let contact2 = Contact {
-            name: "Mom".to_string(),
-            phone: "98765432109".to_string(),
-            email: "ucheuche@gmail.com".to_string(),
-            tag: "".to_string(),
-        };
+        let contact2 = Contact::new(
+            "Mom".to_string(),
+            "98765432109".to_string(),
+            "ucheuche@gmail.com".to_string(),
+            "".to_string(),
+        )?;
 
         storage.mem_store.data.push(contact1);
         storage.mem_store.data.push(contact2);
@@ -165,22 +206,22 @@ mod tests {
 
         assert_eq!(
             storage.mem_store.data[0],
-            Contact {
-                name: "Uche".to_string(),
-                phone: "012345678901".to_string(),
-                email: String::new(),
-                tag: "".to_string(),
-            }
+            Contact::new(
+                "Uche".to_string(),
+                "012345678901".to_string(),
+                String::new(),
+                "".to_string(),
+            )?
         );
 
         assert_eq!(
             storage.mem_store.data[1],
-            Contact {
-                name: "Mom".to_string(),
-                phone: "98765432109".to_string(),
-                email: "ucheuche@gmail.com".to_string(),
-                tag: "".to_string(),
-            }
+            Contact::new(
+                "Mom".to_string(),
+                "98765432109".to_string(),
+                "ucheuche@gmail.com".to_string(),
+                "".to_string(),
+            )?
         );
 
         storage.mem_store.data.clear();

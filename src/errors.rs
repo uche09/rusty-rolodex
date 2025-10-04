@@ -2,12 +2,19 @@ use core::fmt;
 
 #[derive(Debug)]
 pub enum AppError {
+    DateTime(chrono::ParseError),
     Io(std::io::Error),
     JsonPerser(serde_json::Error),
     NotFound(String),
     ParseInt(std::num::ParseIntError),
     RegexError(regex::Error),
     Validation(String),
+}
+
+impl From<chrono::ParseError> for AppError {
+    fn from(err: chrono::ParseError) -> Self {
+        AppError::DateTime(err)
+    }
 }
 
 impl From<std::io::Error> for AppError {
@@ -37,6 +44,9 @@ impl From<regex::Error> for AppError {
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            AppError::DateTime(e) => {
+                write!(f, "Invalid Datetime format: {}", e)
+            }
             AppError::Io(e) => {
                 write!(f, "I/O error while accessing a file or resource: {}", e)
             }
@@ -76,13 +86,13 @@ mod tests {
     }
 
     #[test]
-    fn confirm_validation_error() {
-        let contact = Contact {
-            name: "".to_string(),
-            phone: "abc".to_string(),
-            email: "".to_string(),
-            tag: "".to_string(),
-        };
+    fn confirm_validation_error() -> Result<(), AppError> {
+        let contact = Contact::new(
+            "".to_string(),
+            "abc".to_string(),
+            "".to_string(),
+            "".to_string(),
+        )?;
 
         if let Ok(t) = contact.validate_number() {
             if !t {
@@ -96,5 +106,7 @@ mod tests {
         } else {
             panic!();
         }
+
+        Ok(())
     }
 }
