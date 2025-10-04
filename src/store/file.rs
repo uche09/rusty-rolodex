@@ -150,14 +150,14 @@ mod tests {
             "01234567890".to_string(),
             "ucheuche@gmail.com".to_string(),
             "".to_string(),
-        )?;
+        );
 
         let contact2 = Contact::new(
             "Alex".to_string(),
             "+44731484372".to_string(),
             "".to_string(),
             "".to_string(),
-        )?;
+        );
 
         storage.add_contact(contact1);
         storage.txt_store.save(&storage.mem_store.data)?;
@@ -178,7 +178,7 @@ mod tests {
                 "01234567890".to_string(),
                 "ucheuche@gmail.com".to_string(),
                 "".to_string(),
-            )?
+            )
         );
 
         assert_eq!(
@@ -188,7 +188,7 @@ mod tests {
                 "+44731484372".to_string(),
                 "".to_string(),
                 "".to_string(),
-            )?
+            )
         );
 
         storage.mem_store.data.clear();

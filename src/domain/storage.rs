@@ -146,7 +146,7 @@ mod tests {
             "01234567890".to_string(),
             "ucheuche@gmail.com".to_string(),
             "".to_string(),
-        )?;
+        );
 
         storage.add_contact(new_contact);
         storage.txt_store.save(&storage.mem_store.data)?;
@@ -160,7 +160,7 @@ mod tests {
                 "01234567890".to_string(),
                 "ucheuche@gmail.com".to_string(),
                 "".to_string(),
-            )?
+            )
         );
 
         storage.mem_store.data.clear();
@@ -178,14 +178,14 @@ mod tests {
             "01234567890".to_string(),
             "ucheuche@gmail.com".to_string(),
             "".to_string(),
-        )?;
+        );
 
         let contact2 = Contact::new(
             "Alex".to_string(),
             "01234567890".to_string(),
             "".to_string(),
             "".to_string(),
-        )?;
+        );
 
         storage.add_contact(contact1);
         storage.add_contact(contact2);
@@ -212,7 +212,7 @@ mod tests {
                 "01234567890".to_string(),
                 "ucheuche@gmail.com".to_string(),
                 "".to_string(),
-            )?
+            )
         );
 
         storage.mem_store.data.clear();
@@ -231,14 +231,14 @@ mod tests {
             "01234567890".to_string(),
             "ucheuche@gmail.com".to_string(),
             "".to_string(),
-        )?;
+        );
 
         let contact2 = Contact::new(
             "Alex".to_string(),
             "01234567890".to_string(),
             "".to_string(),
             "".to_string(),
-        )?;
+        );
 
         storage.add_contact(contact1);
         storage.add_contact(contact2);
@@ -255,7 +255,7 @@ mod tests {
                 "01234567890".to_string(),
                 "ucheuche@gmail.com".to_string(),
                 "".to_string(),
-            )?
+            )
         );
 
         assert_eq!(
@@ -265,7 +265,7 @@ mod tests {
                 "01234567890".to_string(),
                 "".to_string(),
                 "".to_string(),
-            )?
+            )
         );
 
         storage.delete_contact(0)?;
@@ -283,7 +283,7 @@ mod tests {
                 "01234567890".to_string(),
                 "ucheuche@gmail.com".to_string(),
                 "".to_string(),
-            )?
+            )
         );
 
         storage.mem_store.data.clear();

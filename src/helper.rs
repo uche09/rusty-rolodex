@@ -161,7 +161,7 @@ mod tests {
             "012345678901".to_string(),
             "ucheuche@gmail.com".to_string(),
             "".to_string(),
-        )?];
+        )];
 
         let ser_data = serialize_contacts(&contacts);
 
@@ -188,14 +188,14 @@ mod tests {
             "012345678901".to_string(),
             String::new(),
             "".to_string(),
-        )?;
+        );
 
         let contact2 = Contact::new(
             "Mom".to_string(),
             "98765432109".to_string(),
             "ucheuche@gmail.com".to_string(),
             "".to_string(),
-        )?;
+        );
 
         storage.mem_store.data.push(contact1);
         storage.mem_store.data.push(contact2);
@@ -211,7 +211,7 @@ mod tests {
                 "012345678901".to_string(),
                 String::new(),
                 "".to_string(),
-            )?
+            )
         );
 
         assert_eq!(
@@ -221,7 +221,7 @@ mod tests {
                 "98765432109".to_string(),
                 "ucheuche@gmail.com".to_string(),
                 "".to_string(),
-            )?
+            )
         );
 
         storage.mem_store.data.clear();

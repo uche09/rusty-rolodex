@@ -1,5 +1,5 @@
 use super::*;
-use chrono::{DateTime, Utc};
+pub use chrono::{DateTime, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -34,15 +34,15 @@ impl ValidationReq {
 }
 
 impl Contact {
-    pub fn new(name: String, phone: String, email: String, tag: String) -> Result<Self, AppError> {
-        Ok(Contact {
+    pub fn new(name: String, phone: String, email: String, tag: String) -> Self {
+        Contact {
             name,
             phone,
             email,
             tag,
             created_at: Some(Utc::now()),
             updated_at: Some(Utc::now()),
-        })
+        }
     }
     pub fn validate_name(&self) -> Result<bool, AppError> {
         // Must begin with alphabet
@@ -170,7 +170,7 @@ mod tests {
             "08132165498".to_string(),
             "foo@bar".to_string(),
             "".to_string(),
-        )?;
+        );
 
         assert!(!contact.validate_email()?);
         Ok(())

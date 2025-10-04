@@ -92,7 +92,7 @@ mod tests {
             "abc".to_string(),
             "".to_string(),
             "".to_string(),
-        )?;
+        );
 
         if let Ok(t) = contact.validate_number() {
             if !t {
