@@ -156,12 +156,14 @@ mod tests {
 
     #[test]
     fn check_serialize_contact() -> Result<(), AppError> {
-        let contacts = vec![Contact::new(
-            "Uche".to_string(),
-            "012345678901".to_string(),
-            "ucheuche@gmail.com".to_string(),
-            "".to_string(),
-        )];
+        let contacts = vec![Contact{
+            name: "Uche".to_string(),
+            phone: "012345678901".to_string(),
+            email: "ucheuche@gmail.com".to_string(),
+            tag: "".to_string(),
+            created_at: None,
+            updated_at: None
+    }];
 
         let ser_data = serialize_contacts(&contacts);
 
@@ -172,6 +174,8 @@ mod tests {
             phone: 012345678901\n\
             email: ucheuche@gmail.com\n\
             tag: \n\
+            created_at: \n\
+            updated_at: \n\
         }\n"
             .to_string()
         );
