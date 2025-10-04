@@ -147,6 +147,7 @@ This fix ensures all copies are deleted.
 - List `--reverse` | `-r` sub-command to sort in reverse.
 - Implemented constructor for Contact to self assign timestamp to new contacts.
 - Implemented a DateTime `chrono::ParseError` in `AppError` to sustain a unified Error handling.
+- Edit command to modify existing contact.
 
 
 
