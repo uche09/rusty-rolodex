@@ -30,12 +30,12 @@ pub fn run_app() -> Result<(), AppError> {
             email,
             tag,
         } => {
-            let new_contact = Contact {
+            let new_contact = Contact::new(
                 name,
                 phone,
-                email: email.unwrap_or_default(),
-                tag: tag.unwrap_or_default(),
-            };
+                email.unwrap_or_default(),
+                tag.unwrap_or_default(),
+            )?;
 
             if !new_contact.validate_name()? {
                 return Err(AppError::Validation(ValidationReq::name_req()));
@@ -63,7 +63,7 @@ pub fn run_app() -> Result<(), AppError> {
         }
 
         // Listing contacts
-        Commands::List { sort, tag } => {
+        Commands::List { sort, tag, reverse } => {
             if storage.contact_list().is_empty() {
                 println!("No contact yet");
                 exit(0);
@@ -78,7 +78,19 @@ pub fn run_app() -> Result<(), AppError> {
                         .mem_store
                         .data
                         .sort_by(|a, b| a.email.to_lowercase().cmp(&b.email.to_lowercase())),
+                    SortKey::Created => storage
+                        .mem_store
+                        .data
+                        .sort_by(|a, b| a.created_at.cmp(&b.created_at)),
+                    SortKey::Updated => storage
+                        .mem_store
+                        .data
+                        .sort_by(|a, b| a.updated_at.cmp(&b.updated_at)),
                 }
+            }
+
+            if reverse {
+                storage.mem_store.data.reverse();
             }
 
             if let Some(tag) = tag {

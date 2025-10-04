@@ -38,8 +38,13 @@ pub enum Commands {
         #[arg(long)]
         sort: Option<SortKey>,
 
+        /// List only specific tags
         #[arg(long)]
         tag: Option<String>,
+
+        /// Reverse order
+        #[arg(short, long)]
+        reverse: bool,
     },
 
     /// Delete a contact by name
@@ -60,4 +65,6 @@ pub enum Commands {
 pub enum SortKey {
     Name,
     Email,
+    Created,
+    Updated,
 }
