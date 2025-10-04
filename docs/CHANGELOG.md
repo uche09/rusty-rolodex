@@ -135,3 +135,28 @@ This fix ensures all copies are deleted.
 - **Misplacing Contact Values Using data annotation:** When reading contacts form .txt file, `helper::deserialize_contacts_from_txt_buffer()` initially used the contact data validators like `new_contact.validate_name()` to assign the value being read to the proper field. The values of the recently added Tag field would mostly pass the name validation hence can be accidentally **misplaced** for name value. I Proactively solved this by adding data annotation to `helper::serialize_contacts()`, so that each value has it annotated field. The `helper::deserialize_contacts_from_txt_buffer()` function also allow backward compatibility by reading the data annotation (key) as an optional data, and defaults to using initial verification method if value has no annotation.
 - **Complete Migration && Eradication of partial delete:** Simplified migration to allow `Storage.save()` delete initial storage file once all contact is saved on new storage choice (complete migration). The discontinuation of preserving initial storage file has completely eradicated the issue of partial delete, and has simplified the `Storage.delete()` logic.
 - **Faulty Logic:** `Storage::save()` had a faulty logic that was resulting to a `Error: Io(Os { code: 2, kind: NotFound, message: "No such file or directory" })` error when storage choice is set to txt.
+
+
+
+## v0.5-week-5 (_-10-2025)
+
+### Added
+- Implemented the `PartialEq` trait for `Contact` to define contact equality, rather than the initial derived PartialEq.
+- Optional`created_at` and `updated_at` timestamp to Contact struct using `chrono` crate.
+- Sort contacts by created/updated timestamp.
+- List `--reverse` | `-r` sub-command to sort in reverse.
+- Implemented constructor for Contact to self assign timestamp to new contacts.
+- Implemented a DateTime `chrono::ParseError` in `AppError` to sustain a unified Error handling.
+- Edit command to modify existing contact.
+
+
+
+### Changes
+- Contact struct now has two `Option<DateTime<Utc>>` field (`created_at` and `updated_at`).
+- Contact object can now be created using a constructor **WITHOUT** including the new `created_at` and `updated_at` fields into the constructor arguements.
+
+
+### Fixed
+- Duplicated contact during migration through the implementation of `PartialEq` for Contact struct.
+- Adjusted the txt Serializer and Deserializer function in `helper.rs` to accomodate new timestamp feilds with backward compatibility.
+- Adjusted the rest of codbase to use `Contact::new()` where necessary.

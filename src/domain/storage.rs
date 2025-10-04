@@ -141,12 +141,12 @@ mod tests {
     fn adds_persistent_contact_with_txt() -> Result<(), AppError> {
         let mut storage = Storage::new()?;
 
-        let new_contact = Contact {
-            name: "Uche".to_string(),
-            phone: "01234567890".to_string(),
-            email: "ucheuche@gmail.com".to_string(),
-            tag: "".to_string(),
-        };
+        let new_contact = Contact::new(
+            "Uche".to_string(),
+            "01234567890".to_string(),
+            "ucheuche@gmail.com".to_string(),
+            "".to_string(),
+        );
 
         storage.add_contact(new_contact);
         storage.txt_store.save(&storage.mem_store.data)?;
@@ -155,12 +155,12 @@ mod tests {
 
         assert_eq!(
             storage.contact_list()[0],
-            &Contact {
-                name: "Uche".to_string(),
-                phone: "01234567890".to_string(),
-                email: "ucheuche@gmail.com".to_string(),
-                tag: "".to_string(),
-            }
+            &Contact::new(
+                "Uche".to_string(),
+                "01234567890".to_string(),
+                "ucheuche@gmail.com".to_string(),
+                "".to_string(),
+            )
         );
 
         storage.mem_store.data.clear();
@@ -173,19 +173,19 @@ mod tests {
     fn delete_persistent_contact_with_txt() -> Result<(), AppError> {
         let mut storage = Storage::new()?;
 
-        let contact1 = Contact {
-            name: "Uche".to_string(),
-            phone: "01234567890".to_string(),
-            email: "ucheuche@gmail.com".to_string(),
-            tag: "".to_string(),
-        };
+        let contact1 = Contact::new(
+            "Uche".to_string(),
+            "01234567890".to_string(),
+            "ucheuche@gmail.com".to_string(),
+            "".to_string(),
+        );
 
-        let contact2 = Contact {
-            name: "Alex".to_string(),
-            phone: "01234567890".to_string(),
-            email: "".to_string(),
-            tag: "".to_string(),
-        };
+        let contact2 = Contact::new(
+            "Alex".to_string(),
+            "01234567890".to_string(),
+            "".to_string(),
+            "".to_string(),
+        );
 
         storage.add_contact(contact1);
         storage.add_contact(contact2);
@@ -207,12 +207,12 @@ mod tests {
 
         assert_ne!(
             *storage.contact_list()[0],
-            Contact {
-                name: "Uche".to_string(),
-                phone: "01234567890".to_string(),
-                email: "ucheuche@gmail.com".to_string(),
-                tag: "".to_string(),
-            }
+            Contact::new(
+                "Uche".to_string(),
+                "01234567890".to_string(),
+                "ucheuche@gmail.com".to_string(),
+                "".to_string(),
+            )
         );
 
         storage.mem_store.data.clear();
@@ -226,19 +226,19 @@ mod tests {
     fn json_store_is_persistent() -> Result<(), AppError> {
         let mut storage = Storage::new()?;
 
-        let contact1 = Contact {
-            name: "Uche".to_string(),
-            phone: "01234567890".to_string(),
-            email: "ucheuche@gmail.com".to_string(),
-            tag: "".to_string(),
-        };
+        let contact1 = Contact::new(
+            "Uche".to_string(),
+            "01234567890".to_string(),
+            "ucheuche@gmail.com".to_string(),
+            "".to_string(),
+        );
 
-        let contact2 = Contact {
-            name: "Alex".to_string(),
-            phone: "01234567890".to_string(),
-            email: "".to_string(),
-            tag: "".to_string(),
-        };
+        let contact2 = Contact::new(
+            "Alex".to_string(),
+            "01234567890".to_string(),
+            "".to_string(),
+            "".to_string(),
+        );
 
         storage.add_contact(contact1);
         storage.add_contact(contact2);
@@ -250,22 +250,22 @@ mod tests {
 
         assert_eq!(
             storage.mem_store.data[0],
-            Contact {
-                name: "Uche".to_string(),
-                phone: "01234567890".to_string(),
-                email: "ucheuche@gmail.com".to_string(),
-                tag: "".to_string(),
-            }
+            Contact::new(
+                "Uche".to_string(),
+                "01234567890".to_string(),
+                "ucheuche@gmail.com".to_string(),
+                "".to_string(),
+            )
         );
 
         assert_eq!(
             storage.mem_store.data[1],
-            Contact {
-                name: "Alex".to_string(),
-                phone: "01234567890".to_string(),
-                email: "".to_string(),
-                tag: "".to_string(),
-            }
+            Contact::new(
+                "Alex".to_string(),
+                "01234567890".to_string(),
+                "".to_string(),
+                "".to_string(),
+            )
         );
 
         storage.delete_contact(0)?;
@@ -278,12 +278,12 @@ mod tests {
 
         assert_ne!(
             *storage.contact_list()[0],
-            Contact {
-                name: "Uche".to_string(),
-                phone: "01234567890".to_string(),
-                email: "ucheuche@gmail.com".to_string(),
-                tag: "".to_string(),
-            }
+            Contact::new(
+                "Uche".to_string(),
+                "01234567890".to_string(),
+                "ucheuche@gmail.com".to_string(),
+                "".to_string(),
+            )
         );
 
         storage.mem_store.data.clear();

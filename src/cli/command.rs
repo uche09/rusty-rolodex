@@ -38,10 +38,40 @@ pub enum Commands {
         #[arg(long)]
         sort: Option<SortKey>,
 
+        /// List only specific tags
         #[arg(long)]
         tag: Option<String>,
+
+        /// Reverse order
+        #[arg(short, long)]
+        reverse: bool,
     },
 
+    Edit {
+        /// Contact current name
+        #[arg(long)]
+        name: String,
+
+        /// Contact current phone number
+        #[arg(long)]
+        phone: String,
+
+        /// Update name
+        #[arg(long)]
+        new_name: Option<String>,
+
+        /// Update phone number
+        #[arg(long)]
+        new_phone: Option<String>,
+
+        /// Update email address
+        #[arg(long)]
+        new_email: Option<String>,
+
+        /// Update tag (school, work, gym)
+        #[arg(long)]
+        new_tag: Option<String>,
+    },
     /// Delete a contact by name
     /// provide optional number in cases where name matches multiple contacts
     Delete {
@@ -60,4 +90,6 @@ pub enum Commands {
 pub enum SortKey {
     Name,
     Email,
+    Created,
+    Updated,
 }

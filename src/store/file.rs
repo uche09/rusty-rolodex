@@ -145,19 +145,19 @@ mod tests {
         let mut storage = Storage::new()?;
         storage.mem_store.data.clear();
 
-        let contact1 = Contact {
-            name: "Uche".to_string(),
-            phone: "01234567890".to_string(),
-            email: "ucheuche@gmail.com".to_string(),
-            tag: "".to_string(),
-        };
+        let contact1 = Contact::new(
+            "Uche".to_string(),
+            "01234567890".to_string(),
+            "ucheuche@gmail.com".to_string(),
+            "".to_string(),
+        );
 
-        let contact2 = Contact {
-            name: "Alex".to_string(),
-            phone: "+44731484372".to_string(),
-            email: "".to_string(),
-            tag: "".to_string(),
-        };
+        let contact2 = Contact::new(
+            "Alex".to_string(),
+            "+44731484372".to_string(),
+            "".to_string(),
+            "".to_string(),
+        );
 
         storage.add_contact(contact1);
         storage.txt_store.save(&storage.mem_store.data)?;
@@ -173,22 +173,22 @@ mod tests {
 
         assert_eq!(
             *storage.contact_list()[1],
-            Contact {
-                name: "Uche".to_string(),
-                phone: "01234567890".to_string(),
-                email: "ucheuche@gmail.com".to_string(),
-                tag: "".to_string(),
-            }
+            Contact::new(
+                "Uche".to_string(),
+                "01234567890".to_string(),
+                "ucheuche@gmail.com".to_string(),
+                "".to_string(),
+            )
         );
 
         assert_eq!(
             *storage.contact_list()[0],
-            Contact {
-                name: "Alex".to_string(),
-                phone: "+44731484372".to_string(),
-                email: "".to_string(),
-                tag: "".to_string(),
-            }
+            Contact::new(
+                "Alex".to_string(),
+                "+44731484372".to_string(),
+                "".to_string(),
+                "".to_string(),
+            )
         );
 
         storage.mem_store.data.clear();

@@ -1,13 +1,16 @@
 use super::*;
+pub use chrono::{DateTime, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Eq, PartialOrd, Ord)]
+#[derive(Debug, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct Contact {
     pub name: String,
     pub phone: String,
     pub email: String,
     pub tag: String,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 pub enum ValidationReq {
@@ -31,6 +34,16 @@ impl ValidationReq {
 }
 
 impl Contact {
+    pub fn new(name: String, phone: String, email: String, tag: String) -> Self {
+        Contact {
+            name,
+            phone,
+            email,
+            tag,
+            created_at: Some(Utc::now()),
+            updated_at: Some(Utc::now()),
+        }
+    }
     pub fn validate_name(&self) -> Result<bool, AppError> {
         // Must begin with alphabet
         // Name may contain spaces, hyphens, and apostrophe between alphabets
@@ -58,11 +71,17 @@ impl Contact {
 
     pub fn already_exist(&self, contactlist: &[&Contact]) -> bool {
         // Check if contact alread exist in contactlist
-        contactlist
-            .iter()
-            .any(|cont| cont.name == self.name && phone_number_matches(&cont.phone, &self.phone))
+        contactlist.iter().any(|cont| cont == &self)
     }
 }
+
+impl PartialEq for Contact {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && phone_number_matches(&self.phone, &other.phone)
+    }
+}
+
+impl Eq for Contact {}
 
 pub fn phone_number_matches(phone1: &str, phone2: &str) -> bool {
     let phone1: Vec<char> = phone1.chars().collect();
@@ -146,12 +165,12 @@ mod tests {
 
     #[test]
     fn email_validation() -> Result<(), AppError> {
-        let contact = Contact {
-            name: "Uche".to_string(),
-            phone: "08132165498".to_string(),
-            email: "foo@bar".to_string(),
-            tag: "".to_string(),
-        };
+        let contact = Contact::new(
+            "Uche".to_string(),
+            "08132165498".to_string(),
+            "foo@bar".to_string(),
+            "".to_string(),
+        );
 
         assert!(!contact.validate_email()?);
         Ok(())
