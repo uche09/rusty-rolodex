@@ -1,10 +1,10 @@
 use crate::{
     domain::contact,
     prelude::{
-        AppError, Storage,
+        AppError,
         command::{Cli, Commands, SortKey},
         contact::{Contact, ValidationReq, phone_number_matches},
-        file::load_migrated_contact,
+        parse_store, store,
     },
 };
 
@@ -18,12 +18,13 @@ pub fn run_app() -> Result<(), AppError> {
         env::set_var("STORAGE_CHOICE", &cli.storage_choice);
     }
 
-    let mut storage = Storage::new()?;
+    let mut storage = parse_store()?;
 
-    storage.mem_store.data = load_migrated_contact(&storage)?;
+    storage.load_migrated_contact()?;
+
     println!(
         "Current storage choice is: {}",
-        storage.storage_choice.is_which()
+        store::parse_storage_choice().is_which()
     );
 
     match cli.command {
@@ -60,7 +61,8 @@ pub fn run_app() -> Result<(), AppError> {
 
             storage.add_contact(new_contact);
 
-            storage.save()?;
+            storage.save(storage.get_mem())?;
+
             println!("Contact added successfully");
             Ok(())
         }
@@ -74,31 +76,27 @@ pub fn run_app() -> Result<(), AppError> {
             if let Some(key) = sort {
                 match key {
                     SortKey::Name => storage
-                        .mem_store
-                        .data
+                        .mut_mem()
                         .sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase())),
                     SortKey::Email => storage
-                        .mem_store
-                        .data
+                        .mut_mem()
                         .sort_by(|a, b| a.email.to_lowercase().cmp(&b.email.to_lowercase())),
                     SortKey::Created => storage
-                        .mem_store
-                        .data
+                        .mut_mem()
                         .sort_by(|a, b| a.created_at.cmp(&b.created_at)),
                     SortKey::Updated => storage
-                        .mem_store
-                        .data
+                        .mut_mem()
                         .sort_by(|a, b| a.updated_at.cmp(&b.updated_at)),
                 }
             }
 
             if reverse {
-                storage.mem_store.data.reverse();
+                storage.mut_mem().reverse();
             }
 
             if let Some(tag) = tag {
                 let filtered_contacts: Vec<&Contact> = storage
-                    .mem_store
+                    .get_mem()
                     .iter()
                     .filter(|c| c.tag.to_lowercase() == tag.to_lowercase())
                     .collect();
@@ -140,8 +138,7 @@ pub fn run_app() -> Result<(), AppError> {
         } => {
             let desired_contact = Contact::new(name, phone, "".to_string(), "".to_string());
             let found_contact = storage
-                .mem_store
-                .data
+                .mut_mem()
                 .iter_mut()
                 .find(|c| **c == desired_contact);
 
@@ -162,7 +159,7 @@ pub fn run_app() -> Result<(), AppError> {
                 contact.updated_at = Some(contact::Utc::now());
             }
 
-            storage.save()?;
+            storage.save(storage.get_mem())?;
             println!("Contact updated successfully");
             Ok(())
         }
@@ -197,7 +194,7 @@ pub fn run_app() -> Result<(), AppError> {
                         storage.delete_contact(indices[0])?;
                     }
 
-                    storage.save()?;
+                    storage.save(storage.get_mem())?;
                     println!("Contact deleted successfully");
                     Ok(())
                 }

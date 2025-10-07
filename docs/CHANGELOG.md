@@ -148,12 +148,14 @@ This fix ensures all copies are deleted.
 - Implemented constructor for Contact to self assign timestamp to new contacts.
 - Implemented a DateTime `chrono::ParseError` in `AppError` to sustain a unified Error handling.
 - Edit command to modify existing contact.
+- Defined trait `Store` to implement usefull method on stores (json and txt) e.g add_contact, list_contacts etc.
 
 
 
 ### Changes
 - Contact struct now has two `Option<DateTime<Utc>>` field (`created_at` and `updated_at`).
 - Contact object can now be created using a constructor **WITHOUT** including the new `created_at` and `updated_at` fields into the constructor arguements.
+- **Refined Storage:** Created a generic Store inteface for storage in store/mod.rs (`parse_store()`) that returns a store type based on the storage-choice in .env value.
 
 
 ### Fixed

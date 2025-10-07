@@ -149,21 +149,21 @@ pub fn deserialize_contacts_from_txt_buffer(
 
 #[cfg(test)]
 mod tests {
-    use crate::domain::storage::Storage;
     use crate::prelude::ContactStore;
+    use crate::store::txt::TxtStore;
 
     use super::*;
 
     #[test]
     fn check_serialize_contact() -> Result<(), AppError> {
-        let contacts = vec![Contact{
+        let contacts = vec![Contact {
             name: "Uche".to_string(),
             phone: "012345678901".to_string(),
             email: "ucheuche@gmail.com".to_string(),
             tag: "".to_string(),
             created_at: None,
-            updated_at: None
-    }];
+            updated_at: None,
+        }];
 
         let ser_data = serialize_contacts(&contacts);
 
@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn check_deserialization_from_txt() -> Result<(), AppError> {
-        let mut storage = Storage::new()?;
+        let mut storage = TxtStore::new()?;
 
         let contact1 = Contact::new(
             "Uche".to_string(),
@@ -201,15 +201,15 @@ mod tests {
             "".to_string(),
         );
 
-        storage.mem_store.data.push(contact1);
-        storage.mem_store.data.push(contact2);
+        storage.mem.push(contact1);
+        storage.mem.push(contact2);
 
-        storage.txt_store.save(&storage.mem_store.data)?;
-        storage.mem_store.data.clear();
-        storage.mem_store.data = storage.txt_store.load()?;
+        storage.save(&storage.mem)?;
+        storage.mem.clear();
+        storage.mem = storage.load()?;
 
         assert_eq!(
-            storage.mem_store.data[0],
+            storage.mem[0],
             Contact::new(
                 "Uche".to_string(),
                 "012345678901".to_string(),
@@ -219,7 +219,7 @@ mod tests {
         );
 
         assert_eq!(
-            storage.mem_store.data[1],
+            storage.mem[1],
             Contact::new(
                 "Mom".to_string(),
                 "98765432109".to_string(),
@@ -228,9 +228,8 @@ mod tests {
             )
         );
 
-        storage.mem_store.data.clear();
-        storage.txt_store.save(&storage.mem_store.data)?;
-        storage.json_store.save(&storage.mem_store.data)?;
+        storage.mem.clear();
+        storage.save(&storage.mem)?;
         Ok(())
     }
 }
