@@ -2,6 +2,7 @@ use core::fmt;
 
 #[derive(Debug)]
 pub enum AppError {
+    CsvError(csv::Error),
     DateTime(chrono::ParseError),
     Io(std::io::Error),
     JsonPerser(serde_json::Error),
@@ -11,6 +12,11 @@ pub enum AppError {
     Validation(String),
 }
 
+impl From<csv::Error> for AppError {
+    fn from(err: csv::Error) -> Self {
+        AppError::CsvError(err)
+    }
+}
 impl From<chrono::ParseError> for AppError {
     fn from(err: chrono::ParseError) -> Self {
         AppError::DateTime(err)
@@ -44,13 +50,15 @@ impl From<regex::Error> for AppError {
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            AppError::CsvError(e) => {
+                write!(f, "CSV parser failed: '{}'", e)
+            }
             AppError::DateTime(e) => {
                 write!(f, "Invalid Datetime format: {}", e)
             }
             AppError::Io(e) => {
                 write!(f, "I/O error while accessing a file or resource: {}", e)
             }
-
             AppError::JsonPerser(e) => {
                 write!(f, "JSON parser failed '{}'", e)
             }

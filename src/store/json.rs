@@ -114,8 +114,7 @@ impl Store for JsonStore<'_> {
     }
 
     fn contact_list(&self) -> Vec<&Contact> {
-        let contacts = self.mem.iter().collect();
-        contacts
+        self.mem.iter().collect()
     }
 
     fn get_indices_by_name(&self, name: &str) -> Option<Vec<usize>> {
