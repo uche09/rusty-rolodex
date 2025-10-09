@@ -149,6 +149,10 @@ This fix ensures all copies are deleted.
 - Implemented a DateTime `chrono::ParseError` in `AppError` to sustain a unified Error handling.
 - Edit command to modify existing contact.
 - Defined trait `Store` to implement usefull method on stores (json and txt) e.g add_contact, list_contacts etc.
+- `storage_port` module for importing and exporting contacts to and from app storage.
+- New Import command `rusty-rolodex import --src /home/uche09/Downloads/sample_contacts.csv`. Project can now import contacts from .csv files using the `csv` crate from the provided source file path.
+- New export command `rusty-rolodex export --des /home/uche09/Downloads`. Project can now export contacts into .csv file using `csv` crates to the optionally provided file path.
+- `csv::Error` implementation in `AppError`.
 
 
 

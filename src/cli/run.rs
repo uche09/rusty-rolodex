@@ -4,7 +4,11 @@ use crate::{
         AppError,
         command::{Cli, Commands, SortKey},
         contact::{Contact, ValidationReq, phone_number_matches},
-        parse_store, store,
+        parse_store,
+        store::{
+            self,
+            storage_port::{export_contacts_to_csv, import_contacts_from_csv},
+        },
     },
 };
 
@@ -203,6 +207,47 @@ pub fn run_app() -> Result<(), AppError> {
                     Ok(())
                 }
             }
+        }
+
+        // Import contacts into storage from .csv file
+        Commands::Import { src } => {
+            let mut file_path: String = "".to_string();
+
+            if let Some(path) = src {
+                file_path = path;
+            }
+
+            if file_path.is_empty() {
+                let (path, total) = import_contacts_from_csv(None)?;
+
+                println!("Successfully imported {} contacts from {:?}.", total, path);
+                return Ok(());
+            }
+
+            let (path, total) = import_contacts_from_csv(Some(&file_path))?;
+
+            println!("Successfully imported {} contacts from {:?}.", total, path);
+            Ok(())
+        }
+
+        Commands::Export { des } => {
+            let mut file_path: String = "".to_string();
+
+            if let Some(path) = des {
+                file_path = path;
+            }
+
+            if file_path.is_empty() {
+                let (path, total) = export_contacts_to_csv(storage.get_mem(), None)?;
+
+                println!("Successfully exported {} contacts to {:?}.", total, path);
+                return Ok(());
+            }
+
+            let (path, total) = export_contacts_to_csv(storage.get_mem(), Some(&file_path))?;
+
+            println!("Successfully exported {} contacts to {:?}.", total, path);
+            Ok(())
         }
     }
 }

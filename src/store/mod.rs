@@ -1,5 +1,6 @@
 pub mod json;
 pub mod memory;
+pub mod storage_port;
 pub mod txt;
 
 use crate::prelude::{AppError, Contact};

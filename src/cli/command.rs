@@ -46,7 +46,9 @@ pub enum Commands {
         #[arg(short, long)]
         reverse: bool,
     },
-
+    /// Edit the data of an existing contact
+    /// Provide current contact name and number
+    /// followed by optional arguments of as many field you wish to update
     Edit {
         /// Contact current name
         #[arg(long)]
@@ -82,6 +84,20 @@ pub enum Commands {
         /// Contact number to delete
         #[arg(long)]
         phone: Option<String>,
+    },
+
+    /// Import contacts from .csv file
+    Import {
+        /// File path to the source .csv file
+        #[arg(short, long)]
+        src: Option<String>,
+    },
+
+    /// Export contacts to a .csv file
+    Export {
+        /// File path to the destination location for export file
+        #[arg(short, long)]
+        des: Option<String>,
     },
 }
 
