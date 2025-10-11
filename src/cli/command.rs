@@ -86,6 +86,23 @@ pub enum Commands {
         phone: Option<String>,
     },
 
+    /// Search for contants
+    Search {
+        /// Search mode (search by)
+        /// n = Search by name
+        /// e = search by email
+        #[arg(short)]
+        by: Option<SearchKey>,
+
+        /// Contact name
+        #[arg(long)]
+        name: Option<String>,
+
+        /// Contact email
+        #[arg(long)]
+        email: Option<String>,
+    },
+
     /// Import contacts from .csv file
     Import {
         /// File path to the source .csv file
@@ -108,4 +125,10 @@ pub enum SortKey {
     Email,
     Created,
     Updated,
+}
+
+#[derive(Copy, Clone, Debug, ValueEnum)]
+pub enum SearchKey {
+    N,
+    E,
 }
