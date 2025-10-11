@@ -138,7 +138,7 @@ This fix ensures all copies are deleted.
 
 
 
-## v0.5-week-5 (_-10-2025)
+## v0.5-week-5 (09-10-2025)
 
 ### Added
 - Implemented the `PartialEq` trait for `Contact` to define contact equality, rather than the initial derived PartialEq.
@@ -161,6 +161,30 @@ This fix ensures all copies are deleted.
 - Contact object can now be created using a constructor **WITHOUT** including the new `created_at` and `updated_at` fields into the constructor arguements.
 - **Refined Storage:** Created a generic Store inteface for storage in store/mod.rs (`parse_store()`) that returns a store type based on the storage-choice in .env value.
 
+
+### Fixed
+- Duplicated contact during migration through the implementation of `PartialEq` for Contact struct.
+- Adjusted the txt Serializer and Deserializer function in `helper.rs` to accomodate new timestamp feilds with backward compatibility.
+- Adjusted the rest of codbase to use `Contact::new()` where necessary.
+
+
+
+
+
+## v0.5-week-5 (11-10-2025)
+
+### Added
+- search.rs module to handle search index.
+- `search::create_name_search_index()` to index contacts by name.
+- `search::create_email_search_index()` to index contacts by email.
+- Search command in `cli/commands.rs`
+- Handle search command in `cli/run.rs`
+
+
+
+### Changes
+- Contact struct now has two `Option<DateTime<Utc>>` field (`created_at` and `updated_at`).
+-
 
 ### Fixed
 - Duplicated contact during migration through the implementation of `PartialEq` for Contact struct.

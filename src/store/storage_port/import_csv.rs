@@ -17,7 +17,7 @@ pub fn import_contacts_from_csv(src: Option<&str>) -> Result<(PathBuf, u64), App
     }
 
     if file_path.extension().is_some_and(|ext| ext != "csv") {
-        return Err(AppError::Validation("File not .csv".to_string()))
+        return Err(AppError::Validation("File not .csv".to_string()));
     }
 
     let mut reader = Reader::from_path(&file_path)?;

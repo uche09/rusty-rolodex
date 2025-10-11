@@ -2,16 +2,15 @@ use crate::{
     domain::contact,
     prelude::{
         AppError,
-        command::{Cli, Commands, SortKey},
+        command::{Cli, Commands, SearchKey, SortKey},
         contact::{Contact, ValidationReq, phone_number_matches},
-        parse_store,
+        create_email_search_index, create_name_search_index, parse_store,
         store::{
             self,
             storage_port::{export_contacts_to_csv, import_contacts_from_csv},
         },
     },
 };
-
 use clap::Parser;
 use std::{env, process::exit};
 
@@ -207,6 +206,149 @@ pub fn run_app() -> Result<(), AppError> {
                     Ok(())
                 }
             }
+        }
+
+        // Search for a contact
+        Commands::Search { by, name, email } => {
+            // Default search = name (if not provided)
+            let mut search_by = "name";
+
+            if let Some(search_key) = by {
+                match search_key {
+                    SearchKey::N => {
+                        search_by = "name";
+                    }
+                    SearchKey::E => {
+                        search_by = "email";
+                    }
+                }
+            }
+
+            // Search using email address
+            if search_by == "email" {
+                // user's provided email strig is assigned to "search_for"
+                let mut searched_for = "".to_string();
+
+                // Validate user provided string before assigning
+                if let Some(addr) = email {
+                    searched_for = addr.trim().to_owned();
+
+                    if addr.is_empty() {
+                        return Err(AppError::Validation("No email provided".to_string()));
+                    }
+
+                    if addr.len() > 15 {
+                        return Err(AppError::Validation("Search string too long".to_string()));
+                    }
+                }
+
+                // key is the first later of the string
+                let index_key = searched_for.to_ascii_lowercase().chars().next().unwrap_or_default();
+
+                storage.mut_mem().sort_by(|a, b| {
+                    a.email
+                        .trim()
+                        .to_ascii_lowercase()
+                        .cmp(&b.email.trim().to_ascii_lowercase())
+                });
+
+                let index = create_email_search_index()?;
+
+                // Get index range for search
+                let (start, end) = index.get(&index_key).unwrap_or(&(0usize, 0usize));
+
+                // fuzzy search filter
+                let filtered_contacts: Vec<&Contact> = storage.get_mem()[*start..*end]
+                    .iter()
+                    .filter(|con| {
+                        con.email
+                            .to_lowercase()
+                            .contains(searched_for.to_lowercase().as_str())
+                    })
+                    .collect();
+
+                if filtered_contacts.is_empty() {
+                    println!("Couldn't find an email with {searched_for}");
+                    return Ok(());
+                }
+
+                for (mut i, c) in filtered_contacts.iter().enumerate() {
+                    i += 1;
+
+                    let date = c
+                        .updated_at
+                        .map(|dt| dt.date_naive().to_string())
+                        .unwrap_or_else(|| "".to_string());
+
+                    println!(
+                        "{i:>3}. {:<20} {:15} {:^30} {:<15} 'Updated on:' {:<12}",
+                        c.name, c.phone, c.email, c.tag, date
+                    );
+                }
+            } else {
+                // Same logic for name
+
+                let mut searched_for = "".to_string();
+                if let Some(n) = name {
+                    searched_for = n.trim().to_owned();
+
+                    if n.is_empty() {
+                        return Err(AppError::Validation("No Name provided".to_string()));
+                    }
+
+                    if n.len() > 10 {
+                        return Err(AppError::Validation("Search string too long".to_string()));
+                    }
+                }
+                
+                let index_key = searched_for.to_lowercase().chars().next().unwrap_or_default();
+                
+                let index = create_name_search_index()?;
+
+                let mut storage = parse_store()?;
+                
+                storage.load_migrated_contact()?;
+
+                storage.mut_mem().sort_by(|a, b| {
+                    a.name
+                        .trim()
+                        .to_ascii_lowercase()
+                        .cmp(&b.name.trim().to_ascii_lowercase())
+                });
+
+                let (start, end) = index.get(&index_key).unwrap_or(&(0usize, 0usize));
+
+                let filtered_contacts: Vec<&Contact> = storage.get_mem()[*start..*end]
+                    .iter()
+                    .filter(|con| {
+                        con.name
+                            .to_lowercase()
+                            .contains(searched_for.to_lowercase().as_str())
+                    })
+                    .collect();
+
+                    
+                if filtered_contacts.is_empty() {
+                    println!("Couldn't find a name with {searched_for}");
+                    return Ok(());
+                }
+
+                for (mut i, c) in filtered_contacts.iter().enumerate() {
+                    i += 1;
+
+                    let date = c
+                        .updated_at
+                        .map(|dt| dt.date_naive().to_string())
+                        .unwrap_or_else(|| "".to_string());
+
+                    println!(
+                        "{i:>3}. {:<20} {:15} {:^30} {:<15} 'Updated on:' {:<12}",
+                        c.name, c.phone, c.email, c.tag, date
+                    );
+                }
+            }
+
+            Ok(())
         }
 
         // Import contacts into storage from .csv file
