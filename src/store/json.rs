@@ -100,23 +100,20 @@ impl ContactStore for JsonStore<'_> {
 
         Ok(())
     }
-}
 
-impl Store for JsonStore<'_> {
-    type Item = Contact;
-
-    fn get_mem(&self) -> &Vec<Self::Item> {
-        &self.mem
-    }
-
-    fn mut_mem(&mut self) -> &mut Vec<Self::Item> {
-        &mut self.mem
-    }
 
     fn contact_list(&self) -> Vec<&Contact> {
         self.mem.iter().collect()
     }
 
+    fn mut_contact_list(&mut self) -> Vec<&mut Contact> {
+        self.mem.iter_mut().collect::<Vec<&mut Contact>>()
+    }
+
+    fn get_mem(&self) -> &Vec<Contact> {
+        &self.mem
+    }
+    
     fn get_indices_by_name(&self, name: &str) -> Option<Vec<usize>> {
         let indices: Vec<usize> = self
             .mem
@@ -130,7 +127,21 @@ impl Store for JsonStore<'_> {
         }
         Some(indices)
     }
+
+    fn add_contact(&mut self, contact: Contact) {
+        self.mem.push(contact);
+    }
+
+    fn delete_contact(&mut self, index: usize) -> Result<(), AppError> {
+        if index < self.mem.len() {
+            self.mem.remove(index);
+            Ok(())
+        } else {
+            Err(AppError::NotFound("Contact".to_string()))
+        }
+    }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -209,7 +220,7 @@ mod tests {
     #[test]
     fn migrates_contact() -> Result<(), AppError> {
         let mut txt_store = TxtStore::new()?;
-        txt_store.mut_mem().clear();
+        txt_store.mem.clear();
 
         let contact1 = Contact::new(
             "Uche".to_string(),
@@ -227,14 +238,14 @@ mod tests {
 
         txt_store.add_contact(contact1);
         txt_store.save(txt_store.get_mem())?;
-        txt_store.mut_mem().clear();
+        txt_store.mem.clear();
 
         let mut json_store = JsonStore::new()?;
         json_store.load_migrated_contact()?;
 
         json_store.add_contact(contact2);
         json_store.save(json_store.get_mem())?;
-        json_store.mut_mem().clear();
+        json_store.mem.clear();
 
         json_store.load_migrated_contact()?;
 
@@ -254,7 +265,7 @@ mod tests {
             "".to_string(),
         )));
 
-        json_store.mut_mem().clear();
+        json_store.mem.clear();
         json_store.save(&json_store.mem)?;
 
         txt_store.mem.clear();
