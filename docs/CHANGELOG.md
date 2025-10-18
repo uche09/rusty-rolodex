@@ -171,22 +171,28 @@ This fix ensures all copies are deleted.
 
 
 
-## v0.5-week-5 (11-10-2025)
+## v0.6-week-6 (11-10-2025)
 
 ### Added
 - search.rs module to handle search index.
 - `search::create_name_search_index()` to index contacts by name.
-- `search::create_email_search_index()` to index contacts by email.
-- Search command in `cli/commands.rs`
-- Handle search command in `cli/run.rs`
+- `search::create_email_domain_search_index()` to index contacts by email domain.
+- The `create_name_search_index` and `create_email_domain_search_index` both spawn two concurrent threads to search through respective halves of the contact list to create an in-memory index of contacts for faster search.
+These parralel threads significantly reduces the indexing time.
+- `search::fuzzy_search_name_index()` and `search::fuzzy_search_email_domain_index()` creates the contact index and performs a fuzzy search (by name or email domain respectively) using the `rust-fuzzy-search` crate. These functions return a list of contact where the **Levenshtein distance** between the search string and search result **is >= 7.**
+- Search command in `cli/commands.rs`.
+- Handle search command in `cli/run.rs`.
+- PoisonError to AppError for unified Error handling.
 
 
 
 ### Changes
-- Contact struct now has two `Option<DateTime<Utc>>` field (`created_at` and `updated_at`).
+- Contact struct now has two `DateTime<Utc>` field (`created_at` and `updated_at`).
 -
 
 ### Fixed
 - Duplicated contact during migration through the implementation of `PartialEq` for Contact struct.
 - Adjusted the txt Serializer and Deserializer function in `helper.rs` to accomodate new timestamp feilds with backward compatibility.
 - Adjusted the rest of codbase to use `Contact::new()` where necessary.
+- Created `deserialize_timestamp()` and `default_timestamp()` functions in contact.js used by serde to set default and deserialize old contacts with `created_at` fields initially set to `None`.
+- Modified 
