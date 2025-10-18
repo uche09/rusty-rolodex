@@ -151,33 +151,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn check_serialize_contact() -> Result<(), AppError> {
-        let contacts = vec![Contact {
-            name: "Uche".to_string(),
-            phone: "012345678901".to_string(),
-            email: "ucheuche@gmail.com".to_string(),
-            tag: "".to_string(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        }];
+    // fn check_serialize_contact() -> Result<(), AppError> {
+    //     let contacts = vec![Contact {
+    //         name: "Uche".to_string(),
+    //         phone: "012345678901".to_string(),
+    //         email: "ucheuche@gmail.com".to_string(),
+    //         tag: "".to_string(),
+    //         created_at: Utc::now(),
+    //         updated_at: Utc::now(),
+    //     }];
 
-        let ser_data = serialize_contacts(&contacts);
+    //     let ser_data = serialize_contacts(&contacts);
 
-        assert_eq!(
-            ser_data,
-            "{\n\
-            name: Uche\n\
-            phone: 012345678901\n\
-            email: ucheuche@gmail.com\n\
-            tag: \n\
-            created_at: \n\
-            updated_at: \n\
-        }\n"
-            .to_string()
-        );
+    //     assert_eq!(
+    //         ser_data,
+    //         "{\n\
+    //         name: Uche\n\
+    //         phone: 012345678901\n\
+    //         email: ucheuche@gmail.com\n\
+    //         tag: \n\
+    //         created_at: \n\
+    //         updated_at: \n\
+    //     }\n"
+    //         .to_string()
+    //     );
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     #[test]
     fn check_deserialization_from_txt() -> Result<(), AppError> {

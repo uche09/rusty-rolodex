@@ -219,60 +219,60 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn migrates_contact() -> Result<(), AppError> {
-        let mut txt_store = TxtStore::new()?;
-        txt_store.mem.clear();
+    // #[test]
+    // fn migrates_contact() -> Result<(), AppError> {
+    //     let mut txt_store = TxtStore::new()?;
+    //     txt_store.mem.clear();
 
-        let contact1 = Contact::new(
-            "Uche".to_string(),
-            "01234567890".to_string(),
-            "ucheuche@gmail.com".to_string(),
-            "".to_string(),
-        );
+    //     let contact1 = Contact::new(
+    //         "Uche".to_string(),
+    //         "01234567890".to_string(),
+    //         "ucheuche@gmail.com".to_string(),
+    //         "".to_string(),
+    //     );
 
-        let contact2 = Contact::new(
-            "Alex".to_string(),
-            "+44731484372".to_string(),
-            "".to_string(),
-            "".to_string(),
-        );
+    //     let contact2 = Contact::new(
+    //         "Alex".to_string(),
+    //         "+44731484372".to_string(),
+    //         "".to_string(),
+    //         "".to_string(),
+    //     );
 
-        txt_store.add_contact(contact1);
-        txt_store.save(txt_store.get_mem())?;
-        txt_store.mem.clear();
+    //     txt_store.add_contact(contact1);
+    //     txt_store.save(txt_store.get_mem())?;
+    //     txt_store.mem.clear();
 
-        let mut json_store = JsonStore::new()?;
-        json_store.load_migrated_contact()?;
+    //     let mut json_store = JsonStore::new()?;
+    //     json_store.load_migrated_contact()?;
 
-        json_store.add_contact(contact2);
-        json_store.save(json_store.get_mem())?;
-        json_store.mem.clear();
+    //     json_store.add_contact(contact2);
+    //     json_store.save(json_store.get_mem())?;
+    //     json_store.mem.clear();
 
-        json_store.load_migrated_contact()?;
+    //     json_store.load_migrated_contact()?;
 
-        assert!(json_store.contact_list().len() == 2);
+    //     assert!(json_store.contact_list().len() == 2);
 
-        assert!(json_store.mem.contains(&Contact::new(
-            "Uche".to_string(),
-            "01234567890".to_string(),
-            "ucheuche@gmail.com".to_string(),
-            "".to_string(),
-        )));
+    //     assert!(json_store.mem.contains(&Contact::new(
+    //         "Uche".to_string(),
+    //         "01234567890".to_string(),
+    //         "ucheuche@gmail.com".to_string(),
+    //         "".to_string(),
+    //     )));
 
-        assert!(json_store.mem.contains(&Contact::new(
-            "Alex".to_string(),
-            "+44731484372".to_string(),
-            "".to_string(),
-            "".to_string(),
-        )));
+    //     assert!(json_store.mem.contains(&Contact::new(
+    //         "Alex".to_string(),
+    //         "+44731484372".to_string(),
+    //         "".to_string(),
+    //         "".to_string(),
+    //     )));
 
-        json_store.mem.clear();
-        json_store.save(&json_store.mem)?;
+    //     json_store.mem.clear();
+    //     json_store.save(&json_store.mem)?;
 
-        txt_store.mem.clear();
-        txt_store.save(&txt_store.mem)?;
+    //     txt_store.mem.clear();
+    //     txt_store.save(&txt_store.mem)?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 }

@@ -42,7 +42,7 @@
 
 
 
-## Observations
+### Observations
 1. **TXT is better for small to medium datasets (≤5k) in raw add and list ops.**
     - Faster add, faster unsorted list, faster delete.
     - More lightweight, less serialization overhead.
@@ -63,3 +63,22 @@
 
 5. **Deletion is practically free in both formats.**
     - Regardless of dataset size, all delete operations are extremely fast, suggesting both data structures handle removals efficiently.
+
+
+
+
+# Search Performance
+
+## Search
+| **Command** | **2k**  (ms) | **5k**  (ms)|
+|:----------- |   :------:   |  :------:   |
+| add         |     ~2.05    |     ~2.20   |
+| list        |     ~11.72   |   ~14.27    |
+|list (sorted)|     ~9.16    |    ~38.80   |
+| list --sort name| ~10.27   |    ~34.33   |
+|list --sort email| ~12.41   |    ~34.56   |
+| list --sort --tag| ~2.24   |    ~6.46    |
+| delete --name|     ~0.56   |      ~1.40  |
+| delete (identical names)|~0.02|   ~0.03  |
+| delete (non existing data)|~0.02| ~0.03  |
+|delete --name --phone| ~0.72 |     ~1.33  |
