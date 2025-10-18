@@ -10,14 +10,10 @@ pub fn serialize_contacts(contacts: &[Contact]) -> String {
 
     for contact in contacts {
         let created_at_str = contact
-            .created_at
-            .map(|dt| dt.to_string())
-            .unwrap_or_else(|| "".to_string());
+            .created_at.to_string();
 
         let updated_at_str = contact
-            .updated_at
-            .map(|dt| dt.to_string())
-            .unwrap_or_else(|| "".to_string());
+            .updated_at.to_string();
 
         let ser_contact = format!(
             "{{\n\
@@ -53,15 +49,15 @@ pub fn deserialize_contacts_from_txt_buffer(
         phone: "".to_string(),
         email: "".to_string(),
         tag: "".to_string(),
-        created_at: None,
-        updated_at: None,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
     };
     let mut name = "".to_string();
     let mut phone = "".to_string();
     let mut email = "".to_string();
     let mut tag: String = "".to_string();
-    let mut created_at: Option<DateTime<Utc>> = None;
-    let mut updated_at: Option<DateTime<Utc>> = None;
+    let mut created_at = Utc::now();
+    let mut updated_at = Utc::now();
 
     for line in buffer.lines() {
         let line = line?;
@@ -127,18 +123,18 @@ pub fn deserialize_contacts_from_txt_buffer(
 
         if key.is_some() && key == Some("created_at") {
             if value.is_empty() {
-                created_at = None;
+                continue;
             } else {
-                created_at = Some(DateTime::<Utc>::from_str(value)?.to_utc())
+                created_at = DateTime::<Utc>::from_str(value)?.to_utc();
             }
             continue;
         }
 
         if key.is_some() && key == Some("updated_at") {
             if value.is_empty() {
-                updated_at = None;
+                continue;
             } else {
-                updated_at = Some(DateTime::<Utc>::from_str(value)?.to_utc())
+                updated_at = DateTime::<Utc>::from_str(value)?.to_utc()
             }
             continue;
         }
@@ -161,8 +157,8 @@ mod tests {
             phone: "012345678901".to_string(),
             email: "ucheuche@gmail.com".to_string(),
             tag: "".to_string(),
-            created_at: None,
-            updated_at: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
         }];
 
         let ser_data = serialize_contacts(&contacts);
