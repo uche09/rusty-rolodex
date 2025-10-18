@@ -18,7 +18,7 @@ pub trait ContactStore {
     fn load_migrated_contact(&mut self) -> Result<(), AppError>;
 
     fn contact_list(&self) -> Vec<&Contact>;
-    fn mut_contact_list(&mut self) -> Vec<&mut Contact>;
+    fn mut_contact_list(&mut self) -> &mut Vec<Contact>;
 
     fn get_mem(&self) -> &Vec<Contact>;
 
