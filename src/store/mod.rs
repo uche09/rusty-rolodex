@@ -16,33 +16,19 @@ pub trait ContactStore {
 
     fn save(&self, contacts: &[Contact]) -> Result<(), AppError>;
     fn load_migrated_contact(&mut self) -> Result<(), AppError>;
-}
 
-pub trait Store {
-    type Item;
-
-    fn get_mem(&self) -> &Vec<Self::Item>;
-    fn mut_mem(&mut self) -> &mut Vec<Self::Item>;
     fn contact_list(&self) -> Vec<&Contact>;
+    fn mut_contact_list(&mut self) -> &mut Vec<Contact>;
+
+    fn get_mem(&self) -> &Vec<Contact>;
+
     fn get_indices_by_name(&self, name: &str) -> Option<Vec<usize>>;
 
-    fn add_contact(&mut self, contact: Self::Item) {
-        self.mut_mem().push(contact);
-    }
+    fn add_contact(&mut self, contact: Contact);
 
-    fn delete_contact(&mut self, index: usize) -> Result<(), AppError> {
-        let mem = self.mut_mem();
-        if index < mem.len() {
-            mem.remove(index);
-            Ok(())
-        } else {
-            Err(AppError::NotFound("Contact".to_string()))
-        }
-    }
+    fn delete_contact(&mut self, index: usize) -> Result<(), AppError>;
 }
 
-pub trait Stoarage: Store + ContactStore {}
-impl<T: Store + ContactStore> Stoarage for T {}
 
 #[derive(Debug)]
 pub enum StoreChoice {
@@ -85,7 +71,7 @@ pub fn create_file_parent(path: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-pub fn parse_store() -> Result<Box<dyn Stoarage<Item = Contact>>, AppError> {
+pub fn parse_store() -> Result<Box<dyn ContactStore>, AppError> {
     let store_choice = parse_storage_choice();
 
     match store_choice {

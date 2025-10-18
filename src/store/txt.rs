@@ -59,26 +59,25 @@ impl ContactStore for TxtStore<'_> {
             self.mem.dedup();
 
             self.save(&self.mem)?;
+
+            fs::remove_file(Path::new(json::STORAGE_PATH))?;
         }
 
         Ok(())
-    }
-}
-
-impl Store for TxtStore<'_> {
-    type Item = Contact;
-
-    fn get_mem(&self) -> &Vec<Self::Item> {
-        &self.mem
-    }
-
-    fn mut_mem(&mut self) -> &mut Vec<Self::Item> {
-        &mut self.mem
     }
 
     fn contact_list(&self) -> Vec<&Contact> {
         self.mem.iter().collect()
     }
+
+    fn mut_contact_list(&mut self) -> &mut Vec<Contact> {
+        &mut self.mem
+    }
+
+    fn get_mem(&self) -> &Vec<Contact> {
+        &self.mem
+    }
+
 
     fn get_indices_by_name(&self, name: &str) -> Option<Vec<usize>> {
         let indices: Vec<usize> = self
@@ -93,7 +92,22 @@ impl Store for TxtStore<'_> {
         }
         Some(indices)
     }
+
+
+    fn add_contact(&mut self, contact: Contact) {
+        self.mem.push(contact);
+    }
+
+    fn delete_contact(&mut self, index: usize) -> Result<(), AppError> {
+        if index < self.mem.len() {
+            self.mem.remove(index);
+            Ok(())
+        } else {
+            Err(AppError::NotFound("Contact".to_string()))
+        }
+    }
 }
+
 
 #[cfg(test)]
 mod tests {

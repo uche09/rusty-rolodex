@@ -1,7 +1,7 @@
 use super::*;
 pub use chrono::{DateTime, Utc};
 use regex::Regex;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct Contact {
@@ -9,8 +9,12 @@ pub struct Contact {
     pub phone: String,
     pub email: String,
     pub tag: String,
-    pub created_at: Option<DateTime<Utc>>,
-    pub updated_at: Option<DateTime<Utc>>,
+
+    #[serde(default = "default_timestamp", deserialize_with = "deserialize_timestamp")]
+    pub created_at: DateTime<Utc>,
+    
+    #[serde(default = "default_timestamp", deserialize_with = "deserialize_timestamp")]
+    pub updated_at: DateTime<Utc>,
 }
 
 pub enum ValidationReq {
@@ -40,8 +44,8 @@ impl Contact {
             phone,
             email,
             tag,
-            created_at: Some(Utc::now()),
-            updated_at: Some(Utc::now()),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
         }
     }
     pub fn validate_name(&self) -> Result<bool, AppError> {
@@ -123,6 +127,26 @@ pub fn phone_number_matches(phone1: &str, phone2: &str) -> bool {
         return false;
     }
     rest_of_phone1 == rest_of_phone2
+}
+
+
+fn default_timestamp() -> DateTime<Utc> {
+    Utc::now()
+}
+
+fn deserialize_timestamp<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
+where 
+    D: Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    match opt {
+        Some(s) => {
+            DateTime::parse_from_rfc3339(&s)
+                .map(|dt| dt.with_timezone(&Utc))
+                .map_err(serde::de::Error::custom)
+        }
+        None => Ok(Utc::now()), // fallback for old contacts
+    }
 }
 
 // TEST
