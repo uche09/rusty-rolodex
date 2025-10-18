@@ -12,7 +12,7 @@ use crate::{
     },
 };
 use clap::Parser;
-use std::{env, process::exit};
+use std::{env, process::exit, time::Instant};
 
 pub fn run_app() -> Result<(), AppError> {
     let cli = Cli::parse();
@@ -190,8 +190,13 @@ pub fn run_app() -> Result<(), AppError> {
                                     && phone_number_matches(&contact.phone, &phone)
                                 {
                                     storage.delete_contact(index)?;
+                                    println!("Contact deleted successfully");
+                                    exit(0);
                                 }
                             }
+
+                            eprintln!("{}", AppError::NotFound("Contact".to_string()));
+                            return Ok(());
                         }
                     } else {
                         storage.delete_contact(indices[0])?;
@@ -210,6 +215,8 @@ pub fn run_app() -> Result<(), AppError> {
 
         // Search for a contact
         Commands::Search { by, name, domain } => {
+            let start = Instant::now(); // Benchmarking
+
             // Default search = name (if not provided)
             let mut search_by = "name";
 
@@ -275,6 +282,9 @@ pub fn run_app() -> Result<(), AppError> {
                     );
                 }
             }
+
+            let duration = start.elapsed();
+            println!("Time: {:?}", duration);
 
             Ok(())
         }
