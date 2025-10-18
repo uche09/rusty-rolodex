@@ -90,7 +90,7 @@ pub enum Commands {
     Search {
         /// Search mode (search by)
         /// n = Search by name
-        /// e = search by email
+        /// d = search by email domain
         #[arg(short)]
         by: Option<SearchKey>,
 
@@ -100,7 +100,7 @@ pub enum Commands {
 
         /// Contact email
         #[arg(long)]
-        email: Option<String>,
+        domain: Option<String>,
     },
 
     /// Import contacts from .csv file
@@ -130,5 +130,5 @@ pub enum SortKey {
 #[derive(Copy, Clone, Debug, ValueEnum)]
 pub enum SearchKey {
     N,
-    E,
+    D,
 }
