@@ -1,4 +1,5 @@
 use core::fmt;
+use std::sync::PoisonError;
 
 #[derive(Debug)]
 pub enum AppError {
@@ -8,6 +9,7 @@ pub enum AppError {
     JsonPerser(serde_json::Error),
     NotFound(String),
     ParseInt(std::num::ParseIntError),
+    Poison(String),
     RegexError(regex::Error),
     Validation(String),
 }
@@ -41,6 +43,12 @@ impl From<std::num::ParseIntError> for AppError {
     }
 }
 
+impl<T> From<PoisonError<T>> for AppError {
+    fn from(err: PoisonError<T>) -> Self {
+        AppError::Poison(err.to_string())
+    }
+}
+
 impl From<regex::Error> for AppError {
     fn from(err: regex::Error) -> Self {
         AppError::RegexError(err)
@@ -67,6 +75,9 @@ impl fmt::Display for AppError {
             }
             AppError::ParseInt(e) => {
                 write!(f, "Invalid number format: {}", e)
+            }
+            AppError::Poison(e) => {
+                write!(f, "Mutex poisoned: {}", e)
             }
             AppError::RegexError(e) => {
                 write!(f, "Regex failed: {}", e)
