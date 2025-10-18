@@ -59,6 +59,8 @@ impl ContactStore for TxtStore<'_> {
             self.mem.dedup();
 
             self.save(&self.mem)?;
+
+            fs::remove_file(Path::new(json::STORAGE_PATH))?;
         }
 
         Ok(())
@@ -68,8 +70,8 @@ impl ContactStore for TxtStore<'_> {
         self.mem.iter().collect()
     }
 
-    fn mut_contact_list(&mut self) -> Vec<&mut Contact> {
-        self.mem.iter_mut().collect::<Vec<&mut Contact>>()
+    fn mut_contact_list(&mut self) -> &mut Vec<Contact> {
+        &mut self.mem
     }
 
     fn get_mem(&self) -> &Vec<Contact> {
