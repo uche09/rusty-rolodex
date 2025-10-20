@@ -4,4 +4,4 @@ pub use crate::domain::{
     search::{fuzzy_search_email_domain_index, fuzzy_search_name_index},
 };
 pub use crate::errors::AppError;
-pub use crate::store::{self, ContactStore, memory, parse_store};
+pub use crate::store::{self, ContactStore, memory, filestore::Store};

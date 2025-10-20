@@ -4,9 +4,11 @@ use crate::{
         AppError,
         command::{Cli, Commands, SearchKey, SortKey},
         contact::{Contact, ValidationReq, phone_number_matches},
-        fuzzy_search_email_domain_index, fuzzy_search_name_index, parse_store,
+        fuzzy_search_email_domain_index, fuzzy_search_name_index,
         store::{
             self,
+            ContactStore,
+            filestore::Store,
             storage_port::{export_contacts_to_csv, import_contacts_from_csv},
         },
     },
@@ -21,9 +23,9 @@ pub fn run_app() -> Result<(), AppError> {
         env::set_var("STORAGE_CHOICE", &cli.storage_choice);
     }
 
-    let mut storage = parse_store()?;
+    let mut storage = Store::new()?;
 
-    storage.load_migrated_contact()?;
+    storage.mem = storage.load()?;
 
     println!(
         "Current storage choice is: {}",
@@ -64,7 +66,7 @@ pub fn run_app() -> Result<(), AppError> {
 
             storage.add_contact(new_contact);
 
-            storage.save(storage.get_mem())?;
+            storage.save(&storage.mem)?;
 
             println!("Contact added successfully");
             Ok(())
@@ -138,10 +140,8 @@ pub fn run_app() -> Result<(), AppError> {
             new_tag,
         } => {
             let desired_contact = Contact::new(name, phone, "".to_string(), "".to_string());
-            let contact_list = storage
-                .mut_contact_list();
 
-            let found_contact = contact_list
+            let found_contact = storage.mem
                 .iter_mut()
                 .find(|c| **c == desired_contact);
 
@@ -162,7 +162,7 @@ pub fn run_app() -> Result<(), AppError> {
                 contact.updated_at = contact::Utc::now();
             }
 
-            storage.save(storage.get_mem())?;
+            storage.save(&storage.mem)?;
             println!("Contact updated successfully");
             Ok(())
         }
@@ -190,6 +190,7 @@ pub fn run_app() -> Result<(), AppError> {
                                     && phone_number_matches(&contact.phone, &phone)
                                 {
                                     storage.delete_contact(index)?;
+                                    storage.save(&storage.mem)?;
                                     println!("Contact deleted successfully");
                                     exit(0);
                                 }
@@ -202,7 +203,7 @@ pub fn run_app() -> Result<(), AppError> {
                         storage.delete_contact(indices[0])?;
                     }
 
-                    storage.save(storage.get_mem())?;
+                    storage.save(&storage.mem)?;
                     println!("Contact deleted successfully");
                     Ok(())
                 }
@@ -318,13 +319,13 @@ pub fn run_app() -> Result<(), AppError> {
             }
 
             if file_path.is_empty() {
-                let (path, total) = export_contacts_to_csv(storage.get_mem(), None)?;
+                let (path, total) = export_contacts_to_csv(&storage.mem, None)?;
 
                 println!("Successfully exported {} contacts to {:?}.", total, path);
                 return Ok(());
             }
 
-            let (path, total) = export_contacts_to_csv(storage.get_mem(), Some(&file_path))?;
+            let (path, total) = export_contacts_to_csv(&storage.mem, Some(&file_path))?;
 
             println!("Successfully exported {} contacts to {:?}.", total, path);
             Ok(())
