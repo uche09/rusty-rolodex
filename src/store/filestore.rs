@@ -1,4 +1,7 @@
 use super::*;
+
+use rust_fuzzy_search::fuzzy_compare;
+use std::{collections::HashMap, sync::{Arc, Mutex}, thread};
 use crate::helper;
 
 pub const JSON_STORAGE_PATH: &str = "./.instance/contacts.json";
@@ -44,13 +47,28 @@ impl Store<'_> {
 
     
     pub fn get_indices_by_name(&self, name: &str) -> Option<Vec<usize>> {
-        let indices: Vec<usize> = self
-            .mem
+        let contacts = self.contact_list();
+        let mut key = name.to_ascii_lowercase().chars().next().unwrap_or_default();
+
+        let index = Index::new(self);
+        let index = match index {
+            Ok(maps) => maps,
+            Err(_) => {
+                return None;
+            }
+        };
+
+        if !key.is_alphabetic() {
+            key = '#';
+        }
+
+        let indices: Vec<usize> = index
+            .name.get(&key)?
             .iter()
-            .enumerate()
-            .filter(|(_, cont)| cont.name == name)
-            .map(|(idx, _)| idx)
+            .filter(|&&idx| contacts[idx].name == name)
+            .map(|idx| *idx)
             .collect();
+
         if indices.is_empty() {
             return None;
         }
@@ -68,6 +86,196 @@ impl Store<'_> {
         } else {
             Err(AppError::NotFound("Contact".to_string()))
         }
+    }
+
+
+    pub fn create_name_search_index(&self) -> Result<HashMap<char, Vec<usize>>, AppError> {
+        let contact_list = Arc::new(self.contact_list());
+        let mid = contact_list.len() / 2;
+        
+        let index: Arc<Mutex<HashMap<char, Vec<usize>>>> = Arc::new(Mutex::new(
+            HashMap::new()
+        ));
+
+
+        thread::scope(|s| {
+            let map1 = Arc::clone(&index);
+            let list1 = Arc::clone(&contact_list);
+
+            s.spawn(move || -> Result<(), AppError> {
+                for idx in 0..mid {
+                    if let Some(key) = list1[idx].name.chars().next(){
+
+                        if key.is_alphabetic() {
+                            let mut map1_lock = map1.lock()?;
+                            map1_lock.entry(key.to_ascii_lowercase())
+                            .or_default()
+                            .push(idx);
+                        } else {
+                            // If contact name does not start with an alphabet
+                            let mut map1_lock = map1.lock()?;
+                            map1_lock.entry('#')
+                            .or_default()
+                            .push(idx);
+                        }
+                    }
+
+                }
+
+                Ok(())
+            });
+
+            let map2 = Arc::clone(&index);
+            let list2 = Arc::clone(&contact_list);
+
+            s.spawn(move || -> Result<(), AppError> {
+                for idx in mid..contact_list.len() {
+                    if let Some(key) = list2[idx].name.chars().next(){
+
+                        if key.is_alphabetic() {
+                            let mut map2_lock = map2.lock()?;
+                            map2_lock.entry(key.to_ascii_lowercase())
+                            .or_default()
+                            .push(idx);
+                        } else {
+                            // If contact name does not start with an alphabet
+                            let mut map2_lock = map2.lock()?;
+                            map2_lock.entry('#')
+                            .or_default()
+                            .push(idx);
+                        }
+                    }
+
+                }
+
+                Ok(())
+            });
+        });
+        
+
+        
+        let result = Arc::into_inner(index).unwrap_or_default().into_inner()?;
+        Ok(result)
+    }
+
+
+
+
+    pub fn create_email_domain_search_index(&self) -> Result<HashMap<&str, Vec<usize>>, AppError> {
+        let contact_list = Arc::new(self.contact_list());
+        let mid = contact_list.len() / 2;
+
+        let index: Arc<Mutex<HashMap<&str, Vec<usize>>>> = Arc::new(Mutex::new(
+            HashMap::new()
+        ));
+
+
+        thread::scope(|s| {
+            let map1 = Arc::clone(&index);
+            let list1 = Arc::clone(&contact_list);
+
+            s.spawn(move || -> Result<(), AppError> {
+                for idx in 0..mid {
+                    let email_parts: Vec<&str> = list1[idx].email.split('@').collect();
+                    let domain = email_parts[email_parts.len() -1];
+                    
+                    let mut map1_lock = map1.lock()?;
+                    map1_lock.entry(domain)
+                    .or_default()
+                    .push(idx);
+                }
+
+                Ok(())
+            });
+
+            let map2 = Arc::clone(&index);
+            let list2 = Arc::clone(&contact_list);
+
+            s.spawn(move || -> Result<(), AppError> {
+                for idx in mid..contact_list.len() {
+                    let email_parts: Vec<&str> = list2[idx].email.split('@').collect();
+                    let domain = email_parts[email_parts.len() -1];
+                    
+                    let mut map2_lock = map2.lock()?;
+                    map2_lock.entry(domain)
+                    .or_default()
+                    .push(idx);
+                }
+
+                Ok(())
+            });
+        });
+        
+
+        
+        let result = Arc::into_inner(index).unwrap_or_default().into_inner()?;
+        Ok(result)
+    }
+
+
+    pub fn fuzzy_search_name_index(&self, name: &str) -> Result<Vec<&Contact>, AppError> {
+        const MAX_SEARCH_LENGTH: u8 = 30;
+        let name = name.trim().to_ascii_lowercase();
+
+        if name.is_empty() {
+            return Err(AppError::Validation("No Name provided".to_string()));
+        }
+
+        if name.len() > MAX_SEARCH_LENGTH as usize {
+            return Err(AppError::Validation("Search string too long".to_string()));
+        }
+
+        const MIN_DISTANCE: f32 = 0.7;
+        let index = Index::new(self)?;
+        let contact_list = self.contact_list();
+
+        let empty_vec: Vec<usize> = Vec::new();
+
+        let index_key = name.chars().next().unwrap_or_default();
+        let indices_match = index.name.get(&index_key).unwrap_or(&empty_vec);
+
+        let fuzzy_match: Vec<&Contact> = indices_match
+            .iter()
+            .map(|idx| contact_list[*idx])
+            .filter(|&c| {
+                fuzzy_compare(
+                    &c.name.to_ascii_lowercase(),
+                    name.as_str())
+                >= MIN_DISTANCE
+            })
+            .collect();
+        
+
+        Ok(fuzzy_match)
+    }
+
+
+    pub fn fuzzy_search_email_domain_index(&self, domain: &str) -> Result<Vec<&Contact>, AppError> {
+        const MAX_SEARCH_LENGTH: u8 = 15;
+        let domain = domain.trim();
+
+        if domain.is_empty() {
+            return Err(AppError::Validation("No email domain provided".to_string()));
+        }
+
+        if domain.len() > MAX_SEARCH_LENGTH as usize {
+            return Err(AppError::Validation("Please provide just email domain Eg. \"example.com\"".to_string()));
+        }
+
+        let index = Index::new(self)?;
+        let contact_list = self.contact_list();
+
+        let empty_vec: Vec<usize> = Vec::new();
+
+        // let index = create_email_domain_search_index(contact_list)?;
+        let index_match = index.domain.get(domain).unwrap_or(&empty_vec);
+
+        let fuzzy_match: Vec<&Contact> = index_match
+            .iter()
+            .map(|c| contact_list[*c])
+            .collect();
+
+        Ok(fuzzy_match)
     }
 }
 
@@ -190,6 +398,22 @@ pub fn load_json_contacts(path: &str) -> Result<Vec<Contact>, AppError> {
 }
 
 
+
+pub struct Index<'a> {
+    pub name: HashMap<char, Vec<usize>>,
+    pub domain: HashMap<&'a str, Vec<usize>>,
+}
+
+impl<'a> Index<'a> {
+    pub fn new(storage: &'a Store) -> Result<Self, AppError> {
+        Ok(
+            Self {
+                name: storage.create_name_search_index()?,
+                domain: storage.create_email_domain_search_index()?,
+            }
+        )
+    }
+}
 
 
 

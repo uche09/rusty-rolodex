@@ -4,7 +4,6 @@ use crate::{
         AppError,
         command::{Cli, Commands, SearchKey, SortKey},
         contact::{Contact, ValidationReq, phone_number_matches},
-        fuzzy_search_email_domain_index, fuzzy_search_name_index,
         store::{
             self,
             ContactStore,
@@ -219,71 +218,50 @@ pub fn run_app() -> Result<(), AppError> {
             let start = Instant::now(); // Benchmarking
 
             // Default search = name (if not provided)
-            let mut search_by = "name";
+            let search_by = by.unwrap_or(SearchKey::N);
 
-            let contact_list = storage.contact_list();
 
-            if let Some(search_key) = by {
-                match search_key {
-                    SearchKey::N => {
-                        search_by = "name";
+            match search_by {
+                // Search using email domain
+                SearchKey::D => {
+                    // user's provided email strig is assigned to "search_for"
+                    let searched_for = domain.unwrap_or_default();
+                    
+
+                    let result = storage.fuzzy_search_email_domain_index(&searched_for)?;
+                    
+                    for (mut i, c) in result.iter().enumerate() {
+                        i += 1;
+
+                        let date = c
+                            .updated_at.date_naive().to_string();
+
+                        println!(
+                            "{i:>3}. {:<20} {:15} {:^30} {:<15} 'Updated on:' {:<12}",
+                            c.name, c.phone, c.email, c.tag, date
+                        );
                     }
-                    SearchKey::D => {
-                        search_by = "email";
+                }
+                _ => {
+                    // Default to search by name
+                    let searched_for = name.unwrap_or_default();
+                
+                    let result = storage.fuzzy_search_name_index(&searched_for)?;
+                    
+                    for (mut i, &c) in result.iter().enumerate() {
+                        i += 1;
+
+                        let date = c
+                            .updated_at.date_naive().to_string();
+
+                        println!(
+                            "{i:>3}. {:<20} {:15} {:^30} {:<15} 'Updated on:' {:<12}",
+                            c.name, c.phone, c.email, c.tag, date
+                        );
                     }
                 }
             }
-
-            // Search using email address
-            if search_by == "email" {
-                // user's provided email strig is assigned to "search_for"
-                let mut searched_for = "".to_string();
-
-                // Validate user provided string before assigning
-                if let Some(addr) = domain {
-                    let addr = addr.trim().to_owned();
-                    searched_for = addr;
-                }
-                
-
-                let result = fuzzy_search_email_domain_index(&searched_for, &contact_list)?;
-                
-                for (mut i, c) in result.iter().enumerate() {
-                    i += 1;
-
-                    let date = c
-                        .updated_at.date_naive().to_string();
-
-                    println!(
-                        "{i:>3}. {:<20} {:15} {:^30} {:<15} 'Updated on:' {:<12}",
-                        c.name, c.phone, c.email, c.tag, date
-                    );
-                }
-
-                
-            } else {
-                // Same logic for name
-
-                let mut searched_for = "".to_string();
-                if let Some(n) = name {
-                    searched_for = n.trim().to_owned();
-                }
-                
-                let result = fuzzy_search_name_index(&searched_for, &contact_list)?;
-                
-                for (mut i, &c) in result.iter().enumerate() {
-                    i += 1;
-
-                    let date = c
-                        .updated_at.date_naive().to_string();
-
-                    println!(
-                        "{i:>3}. {:<20} {:15} {:^30} {:<15} 'Updated on:' {:<12}",
-                        c.name, c.phone, c.email, c.tag, date
-                    );
-                }
-            }
-
+            
             let duration = start.elapsed();
             println!("Time: {:?}", duration);
 

@@ -175,20 +175,24 @@ This fix ensures all copies are deleted.
 
 ### Added
 - search.rs module to handle search index.
-- `search::create_name_search_index()` to index contacts by name.
-- `search::create_email_domain_search_index()` to index contacts by email domain.
+- `Store::create_name_search_index()` to index contacts by name.
+- `Store::create_email_domain_search_index()` to index contacts by email domain.
 - The `create_name_search_index` and `create_email_domain_search_index` both spawn two concurrent threads to search through respective halves of the contact list to create an in-memory index of contacts for faster search.
 These parralel threads significantly reduces the indexing time.
-- `search::fuzzy_search_name_index()` and `search::fuzzy_search_email_domain_index()` creates the contact index and performs a fuzzy search (by name or email domain respectively) using the `rust-fuzzy-search` crate. These functions return a list of contact where the **Levenshtein distance** between the search string and search result **is >= 7.**
+- `Store::fuzzy_search_name_index()` and `Store::fuzzy_search_email_domain_index()` creates the contact index and performs a fuzzy search (by name or email domain respectively) using the `rust-fuzzy-search` crate. These functions return a list of contact where the **Levenshtein distance** between the search string and search result **is >= 7.**
 - Search command in `cli/commands.rs`.
 - Handle search command in `cli/run.rs`.
 - PoisonError to AppError for unified Error handling.
+- `Index` struct in filestore.rs to store in-memory index of contacts both by name and email domain.
 
 
 
 ### Changes
 - Contact struct now has two `DateTime<Utc>` field (`created_at` and `updated_at`).
--
+- Abstract storage into a single `filestore::Store` that can switch and migrate between storage format but using the same struct and method, to reduce duplicate code.
+- Refactored `fuzzy_search_name_index()`, `fuzzy_search_email_domain_index()`, `create_name_search_index` and `search::create_email_domain_search_index()` from search.rs, to all be implementations of the `Store` struct for easier and quicker access reducing loading overhead.
+- `search` module no longer exist.
+- Integrated `Index` into methods and functionalities that requires searching, e.g. `get_indices_by_name()`, search command logic ect.
 
 ### Fixed
 - Duplicated contact during migration through the implementation of `PartialEq` for Contact struct.
