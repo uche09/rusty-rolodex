@@ -144,44 +144,55 @@ pub fn deserialize_contacts_from_txt_buffer(
 }
 
 #[cfg(test)]
+
 mod tests {
     use crate::prelude::ContactStore;
-    use crate::store::txt::TxtStore;
+    use crate::store::filestore::Store;
 
     use super::*;
+    use std::env;
+
+    
 
     #[test]
-    // fn check_serialize_contact() -> Result<(), AppError> {
-    //     let contacts = vec![Contact {
-    //         name: "Uche".to_string(),
-    //         phone: "012345678901".to_string(),
-    //         email: "ucheuche@gmail.com".to_string(),
-    //         tag: "".to_string(),
-    //         created_at: Utc::now(),
-    //         updated_at: Utc::now(),
-    //     }];
+    fn check_serialize_contact() -> Result<(), AppError> {
+        let dt_now = Utc::now();
 
-    //     let ser_data = serialize_contacts(&contacts);
+        let contacts = vec![Contact {
+            name: "Uche".to_string(),
+            phone: "012345678901".to_string(),
+            email: "ucheuche@gmail.com".to_string(),
+            tag: "".to_string(),
+            created_at: dt_now.clone(),
+            updated_at: dt_now.clone(),
+        }];
 
-    //     assert_eq!(
-    //         ser_data,
-    //         "{\n\
-    //         name: Uche\n\
-    //         phone: 012345678901\n\
-    //         email: ucheuche@gmail.com\n\
-    //         tag: \n\
-    //         created_at: \n\
-    //         updated_at: \n\
-    //     }\n"
-    //         .to_string()
-    //     );
+        let ser_data = serialize_contacts(&contacts);
 
-    //     Ok(())
-    // }
+        assert_eq!(
+            ser_data,
+            format!("{{\n\
+                name: Uche\n\
+                phone: 012345678901\n\
+                email: ucheuche@gmail.com\n\
+                tag: \n\
+                created_at: {}\n\
+                updated_at: {}\n\
+            }}\n",
+            dt_now.to_string(), dt_now.to_string())
+            
+        );
+
+        Ok(())
+    }
 
     #[test]
     fn check_deserialization_from_txt() -> Result<(), AppError> {
-        let mut storage = TxtStore::new()?;
+        unsafe {
+            env::set_var("STORAGE_CHOICE", "txt");
+        }
+
+        let mut storage = Store::new()?;
 
         let contact1 = Contact::new(
             "Uche".to_string(),

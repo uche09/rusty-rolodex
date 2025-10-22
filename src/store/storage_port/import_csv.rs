@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use crate::prelude::Store;
 
 use super::*;
 use csv::Reader;
@@ -22,7 +23,7 @@ pub fn import_contacts_from_csv(src: Option<&str>) -> Result<(PathBuf, u64), App
 
     let mut reader = Reader::from_path(&file_path)?;
 
-    let mut storage = parse_store()?;
+    let mut storage = Store::new()?;
 
     let mut counter: u64 = 0;
     for result in reader.deserialize() {
@@ -31,7 +32,7 @@ pub fn import_contacts_from_csv(src: Option<&str>) -> Result<(PathBuf, u64), App
         counter += 1;
     }
 
-    storage.save(storage.get_mem())?;
+    storage.save(&storage.mem)?;
 
     Ok((file_path, counter))
 }
