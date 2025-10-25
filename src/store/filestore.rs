@@ -288,7 +288,7 @@ impl Store<'_> {
             s.spawn(move || -> Result<(), AppError> {
                 let chunk_size = 20;
 
-                for chunk in indices2[mid..indices_match.len() - 1].chunks(chunk_size) {
+                for chunk in indices2[mid..indices_match.len()].chunks(chunk_size) {
                     let mut matches = match2.lock()?;
 
                     for &idx in chunk {
@@ -362,7 +362,7 @@ impl Store<'_> {
 
             s.spawn(move || -> Result<(), AppError> {
                 let chunk_size = 20;
-                for chunk in indices2[mid..index_match.len() - 1].chunks(chunk_size) {
+                for chunk in indices2[mid..index_match.len()].chunks(chunk_size) {
                     let mut matches = match2.lock()?;
 
                     for &idx in chunk {

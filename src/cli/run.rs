@@ -13,7 +13,7 @@ use crate::{
     },
 };
 use clap::Parser;
-use std::{env, process::exit, time::Instant};
+use std::{env, process::exit};
 
 pub fn run_app() -> Result<(), AppError> {
     let cli = Cli::parse();
@@ -159,6 +159,9 @@ pub fn run_app() -> Result<(), AppError> {
                 }
 
                 contact.updated_at = contact::Utc::now();
+
+            } else {
+                return Err(AppError::NotFound("Contact".to_string()));
             }
 
             storage.save(&storage.mem)?;
@@ -215,7 +218,6 @@ pub fn run_app() -> Result<(), AppError> {
 
         // Search for a contact
         Commands::Search { by, name, domain } => {
-            let start = Instant::now(); // Benchmarking
 
             // Default search = name (if not provided)
             let search_by = by.unwrap_or(SearchKey::N);
@@ -262,9 +264,6 @@ pub fn run_app() -> Result<(), AppError> {
                 }
             }
             
-            let duration = start.elapsed();
-            println!("Time: {:?}", duration);
-
             Ok(())
         }
 

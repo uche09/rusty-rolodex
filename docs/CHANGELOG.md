@@ -178,7 +178,7 @@ This fix ensures all copies are deleted.
 - `Store::create_name_search_index()` to index contacts by name.
 - `Store::create_email_domain_search_index()` to index contacts by email domain.
 - The `create_name_search_index` and `create_email_domain_search_index` both spawn two concurrent threads to search through respective halves of the contact list to create an in-memory index of contacts for faster search.
-These parralel threads significantly reduces the indexing time.
+These concurrent threads significantly reduces the indexing time.
 - `Store::fuzzy_search_name_index()` and `Store::fuzzy_search_email_domain_index()` creates the contact index and performs a fuzzy search (by name or email domain respectively) using the `rust-fuzzy-search` crate. These functions return a list of contact where the **Levenshtein distance** between the search string and search result **is >= 7.**
 - Search command in `cli/commands.rs`.
 - Handle search command in `cli/run.rs`.
@@ -199,4 +199,3 @@ These parralel threads significantly reduces the indexing time.
 - Adjusted the txt Serializer and Deserializer function in `helper.rs` to accomodate new timestamp feilds with backward compatibility.
 - Adjusted the rest of codbase to use `Contact::new()` where necessary.
 - Created `deserialize_timestamp()` and `default_timestamp()` functions in contact.js used by serde to set default and deserialize old contacts with `created_at` fields initially set to `None`.
-- Modified 
