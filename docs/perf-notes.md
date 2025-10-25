@@ -1,6 +1,6 @@
 # Projec Micro-Benchmark
 
-## Note:
+## 1.0 (std::time module):
 - This micro-benchmark was done using `std::time` rust timing module.
 - Each record is an average of at least 10 iteration for better accuracy, except `list --sort --tag` which was done in 24 iteration. The 24 iteration consist of 4 tag filter category, each of these filter category iterates 3 times on a particulat --sort variant.
 - The benchmark was done using two sample data of different sizes, one containing two thousand contacts denoted on the table as "2k", and the other containing five thousand contacts, denoted on the table as "5k".
@@ -9,7 +9,7 @@
 - TXT table contains benchmark readings when using txt storage.
 
 
-## JSON
+### JSON
 | **Command** | **2k**  (ms) | **5k**  (ms)|
 |:----------- |   :------:   |  :------:   |
 | add         |     ~2.54    |     ~3.00   |
@@ -25,7 +25,7 @@
 
 
 
-## TXT
+### TXT
 | **Command** | **2k**  (ms) | **5k**  (ms)|
 |:----------- |   :------:   |  :------:   |
 | add         |     ~2.05    |     ~2.20   |
@@ -67,18 +67,17 @@
 
 
 
-# Search Performance
+## 2.0 (criterion):
+- This benchmark is more like a stress test.
+- The 5k and 100k (denoting five thousand and hundred thousand repectively) doesn't only represent the size of the sample data, but also represent the amount of task/work (iteration) done to get each reading.
+- That means each reading reading simply says, for example *"it takes approx this amount of time to iteratively perform 5 thousand searches in a data set of 5 thousand contacts"*.
+- This Benchmark mostly assumes worst case scenario. For example the search benchmark literally matches the entre 5/100 thousand contacts.
 
 ## Search
-| **Command** | **2k**  (ms) | **5k**  (ms)|
+| **Command** | **5k**  (s) | **100k**  (s)|
 |:----------- |   :------:   |  :------:   |
-| add         |     ~2.05    |     ~2.20   |
-| list        |     ~11.72   |   ~14.27    |
-|list (sorted)|     ~9.16    |    ~38.80   |
-| list --sort name| ~10.27   |    ~34.33   |
-|list --sort email| ~12.41   |    ~34.56   |
-| list --sort --tag| ~2.24   |    ~6.46    |
-| delete --name|     ~0.56   |      ~1.40  |
-| delete (identical names)|~0.02|   ~0.03  |
-| delete (non existing data)|~0.02| ~0.03  |
-|delete --name --phone| ~0.72 |     ~1.33  |
+| add         |     ~11.40    |     ~      |
+| list --sort --tag| ~1.87   |    ~0.015    |
+| Edit        |     ~47.01   |      ~         |
+| Search --name|    ~8.45    |      ~0.013  |
+|delete --name --phone| ~51.93 |     ~      |

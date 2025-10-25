@@ -103,20 +103,24 @@ impl Store<'_> {
             let list1 = Arc::clone(&contact_list);
 
             s.spawn(move || -> Result<(), AppError> {
-                for idx in 0..mid {
-                    if let Some(key) = list1[idx].name.chars().next(){
+                let chunk_size = 20;
 
-                        if key.is_alphabetic() {
-                            let mut map1_lock = map1.lock()?;
-                            map1_lock.entry(key.to_ascii_lowercase())
-                            .or_default()
-                            .push(idx);
-                        } else {
-                            // If contact name does not start with an alphabet
-                            let mut map1_lock = map1.lock()?;
-                            map1_lock.entry('#')
-                            .or_default()
-                            .push(idx);
+                for chunk in (0..mid).step_by(chunk_size) {
+                    let mut map1_lock = map1.lock()?;
+
+                    for idx in chunk..(chunk + chunk_size).min(list1.len()) {
+
+                        if let Some(key) = list1[idx].name.chars().next(){
+                            if key.is_alphabetic() {
+                                map1_lock.entry(key.to_ascii_lowercase())
+                                .or_default()
+                                .push(idx);
+                            } else {
+                                // If contact name does not start with an alphabet
+                                map1_lock.entry('#')
+                                .or_default()
+                                .push(idx);
+                            }
                         }
                     }
 
@@ -129,20 +133,22 @@ impl Store<'_> {
             let list2 = Arc::clone(&contact_list);
 
             s.spawn(move || -> Result<(), AppError> {
-                for idx in mid..contact_list.len() {
-                    if let Some(key) = list2[idx].name.chars().next(){
+                let chunk_size = 20;
+                for chunk in (mid..contact_list.len()).step_by(chunk_size) {
+                    let mut map2_lock = map2.lock()?;
 
-                        if key.is_alphabetic() {
-                            let mut map2_lock = map2.lock()?;
-                            map2_lock.entry(key.to_ascii_lowercase())
-                            .or_default()
-                            .push(idx);
-                        } else {
-                            // If contact name does not start with an alphabet
-                            let mut map2_lock = map2.lock()?;
-                            map2_lock.entry('#')
-                            .or_default()
-                            .push(idx);
+                    for idx in chunk..(chunk + chunk_size).min(list2.len()) {
+                        if let Some(key) = list2[idx].name.chars().next(){
+                            if key.is_alphabetic() {
+                                map2_lock.entry(key.to_ascii_lowercase())
+                                .or_default()
+                                .push(idx);
+                            } else {
+                                // If contact name does not start with an alphabet
+                                map2_lock.entry('#')
+                                .or_default()
+                                .push(idx);
+                            }
                         }
                     }
 
@@ -175,14 +181,19 @@ impl Store<'_> {
             let list1 = Arc::clone(&contact_list);
 
             s.spawn(move || -> Result<(), AppError> {
-                for idx in 0..mid {
-                    let email_parts: Vec<&str> = list1[idx].email.split('@').collect();
-                    let domain = email_parts[email_parts.len() -1];
-                    
+                let chunk_size = 20;
+
+                for chunk in (0..mid).step_by(chunk_size) {
                     let mut map1_lock = map1.lock()?;
-                    map1_lock.entry(domain)
-                    .or_default()
-                    .push(idx);
+
+                    for idx in chunk..(chunk + chunk_size).min(list1.len()) {
+                        let email_parts: Vec<&str> = list1[idx].email.split('@').collect();
+                        let domain = email_parts[email_parts.len() -1];
+                        
+                        map1_lock.entry(domain)
+                        .or_default()
+                        .push(idx);
+                    }
                 }
 
                 Ok(())
@@ -192,14 +203,19 @@ impl Store<'_> {
             let list2 = Arc::clone(&contact_list);
 
             s.spawn(move || -> Result<(), AppError> {
-                for idx in mid..contact_list.len() {
-                    let email_parts: Vec<&str> = list2[idx].email.split('@').collect();
-                    let domain = email_parts[email_parts.len() -1];
-                    
+                let chunk_size = 20;
+
+                for chunk in (mid..contact_list.len()).step_by(chunk_size) {
                     let mut map2_lock = map2.lock()?;
-                    map2_lock.entry(domain)
-                    .or_default()
-                    .push(idx);
+
+                    for idx in chunk..(chunk + chunk_size).min(list2.len()) {
+                        let email_parts: Vec<&str> = list2[idx].email.split('@').collect();
+                        let domain = email_parts[email_parts.len() -1];
+                        
+                        map2_lock.entry(domain)
+                        .or_default()
+                        .push(idx);
+                    }
                 }
 
                 Ok(())
@@ -215,7 +231,7 @@ impl Store<'_> {
 
     pub fn fuzzy_search_name_index(&self, name: &str) -> Result<Vec<&Contact>, AppError> {
         const MAX_SEARCH_LENGTH: u8 = 30;
-        let name = name.trim().to_ascii_lowercase();
+        let name = Arc::new(name.trim().to_ascii_lowercase());
 
         if name.is_empty() {
             return Err(AppError::Validation("No Name provided".to_string()));
@@ -227,26 +243,72 @@ impl Store<'_> {
 
         const MIN_DISTANCE: f32 = 0.7;
         let index = Index::new(self)?;
-        let contact_list = self.contact_list();
+        let contact_list = Arc::new(self.contact_list());
 
         let empty_vec: Vec<usize> = Vec::new();
 
         let index_key = name.chars().next().unwrap_or_default();
-        let indices_match = index.name.get(&index_key).unwrap_or(&empty_vec);
+        let indices_match = Arc::new(index.name.get(&index_key).unwrap_or(&empty_vec));
+        let mid = indices_match.len() / 2;
+        let fuzzy_match: Arc<Mutex<Vec<&Contact>>> = Arc::new(
+            Mutex::new(Vec::new())
+        );
 
-        let fuzzy_match: Vec<&Contact> = indices_match
-            .iter()
-            .map(|idx| contact_list[*idx])
-            .filter(|&c| {
-                fuzzy_compare(
-                    &c.name.to_ascii_lowercase(),
-                    name.as_str())
-                >= MIN_DISTANCE
-            })
-            .collect();
+
+        thread::scope(|s| {
+            let name1 = Arc::clone(&name);
+            let match1 = Arc::clone(&fuzzy_match);
+            let indices1 = Arc::clone(&indices_match);
+            let contacts1 = Arc::clone(&contact_list);
+
+            s.spawn(move || -> Result<(), AppError> {
+                let chunk_size = 20;
+                for chunk in indices1[0..mid].chunks(chunk_size) {
+                    let mut matches = match1.lock()?;
+
+                    for &idx in chunk {
+                        let distance = fuzzy_compare(
+                            &contacts1[idx].name.to_ascii_lowercase(),
+                        &name1);
+
+                        if distance >= MIN_DISTANCE {
+                            matches.push(contacts1[idx]);
+                        }
+                    }
+                }
+                Ok(())
+            });
+
+
+            let name2 = Arc::clone(&name);
+            let match2 = Arc::clone(&fuzzy_match);
+            let indices2 = Arc::clone(&indices_match);
+            let contacts2 = Arc::clone(&contact_list);
+
+            s.spawn(move || -> Result<(), AppError> {
+                let chunk_size = 20;
+
+                for chunk in indices2[mid..indices_match.len()].chunks(chunk_size) {
+                    let mut matches = match2.lock()?;
+
+                    for &idx in chunk {
+                        let distance = fuzzy_compare(
+                            &contacts2[idx].name.to_ascii_lowercase(),
+                        &name2);
+
+                        if distance >= MIN_DISTANCE {
+                            matches.push(contacts2[idx]);
+                        }
+                    }
+                    
+                }
+                Ok(())
+            });
+        });
         
-
-        Ok(fuzzy_match)
+        // get the data of the Arc (Arc::into_inner()) a Metex data, the get the value of the Mutex (.into_inner())
+        let result = Arc::into_inner(fuzzy_match).unwrap_or_default().into_inner()?;
+        Ok(result)
     }
 
 
@@ -263,19 +325,57 @@ impl Store<'_> {
         }
 
         let index = Index::new(self)?;
-        let contact_list = self.contact_list();
+        let contact_list = Arc::new(self.contact_list());
 
         let empty_vec: Vec<usize> = Vec::new();
 
         // let index = create_email_domain_search_index(contact_list)?;
-        let index_match = index.domain.get(domain).unwrap_or(&empty_vec);
+        let index_match = Arc::new(index.domain.get(domain).unwrap_or(&empty_vec));
+        let mid = index_match.len() / 2;
 
-        let fuzzy_match: Vec<&Contact> = index_match
-            .iter()
-            .map(|c| contact_list[*c])
-            .collect();
+        let fuzzy_match: Arc<Mutex<Vec<&Contact>>> = Arc::new(
+            Mutex::new(Vec::new())
+        );
 
-        Ok(fuzzy_match)
+        thread::scope(|s| {
+            let contacts1 = Arc::clone(&contact_list);
+            let match1 = Arc::clone(&fuzzy_match);
+            let indices1 = Arc::clone(&index_match);
+
+            s.spawn(move || -> Result<(), AppError> {
+                let chunk_size = 20;
+
+                for chunk in indices1[0..mid].chunks(chunk_size) {
+                    let mut matches = match1.lock()?;
+
+                    for &idx in chunk {
+                        matches.push(contacts1[idx]);
+                    }
+                }
+                Ok(())
+            });
+
+            
+            let contacts2 = Arc::clone(&contact_list);
+            let match2 = Arc::clone(&fuzzy_match);
+            let indices2 = Arc::clone(&index_match);
+
+            s.spawn(move || -> Result<(), AppError> {
+                let chunk_size = 20;
+                for chunk in indices2[mid..index_match.len()].chunks(chunk_size) {
+                    let mut matches = match2.lock()?;
+
+                    for &idx in chunk {
+                        matches.push(contacts2[idx]);
+                    }
+                }
+                Ok(())
+            });
+        });
+
+        // get the data of the Arc (Arc::into_inner()) a Metex data, the get the value of the Mutex (.into_inner())
+        let result = Arc::into_inner(fuzzy_match).unwrap_or_default().into_inner()?;
+        Ok(result)
     }
 }
 
