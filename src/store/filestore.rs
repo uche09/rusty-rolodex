@@ -11,12 +11,70 @@ pub const TXT_STORAGE_PATH: &str = "./.instance/contacts.txt";
 pub struct Store<'a> {
     pub mem: Vec<Contact>,
     pub path: &'a str,
+    pub index: Index,
 }
 
 // pub struct JsonIter<'a> {
 //     inner: &'a [Contact],
 //     idx: usize,
 // }
+
+
+pub struct Index {
+    pub name: HashMap<char, Vec<usize>>,
+    pub domain: HashMap<String, Vec<usize>>,
+}
+
+impl Index {
+    pub fn new(storage: &Store) -> Result<Self, AppError> {
+        Ok(
+            Self {
+                name: storage.create_name_search_index()?,
+                domain: storage.create_email_domain_search_index()?,
+            }
+        )
+    }
+
+    pub fn increment_index(&mut self, contact: &Contact, index: usize) {
+        if let Some(key) = contact.name.chars().next() {
+            let key = if key.is_alphabetic() {
+                key.to_ascii_lowercase()
+            } else {
+                '#'
+            };
+            self.name.entry(key)
+                .or_default()
+                .push(index);
+        }
+
+        let email_parts: Vec<&str> = contact.email.split('@').collect();
+        let domain = email_parts[email_parts.len() -1].to_string();
+
+        self.domain.entry(domain)
+            .or_default()
+            .push(index);
+    }
+
+    pub fn decrement_index(&mut self, contact: &Contact, index: usize) {
+        if let Some(key) = contact.name.chars().next() {
+            let key = if key.is_alphabetic() {
+                key.to_ascii_lowercase()
+            } else {
+                '#'
+            };
+            if let Some(indices) = self.name.get_mut(&key) {
+                indices.retain(|&i| i != index);
+            }
+        }
+
+        let email_parts: Vec<&str> = contact.email.split('@').collect();
+        let domain = email_parts[email_parts.len() -1].to_string();
+
+        if let Some(indices) = self.domain.get_mut(&domain) {
+            indices.retain(|&i| i != index);
+        }
+    }
+}
 
 
 impl Store<'_> {
@@ -30,6 +88,10 @@ impl Store<'_> {
         Ok(Self {
             mem: Vec::new(),
             path,
+            index: Index {
+                name: HashMap::new(),
+                domain: HashMap::new(),
+            },
         })
     }
 
@@ -47,21 +109,17 @@ impl Store<'_> {
 
     
     pub fn get_indices_by_name(&self, name: &str) -> Option<Vec<usize>> {
-        let contacts = self.contact_list();
         let mut key = name.to_ascii_lowercase().chars().next().unwrap_or_default();
 
-        let index = Index::new(self);
-        let index = match index {
-            Ok(maps) => maps,
-            Err(_) => {
-                return None;
-            }
-        };
-
+        // If the index is not built or invalidated, build it
+        let index = &self.index;
+            
+         // If the first character is not alphabetic, use '#' as key
         if !key.is_alphabetic() {
             key = '#';
         }
 
+        let contacts = self.contact_list();
         let indices: Vec<usize> = index
             .name.get(&key)?
             .iter()
@@ -77,11 +135,17 @@ impl Store<'_> {
 
     pub fn add_contact(&mut self, contact: Contact) {
         self.mem.push(contact);
+        
+        let idx = self.mem.len() - 1;
+        self.index.increment_index(&self.mem[idx], idx);
+
     }
 
     pub fn delete_contact(&mut self, index: usize) -> Result<(), AppError> {
         if index < self.mem.len() {
-            self.mem.remove(index);
+            let contact = self.mem.remove(index);
+
+            self.index.decrement_index(&contact, index);
             Ok(())
         } else {
             Err(AppError::NotFound("Contact".to_string()))
@@ -90,26 +154,44 @@ impl Store<'_> {
 
 
     pub fn create_name_search_index(&self) -> Result<HashMap<char, Vec<usize>>, AppError> {
+        const MAX_WORKER_THREADS: usize = 5;
         let contact_list = Arc::new(self.contact_list());
-        let mid = contact_list.len() / 2;
+        let worker_threads: usize;
+        let length = contact_list.len();
         
+        match length {
+            0..=10 => worker_threads = 1,
+            11..=50 => worker_threads = 2,
+            51..=200 => worker_threads = 3,
+            201..=500 => worker_threads = 4,
+            _ => worker_threads = MAX_WORKER_THREADS,
+        }
+
+        let chunk = length / worker_threads;
         let index: Arc<Mutex<HashMap<char, Vec<usize>>>> = Arc::new(Mutex::new(
             HashMap::new()
         ));
 
-
         thread::scope(|s| {
-            let map1 = Arc::clone(&index);
-            let list1 = Arc::clone(&contact_list);
+            for i in 1..=worker_threads {
+                let map1 = Arc::clone(&index);
+                let list1 = Arc::clone(&contact_list);
 
-            s.spawn(move || -> Result<(), AppError> {
-                let chunk_size = 20;
+                s.spawn(move || -> Result<(), AppError> {
+                    // Get next starting index multiplying chunk with current iteration
+                    let start = chunk * (i-1); // -1 to start from index zero and also catch unincluded end index from previous iteration
+                    let end: usize;
 
-                for chunk in (0..mid).step_by(chunk_size) {
+                    if i == worker_threads {
+                        // Last thread takes the remainder if any
+                        end = (chunk * i).max(length);
+                    } else {
+                        end = chunk * i;
+                    }
+
                     let mut map1_lock = map1.lock()?;
 
-                    for idx in chunk..(chunk + chunk_size).min(list1.len()) {
-
+                    for idx in start..end {
                         if let Some(key) = list1[idx].name.chars().next(){
                             if key.is_alphabetic() {
                                 map1_lock.entry(key.to_ascii_lowercase())
@@ -124,38 +206,10 @@ impl Store<'_> {
                         }
                     }
 
-                }
-
-                Ok(())
-            });
-
-            let map2 = Arc::clone(&index);
-            let list2 = Arc::clone(&contact_list);
-
-            s.spawn(move || -> Result<(), AppError> {
-                let chunk_size = 20;
-                for chunk in (mid..contact_list.len()).step_by(chunk_size) {
-                    let mut map2_lock = map2.lock()?;
-
-                    for idx in chunk..(chunk + chunk_size).min(list2.len()) {
-                        if let Some(key) = list2[idx].name.chars().next(){
-                            if key.is_alphabetic() {
-                                map2_lock.entry(key.to_ascii_lowercase())
-                                .or_default()
-                                .push(idx);
-                            } else {
-                                // If contact name does not start with an alphabet
-                                map2_lock.entry('#')
-                                .or_default()
-                                .push(idx);
-                            }
-                        }
-                    }
-
-                }
-
-                Ok(())
-            });
+                    Ok(())
+                });
+            }
+            
         });
         
 
@@ -167,59 +221,58 @@ impl Store<'_> {
 
 
 
-    pub fn create_email_domain_search_index(&self) -> Result<HashMap<&str, Vec<usize>>, AppError> {
+    pub fn create_email_domain_search_index(&self) -> Result<HashMap<String, Vec<usize>>, AppError> {
+        const MAX_WORKER_THREADS: usize = 5;
         let contact_list = Arc::new(self.contact_list());
-        let mid = contact_list.len() / 2;
+        let worker_threads: usize;
+        let length = contact_list.len();
 
-        let index: Arc<Mutex<HashMap<&str, Vec<usize>>>> = Arc::new(Mutex::new(
+        match length {
+            0..=10 => worker_threads = 1,
+            11..=50 => worker_threads = 2,
+            51..=200 => worker_threads = 3,
+            201..=500 => worker_threads = 4,
+            _ => worker_threads = MAX_WORKER_THREADS,
+        }
+
+        let chunk = length / worker_threads;
+        let index: Arc<Mutex<HashMap<String, Vec<usize>>>> = Arc::new(Mutex::new(
             HashMap::new()
         ));
 
-
         thread::scope(|s| {
-            let map1 = Arc::clone(&index);
-            let list1 = Arc::clone(&contact_list);
+            for i in 1..=worker_threads {
+                let map1 = Arc::clone(&index);
+                let list1 = Arc::clone(&contact_list);
 
-            s.spawn(move || -> Result<(), AppError> {
-                let chunk_size = 20;
+                s.spawn(move || -> Result<(), AppError> {
+                    // Get next starting index multiplying chunk with current iteration
+                    let start = chunk * (i-1); // -1 to start from index zero and also catch unincluded end index from previous iteration
+                    let end: usize;
 
-                for chunk in (0..mid).step_by(chunk_size) {
+                    if i == worker_threads {
+                        // Last thread takes the remainder if any
+                        end = (chunk * i).max(length);
+                    } else {
+                        end = chunk * i;
+                    }
+
                     let mut map1_lock = map1.lock()?;
 
-                    for idx in chunk..(chunk + chunk_size).min(list1.len()) {
+                    for idx in start..end {
                         let email_parts: Vec<&str> = list1[idx].email.split('@').collect();
-                        let domain = email_parts[email_parts.len() -1];
+                        let domain = email_parts[email_parts.len() -1].to_string();
                         
                         map1_lock.entry(domain)
                         .or_default()
                         .push(idx);
                     }
-                }
 
-                Ok(())
-            });
+                    Ok(())
+                });
+            }
+            
 
-            let map2 = Arc::clone(&index);
-            let list2 = Arc::clone(&contact_list);
-
-            s.spawn(move || -> Result<(), AppError> {
-                let chunk_size = 20;
-
-                for chunk in (mid..contact_list.len()).step_by(chunk_size) {
-                    let mut map2_lock = map2.lock()?;
-
-                    for idx in chunk..(chunk + chunk_size).min(list2.len()) {
-                        let email_parts: Vec<&str> = list2[idx].email.split('@').collect();
-                        let domain = email_parts[email_parts.len() -1];
-                        
-                        map2_lock.entry(domain)
-                        .or_default()
-                        .push(idx);
-                    }
-                }
-
-                Ok(())
-            });
         });
         
 
@@ -231,79 +284,85 @@ impl Store<'_> {
 
     pub fn fuzzy_search_name_index(&self, name: &str) -> Result<Vec<&Contact>, AppError> {
         const MAX_SEARCH_LENGTH: u8 = 30;
+        const MAX_WORKER_THREADS: usize = 3;
         let name = Arc::new(name.trim().to_ascii_lowercase());
 
         if name.is_empty() {
             return Err(AppError::Validation("No Name provided".to_string()));
         }
-
         if name.len() > MAX_SEARCH_LENGTH as usize {
             return Err(AppError::Validation("Search string too long".to_string()));
         }
 
         const MIN_DISTANCE: f32 = 0.7;
-        let index = Index::new(self)?;
+
+        // If the index is not built or invalidated, build it
+        let index = &self.index;
+        
         let contact_list = Arc::new(self.contact_list());
+        let default_vec: Vec<usize> = Vec::new();
 
-        let empty_vec: Vec<usize> = Vec::new();
+        let mut index_key = name.chars().next().unwrap_or_default();
+        if !index_key.is_alphabetic() {
+            index_key = '#';
+        }
 
-        let index_key = name.chars().next().unwrap_or_default();
-        let indices_match = Arc::new(index.name.get(&index_key).unwrap_or(&empty_vec));
-        let mid = indices_match.len() / 2;
+        let indices_match = Arc::new(index.name.get(&index_key).unwrap_or(&default_vec));
+        let length = indices_match.len();
+        let worker_threads: usize;
+
+        match length {
+            0..=10 => worker_threads = 1,
+            11..=50 => worker_threads = 2,
+            _ => worker_threads = MAX_WORKER_THREADS,
+        }
+
+        let chunk = length / worker_threads;
         let fuzzy_match: Arc<Mutex<Vec<&Contact>>> = Arc::new(
             Mutex::new(Vec::new())
         );
 
+        if length < 1 {
+            let result = Arc::into_inner(fuzzy_match).unwrap_or_default().into_inner()?;
+            return Ok(result);
+        }
 
         thread::scope(|s| {
-            let name1 = Arc::clone(&name);
-            let match1 = Arc::clone(&fuzzy_match);
-            let indices1 = Arc::clone(&indices_match);
-            let contacts1 = Arc::clone(&contact_list);
+            for i in 1..worker_threads {
+                let name = Arc::clone(&name);
+                let fzz_match = Arc::clone(&fuzzy_match);
+                let indices = Arc::clone(&indices_match);
+                let contacts = Arc::clone(&contact_list);
 
-            s.spawn(move || -> Result<(), AppError> {
-                let chunk_size = 20;
-                for chunk in indices1[0..mid].chunks(chunk_size) {
-                    let mut matches = match1.lock()?;
+                s.spawn(move || -> Result<(), AppError> {
+                    // Get next starting index multiplying chunk with current iteration
+                    let start = chunk * (i-1); // -1 to start from index zero and also catch unincluded end index from previous iteration
+                    let end: usize;
 
-                    for &idx in chunk {
+                    if i == worker_threads {
+                        // Last thread takes the remainder if any
+                        end = (chunk * i).max(length);
+                    } else {
+                        end = chunk * i;
+                    }
+
+                    let mut matches = fzz_match.lock()?;
+
+                    for &idx in &indices[start..end] {
                         let distance = fuzzy_compare(
-                            &contacts1[idx].name.to_ascii_lowercase(),
-                        &name1);
+                            &contacts[idx].name.to_ascii_lowercase(),
+                        &name);
 
                         if distance >= MIN_DISTANCE {
-                            matches.push(contacts1[idx]);
+                            matches.push(contacts[idx]);
                         }
                     }
-                }
-                Ok(())
-            });
 
 
-            let name2 = Arc::clone(&name);
-            let match2 = Arc::clone(&fuzzy_match);
-            let indices2 = Arc::clone(&indices_match);
-            let contacts2 = Arc::clone(&contact_list);
-
-            s.spawn(move || -> Result<(), AppError> {
-                let chunk_size = 20;
-
-                for chunk in indices2[mid..indices_match.len()].chunks(chunk_size) {
-                    let mut matches = match2.lock()?;
-
-                    for &idx in chunk {
-                        let distance = fuzzy_compare(
-                            &contacts2[idx].name.to_ascii_lowercase(),
-                        &name2);
-
-                        if distance >= MIN_DISTANCE {
-                            matches.push(contacts2[idx]);
-                        }
-                    }
-                    
-                }
-                Ok(())
-            });
+                    Ok(())
+                });
+            }
+            
         });
         
         // get the data of the Arc (Arc::into_inner()) a Metex data, the get the value of the Mutex (.into_inner())
@@ -314,6 +373,8 @@ impl Store<'_> {
 
     pub fn fuzzy_search_email_domain_index(&self, domain: &str) -> Result<Vec<&Contact>, AppError> {
         const MAX_SEARCH_LENGTH: u8 = 15;
+        const MAX_WORKER_THREADS: usize = 3;
+
         let domain = domain.trim();
 
         if domain.is_empty() {
@@ -324,53 +385,61 @@ impl Store<'_> {
             return Err(AppError::Validation("Please provide just email domain Eg. \"example.com\"".to_string()));
         }
 
-        let index = Index::new(self)?;
-        let contact_list = Arc::new(self.contact_list());
+        // If the index is not built or invalidated, build it
+        let index = &self.index;
 
-        let empty_vec: Vec<usize> = Vec::new();
+        let contact_list = Arc::new(self.contact_list());
+        let default_vec: Vec<usize> = Vec::new();
 
         // let index = create_email_domain_search_index(contact_list)?;
-        let index_match = Arc::new(index.domain.get(domain).unwrap_or(&empty_vec));
-        let mid = index_match.len() / 2;
+        let index_match = Arc::new(index.domain.get(domain).unwrap_or(&default_vec));
+        let worker_threads: usize;
+        let length = index_match.len();
+
+        match length {
+            0..=10 => worker_threads = 1,
+            11..=50 => worker_threads = 2,
+            _ => worker_threads = MAX_WORKER_THREADS,
+        }
+
+        let chunk = length / worker_threads;
 
         let fuzzy_match: Arc<Mutex<Vec<&Contact>>> = Arc::new(
             Mutex::new(Vec::new())
         );
 
+        if length < 1 {
+            let result = Arc::into_inner(fuzzy_match).unwrap_or_default().into_inner()?;
+            return Ok(result);
+        }
+
         thread::scope(|s| {
-            let contacts1 = Arc::clone(&contact_list);
-            let match1 = Arc::clone(&fuzzy_match);
-            let indices1 = Arc::clone(&index_match);
+            for i in 1..worker_threads {
+                let contacts1 = Arc::clone(&contact_list);
+                let match1 = Arc::clone(&fuzzy_match);
+                let indices1 = Arc::clone(&index_match);
 
-            s.spawn(move || -> Result<(), AppError> {
-                let chunk_size = 20;
+                s.spawn(move || -> Result<(), AppError> {
 
-                for chunk in indices1[0..mid].chunks(chunk_size) {
+                    let start = chunk * (i-1); // -1 to start from index zero and also catch unincluded end index from previous iteration
+                    let end: usize;
+
+                    if i == worker_threads {
+                        // Last thread takes the remainder if any
+                        end = (chunk * i).max(length);
+                    } else {
+                        end = chunk * i;
+                    }
+
                     let mut matches = match1.lock()?;
 
-                    for &idx in chunk {
+                    for &idx in &indices1[start..end] {
                         matches.push(contacts1[idx]);
                     }
-                }
-                Ok(())
-            });
-
-            
-            let contacts2 = Arc::clone(&contact_list);
-            let match2 = Arc::clone(&fuzzy_match);
-            let indices2 = Arc::clone(&index_match);
-
-            s.spawn(move || -> Result<(), AppError> {
-                let chunk_size = 20;
-                for chunk in indices2[mid..index_match.len()].chunks(chunk_size) {
-                    let mut matches = match2.lock()?;
-
-                    for &idx in chunk {
-                        matches.push(contacts2[idx]);
-                    }
-                }
-                Ok(())
-            });
+                    
+                    Ok(())
+                });
+            }
         });
 
         // get the data of the Arc (Arc::into_inner()) a Metex data, the get the value of the Mutex (.into_inner())
@@ -499,23 +568,6 @@ pub fn load_json_contacts(path: &str) -> Result<Vec<Contact>, AppError> {
 
 
 
-pub struct Index<'a> {
-    pub name: HashMap<char, Vec<usize>>,
-    pub domain: HashMap<&'a str, Vec<usize>>,
-}
-
-impl<'a> Index<'a> {
-    pub fn new(storage: &'a Store) -> Result<Self, AppError> {
-        Ok(
-            Self {
-                name: storage.create_name_search_index()?,
-                domain: storage.create_email_domain_search_index()?,
-            }
-        )
-    }
-}
-
-
 
 
 
@@ -529,6 +581,10 @@ mod tests {
         let mut storage = Store {
             mem: Vec::new(),
             path: TXT_STORAGE_PATH,
+            index: Index {
+                name: HashMap::new(),
+                domain: HashMap::new(),
+            },
         };
 
         let new_contact = Contact::new(
@@ -542,6 +598,7 @@ mod tests {
         storage.save(&storage.mem)?;
         storage.mem.clear();
         storage.mem = storage.load()?;
+        storage.index = Index::new(&storage)?;
 
         assert_eq!(
             storage.contact_list()[0],
@@ -563,6 +620,10 @@ mod tests {
         let mut storage = Store {
             mem: Vec::new(),
             path: TXT_STORAGE_PATH,
+            index: Index {
+                name: HashMap::new(),
+                domain: HashMap::new(),
+            },
         };
 
         let contact1 = Contact::new(
@@ -586,6 +647,7 @@ mod tests {
         storage.mem.clear();
 
         storage.mem = storage.load()?;
+        storage.index = Index::new(&storage)?;
 
         let index = storage
             .get_indices_by_name(&"Uche".to_string())
@@ -595,6 +657,7 @@ mod tests {
 
         storage.mem.clear();
         storage.mem = storage.load()?;
+        storage.index = Index::new(&storage)?;
 
         assert_eq!(storage.mem.len(), 1);
 
@@ -639,6 +702,7 @@ mod tests {
         storage.mem.clear();
 
         storage.mem = storage.load()?;
+        storage.index = Index::new(&storage)?;
 
         assert_eq!(
             storage.mem[0],
@@ -665,6 +729,7 @@ mod tests {
 
         storage.mem.clear();
         storage.mem = storage.load()?;
+        storage.index = Index::new(&storage)?;
 
         assert_eq!(storage.mem.len(), 1);
 
@@ -689,6 +754,10 @@ mod tests {
         let mut txt_store = Store {
             mem: Vec::new(),
             path: TXT_STORAGE_PATH,
+            index: Index {
+                name: HashMap::new(),
+                domain: HashMap::new(),
+            },
         };
         txt_store.mem.clear();
 
@@ -741,6 +810,61 @@ mod tests {
 
         txt_store.mem.clear();
         txt_store.save(&txt_store.mem)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn index_invalidation_and_non_alpha_keys() -> Result<(), AppError> {
+        let mut store = Store {
+            mem: Vec::new(),
+            path: TXT_STORAGE_PATH,
+            index: Index {
+                name: HashMap::new(),
+                domain: HashMap::new(),
+            },
+        };
+
+        store.add_contact(Contact::new(
+            "Uche".to_string(),
+            "01234567890".to_string(),
+            "u1@example.com".to_string(),
+            "".to_string(),
+        ));
+
+        store.add_contact(Contact::new(
+            "123Name".to_string(),
+            "0987654321".to_string(),
+            "n@domain.com".to_string(),
+            "".to_string(),
+        ));
+
+        // Build index for "Uche"
+        let uche_indices = store.get_indices_by_name("Uche").unwrap();
+        assert_eq!(uche_indices.len(), 1);
+
+        // Non-alphabetic name should be indexed under '#'
+        let non_alpha_indices = store.get_indices_by_name("123Name").unwrap();
+        assert_eq!(non_alpha_indices.len(), 1);
+
+        // Add another "Uche" -> add_contact updates the index,
+        // get_indices_by_name should return two indices
+        store.add_contact(Contact::new(
+            "Uche".to_string(),
+            "111222333".to_string(),
+            "u2@example.com".to_string(),
+            "".to_string(),
+        ));
+
+        let uche_indices_after = store.get_indices_by_name("Uche").unwrap();
+        assert_eq!(uche_indices_after.len(), 2);
+
+        // Delete one "Uche" -> index should be updated
+        let index_to_delete = uche_indices_after[0];
+        store.delete_contact(index_to_delete)?;
+
+        let uche_new_indices = store.get_indices_by_name("Uche").unwrap();
+        assert_eq!(uche_new_indices.len(), 1);
 
         Ok(())
     }
