@@ -3,11 +3,11 @@ use crate::{
     prelude::{
         AppError,
         command::{Cli, Commands, SearchKey, SortKey},
-        contact::{Contact, ValidationReq, phone_number_matches},
+        contact::{Contact, ValidationReq},
         store::{
             self,
             ContactStore,
-            filestore::Store,
+            filestore::{Store, Index},
             storage_port::{export_contacts_to_csv, import_contacts_from_csv},
         },
     },
@@ -25,6 +25,7 @@ pub fn run_app() -> Result<(), AppError> {
     let mut storage = Store::new()?;
 
     storage.mem = storage.load()?;
+    storage.index = Index::new(&storage)?;
 
     println!(
         "Current storage choice is: {}",
@@ -139,10 +140,16 @@ pub fn run_app() -> Result<(), AppError> {
             new_tag,
         } => {
             let desired_contact = Contact::new(name, phone, "".to_string(), "".to_string());
+            let ids = storage.get_ids_by_name(&desired_contact.name).unwrap_or_default();
 
-            let found_contact = storage.mem
-                .iter_mut()
-                .find(|c| **c == desired_contact);
+            let matching_id = ids
+                .iter()
+                .find(|c| {
+                    storage.mem.get(&c)
+                    .map_or(false, |contact| contact == &desired_contact)
+                });
+
+            let found_contact = matching_id.and_then(|id| storage.mem.get_mut(id));
 
             if let Some(contact) = found_contact {
                 if let Some(name) = new_name {
@@ -171,13 +178,14 @@ pub fn run_app() -> Result<(), AppError> {
 
         // Delete Contact
         Commands::Delete { name, phone } => {
-            let indices = storage.get_indices_by_name(&name);
+            let ids = storage.get_ids_by_name(&name);
 
             let phone = phone.unwrap_or_default();
+            let desired_contact = Contact::new(name.clone(), phone.clone(), "".to_string(), "".to_string());
 
-            match indices {
-                Some(indices) => {
-                    if indices.len() > 1 {
+            match ids {
+                Some(ids) => {
+                    if ids.len() > 1 {
                         if phone.is_empty() {
                             println!("Deleting failed");
                             println!(
@@ -186,23 +194,24 @@ pub fn run_app() -> Result<(), AppError> {
                             );
                             exit(0);
                         } else {
-                            for index in indices {
-                                let contact = storage.contact_list()[index];
-                                if contact.name == name
-                                    && phone_number_matches(&contact.phone, &phone)
-                                {
-                                    storage.delete_contact(index)?;
-                                    storage.save(&storage.mem)?;
-                                    println!("Contact deleted successfully");
-                                    exit(0);
+                            for id in &ids {
+                                if let Some(contact) = storage.mem.get(id) {
+                                    if contact == &desired_contact
+                                    {
+                                        storage.delete_contact(id)?;
+                                        storage.save(&storage.mem)?;
+                                        println!("Contact deleted successfully");
+                                        exit(0);
+                                    }
                                 }
+                                
                             }
 
                             eprintln!("{}", AppError::NotFound("Contact".to_string()));
                             return Ok(());
                         }
                     } else {
-                        storage.delete_contact(indices[0])?;
+                        storage.delete_contact(&ids[0])?;
                     }
 
                     storage.save(&storage.mem)?;
@@ -295,14 +304,16 @@ pub fn run_app() -> Result<(), AppError> {
                 file_path = path;
             }
 
+            let contact_list = storage.contact_list();
+
             if file_path.is_empty() {
-                let (path, total) = export_contacts_to_csv(&storage.mem, None)?;
+                let (path, total) = export_contacts_to_csv(&contact_list, None)?;
 
                 println!("Successfully exported {} contacts to {:?}.", total, path);
                 return Ok(());
             }
 
-            let (path, total) = export_contacts_to_csv(&storage.mem, Some(&file_path))?;
+            let (path, total) = export_contacts_to_csv(&contact_list, Some(&file_path))?;
 
             println!("Successfully exported {} contacts to {:?}.", total, path);
             Ok(())

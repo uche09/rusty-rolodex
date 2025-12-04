@@ -9,7 +9,7 @@ pub const TXT_STORAGE_PATH: &str = "./.instance/contacts.txt";
 
 
 pub struct Store<'a> {
-    pub mem: Vec<Contact>,
+    pub mem: HashMap<Uuid, Contact>,
     pub path: &'a str,
     pub index: Index,
 }
@@ -21,8 +21,8 @@ pub struct Store<'a> {
 
 
 pub struct Index {
-    pub name: HashMap<char, Vec<usize>>,
-    pub domain: HashMap<String, Vec<usize>>,
+    pub name: HashMap<char, Vec<Uuid>>,
+    pub domain: HashMap<String, Vec<Uuid>>,
 }
 
 impl Index {
@@ -35,7 +35,7 @@ impl Index {
         )
     }
 
-    pub fn increment_index(&mut self, contact: &Contact, index: usize) {
+    pub fn increment_index(&mut self, contact: &Contact) {
         if let Some(key) = contact.name.chars().next() {
             let key = if key.is_alphabetic() {
                 key.to_ascii_lowercase()
@@ -44,7 +44,7 @@ impl Index {
             };
             self.name.entry(key)
                 .or_default()
-                .push(index);
+                .push(contact.id.clone());
         }
 
         let email_parts: Vec<&str> = contact.email.split('@').collect();
@@ -52,10 +52,10 @@ impl Index {
 
         self.domain.entry(domain)
             .or_default()
-            .push(index);
+            .push(contact.id.clone());
     }
 
-    pub fn decrement_index(&mut self, contact: &Contact, index: usize) {
+    pub fn decrement_index(&mut self, contact: &Contact) {
         if let Some(key) = contact.name.chars().next() {
             let key = if key.is_alphabetic() {
                 key.to_ascii_lowercase()
@@ -63,7 +63,7 @@ impl Index {
                 '#'
             };
             if let Some(indices) = self.name.get_mut(&key) {
-                indices.retain(|&i| i != index);
+                indices.retain(|&i| i != contact.id);
             }
         }
 
@@ -71,7 +71,7 @@ impl Index {
         let domain = email_parts[email_parts.len() -1].to_string();
 
         if let Some(indices) = self.domain.get_mut(&domain) {
-            indices.retain(|&i| i != index);
+            indices.retain(|&i| i != contact.id);
         }
     }
 }
@@ -86,7 +86,7 @@ impl Store<'_> {
         create_file_parent(path)?;
 
         Ok(Self {
-            mem: Vec::new(),
+            mem: HashMap::new(),
             path,
             index: Index {
                 name: HashMap::new(),
@@ -104,11 +104,11 @@ impl Store<'_> {
 
 
     pub fn contact_list(&self) -> Vec<&Contact> {
-        self.mem.iter().collect()
+        self.mem.iter().map(|(_, cont)| cont).collect::<Vec<&Contact>>() 
     }
 
     
-    pub fn get_indices_by_name(&self, name: &str) -> Option<Vec<usize>> {
+    pub fn get_ids_by_name(&self, name: &str) -> Option<Vec<Uuid>> {
         let mut key = name.to_ascii_lowercase().chars().next().unwrap_or_default();
 
         // If the index is not built or invalidated, build it
@@ -119,41 +119,40 @@ impl Store<'_> {
             key = '#';
         }
 
-        let contacts = self.contact_list();
-        let indices: Vec<usize> = index
+        let ids: Vec<Uuid> = index
             .name.get(&key)?
             .iter()
-            .filter(|&&idx| contacts[idx].name == name)
-            .map(|idx| *idx)
+            .filter_map(|id| {
+                self.mem.get(id).and_then(|contact| {
+                    if contact.name == name { Some(id.clone()) } else { None }
+                })
+            })
             .collect();
 
-        if indices.is_empty() {
-            return None;
-        }
-        Some(indices)
+        if ids.is_empty() { None } else { Some(ids) }
     }
 
     pub fn add_contact(&mut self, contact: Contact) {
-        self.mem.push(contact);
-        
-        let idx = self.mem.len() - 1;
-        self.index.increment_index(&self.mem[idx], idx);
+        self.index.increment_index(&contact);
+
+        self.mem.insert(contact.id.clone(), contact);
 
     }
 
-    pub fn delete_contact(&mut self, index: usize) -> Result<(), AppError> {
-        if index < self.mem.len() {
-            let contact = self.mem.remove(index);
+    pub fn delete_contact(&mut self, id: &Uuid) -> Result<(), AppError> {
 
-            self.index.decrement_index(&contact, index);
-            Ok(())
-        } else {
-            Err(AppError::NotFound("Contact".to_string()))
+        match self.mem.remove(id) {
+
+            Some(deleted_contact) => {
+                self.index.decrement_index(&deleted_contact);
+                Ok(())
+            }
+            None => Err(AppError::NotFound("Contact".to_string()))
         }
     }
 
 
-    pub fn create_name_search_index(&self) -> Result<HashMap<char, Vec<usize>>, AppError> {
+    pub fn create_name_search_index(&self) -> Result<HashMap<char, Vec<Uuid>>, AppError> {
         const MAX_WORKER_THREADS: usize = 5;
         let contact_list = Arc::new(self.contact_list());
         let worker_threads: usize;
@@ -168,7 +167,7 @@ impl Store<'_> {
         }
 
         let chunk = length / worker_threads;
-        let index: Arc<Mutex<HashMap<char, Vec<usize>>>> = Arc::new(Mutex::new(
+        let index: Arc<Mutex<HashMap<char, Vec<Uuid>>>> = Arc::new(Mutex::new(
             HashMap::new()
         ));
 
@@ -192,16 +191,18 @@ impl Store<'_> {
                     let mut map1_lock = map1.lock()?;
 
                     for idx in start..end {
-                        if let Some(key) = list1[idx].name.chars().next(){
+                        let contact = list1[idx];
+
+                        if let Some(key) = contact.name.chars().next(){
                             if key.is_alphabetic() {
                                 map1_lock.entry(key.to_ascii_lowercase())
                                 .or_default()
-                                .push(idx);
+                                .push(contact.id);
                             } else {
                                 // If contact name does not start with an alphabet
                                 map1_lock.entry('#')
                                 .or_default()
-                                .push(idx);
+                                .push(contact.id);
                             }
                         }
                     }
@@ -221,7 +222,7 @@ impl Store<'_> {
 
 
 
-    pub fn create_email_domain_search_index(&self) -> Result<HashMap<String, Vec<usize>>, AppError> {
+    pub fn create_email_domain_search_index(&self) -> Result<HashMap<String, Vec<Uuid>>, AppError> {
         const MAX_WORKER_THREADS: usize = 5;
         let contact_list = Arc::new(self.contact_list());
         let worker_threads: usize;
@@ -236,7 +237,7 @@ impl Store<'_> {
         }
 
         let chunk = length / worker_threads;
-        let index: Arc<Mutex<HashMap<String, Vec<usize>>>> = Arc::new(Mutex::new(
+        let index: Arc<Mutex<HashMap<String, Vec<Uuid>>>> = Arc::new(Mutex::new(
             HashMap::new()
         ));
 
@@ -260,12 +261,13 @@ impl Store<'_> {
                     let mut map1_lock = map1.lock()?;
 
                     for idx in start..end {
-                        let email_parts: Vec<&str> = list1[idx].email.split('@').collect();
+                        let contact = list1[idx];
+                        let email_parts: Vec<&str> = contact.email.split('@').collect();
                         let domain = email_parts[email_parts.len() -1].to_string();
                         
                         map1_lock.entry(domain)
                         .or_default()
-                        .push(idx);
+                        .push(contact.id);
                     }
 
                     Ok(())
@@ -296,19 +298,16 @@ impl Store<'_> {
 
         const MIN_DISTANCE: f32 = 0.7;
 
-        // If the index is not built or invalidated, build it
         let index = &self.index;
-        
-        let contact_list = Arc::new(self.contact_list());
-        let default_vec: Vec<usize> = Vec::new();
+        let default_vec: Vec<Uuid> = Vec::new();
 
         let mut index_key = name.chars().next().unwrap_or_default();
         if !index_key.is_alphabetic() {
             index_key = '#';
         }
 
-        let indices_match = Arc::new(index.name.get(&index_key).unwrap_or(&default_vec));
-        let length = indices_match.len();
+        let index_match = Arc::new(index.name.get(&index_key).unwrap_or(&default_vec));
+        let length = index_match.len();
         let worker_threads: usize;
 
         match length {
@@ -331,8 +330,7 @@ impl Store<'_> {
             for i in 1..worker_threads {
                 let name = Arc::clone(&name);
                 let fzz_match = Arc::clone(&fuzzy_match);
-                let indices = Arc::clone(&indices_match);
-                let contacts = Arc::clone(&contact_list);
+                let uuids = Arc::clone(&index_match);
 
                 s.spawn(move || -> Result<(), AppError> {
                     // Get next starting index multiplying chunk with current iteration
@@ -348,14 +346,17 @@ impl Store<'_> {
 
                     let mut matches = fzz_match.lock()?;
 
-                    for &idx in &indices[start..end] {
-                        let distance = fuzzy_compare(
-                            &contacts[idx].name.to_ascii_lowercase(),
-                        &name);
+                    for &id in &uuids[start..end] {
+                        if let Some(contact) = self.mem.get(&id) {
+                            let distance = fuzzy_compare(
+                                &contact.name.to_ascii_lowercase(),
+                            &name);
 
-                        if distance >= MIN_DISTANCE {
-                            matches.push(contacts[idx]);
+                            if distance >= MIN_DISTANCE {
+                                matches.push(contact);
+                            }
                         }
+                        
                     }
 
 
@@ -365,7 +366,7 @@ impl Store<'_> {
             
         });
         
-        // get the data of the Arc (Arc::into_inner()) a Metex data, the get the value of the Mutex (.into_inner())
+        // get the data of the Arc (Arc::into_inner()) a Mutex data, the get the value of the Mutex (.into_inner())
         let result = Arc::into_inner(fuzzy_match).unwrap_or_default().into_inner()?;
         Ok(result)
     }
@@ -385,11 +386,9 @@ impl Store<'_> {
             return Err(AppError::Validation("Please provide just email domain Eg. \"example.com\"".to_string()));
         }
 
-        // If the index is not built or invalidated, build it
         let index = &self.index;
 
-        let contact_list = Arc::new(self.contact_list());
-        let default_vec: Vec<usize> = Vec::new();
+        let default_vec: Vec<Uuid> = Vec::new();
 
         // let index = create_email_domain_search_index(contact_list)?;
         let index_match = Arc::new(index.domain.get(domain).unwrap_or(&default_vec));
@@ -415,9 +414,8 @@ impl Store<'_> {
 
         thread::scope(|s| {
             for i in 1..worker_threads {
-                let contacts1 = Arc::clone(&contact_list);
                 let match1 = Arc::clone(&fuzzy_match);
-                let indices1 = Arc::clone(&index_match);
+                let uuids = Arc::clone(&index_match);
 
                 s.spawn(move || -> Result<(), AppError> {
 
@@ -433,8 +431,10 @@ impl Store<'_> {
 
                     let mut matches = match1.lock()?;
 
-                    for &idx in &indices1[start..end] {
-                        matches.push(contacts1[idx]);
+                    for &id in &uuids[start..end] {
+                        if let Some(contact) = self.mem.get(&id){
+                            matches.push(contact);
+                        }
                     }
                     
                     Ok(())
@@ -464,7 +464,7 @@ impl Store<'_> {
 
 
 impl ContactStore for Store<'_> {
-    fn load(&self) -> Result<Vec<Contact>, AppError> {
+    fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
         let txt_contacts = load_txt_contacts(TXT_STORAGE_PATH)?;
         let mut json_contacts = load_json_contacts(JSON_STORAGE_PATH)?;
         let storage_choice = parse_storage_choice();
@@ -478,14 +478,12 @@ impl ContactStore for Store<'_> {
         }
 
         json_contacts.extend(txt_contacts);
-        json_contacts.sort();
-        json_contacts.dedup();
-
+        
         Ok(json_contacts)
     }
 
 
-    fn save(&self, contacts: &[Contact]) -> Result<(), AppError> {
+    fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
         let path = Path::new(&self.path);
         if !path.exists() {
             create_file_parent(self.path)?;
@@ -526,9 +524,9 @@ impl ContactStore for Store<'_> {
 
 }
 
-pub fn load_txt_contacts(path: &str) -> Result<Vec<Contact>, AppError> {
+pub fn load_txt_contacts(path: &str) -> Result<HashMap<Uuid, Contact>, AppError> {
     if !fs::exists(Path::new(path))? {
-        return Ok(Vec::new());
+        return Ok(HashMap::new());
     }
     // Read text fom file
     // Using OpenOptions to open file if already exist
@@ -544,9 +542,9 @@ pub fn load_txt_contacts(path: &str) -> Result<Vec<Contact>, AppError> {
     Ok(contacts)
 }
 
-pub fn load_json_contacts(path: &str) -> Result<Vec<Contact>, AppError> {
+pub fn load_json_contacts(path: &str) -> Result<HashMap<Uuid, Contact>, AppError> {
     if !fs::exists(Path::new(path))? {
-        return Ok(Vec::new());
+        return Ok(HashMap::new());
     }
     let mut file = OpenOptions::new()
         .read(true)
@@ -560,10 +558,23 @@ pub fn load_json_contacts(path: &str) -> Result<Vec<Contact>, AppError> {
 
     // serde_json will give an error if data is empty
     if data.is_empty() {
-        return Ok(Vec::new());
+        return Ok(HashMap::new());
     }
 
-    Ok(serde_json::from_str(&data)?)
+    // New feature: Contacts are now stored in HashMap.
+    // Try if new feature has been effected
+    if let Ok(contacts) = serde_json::from_str::<HashMap<Uuid, Contact>>(&data) {
+        return Ok(contacts);
+    }
+
+    let contacts: Vec<Contact> = serde_json::from_str(&data)?;
+
+    // Convert Vec to HashMap for new feature backward compatibility
+    let mapped_contacts = contacts
+        .into_iter()
+        .map(|cont| (cont.id, cont))
+        .collect::<HashMap<Uuid, Contact>>();
+    Ok(mapped_contacts)
 }
 
 
@@ -573,13 +584,15 @@ pub fn load_json_contacts(path: &str) -> Result<Vec<Contact>, AppError> {
 
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
+
     use super::*;
 
 
     #[test]
     fn adds_persistent_contact_with_txt() -> Result<(), AppError> {
         let mut storage = Store {
-            mem: Vec::new(),
+            mem: HashMap::new(),
             path: TXT_STORAGE_PATH,
             index: Index {
                 name: HashMap::new(),
@@ -618,7 +631,7 @@ mod tests {
     #[test]
     fn delete_persistent_contact_with_txt() -> Result<(), AppError> {
         let mut storage = Store {
-            mem: Vec::new(),
+            mem: HashMap::new(),
             path: TXT_STORAGE_PATH,
             index: Index {
                 name: HashMap::new(),
@@ -650,9 +663,9 @@ mod tests {
         storage.index = Index::new(&storage)?;
 
         let index = storage
-            .get_indices_by_name(&"Uche".to_string())
+            .get_ids_by_name(&"Uche".to_string())
             .unwrap_or_default();
-        storage.delete_contact(index[0])?;
+        storage.delete_contact(&index[0])?;
         storage.save(&storage.mem)?;
 
         storage.mem.clear();
@@ -681,19 +694,30 @@ mod tests {
     fn json_store_is_persistent() -> Result<(), AppError> {
         let mut storage = Store::new()?;
 
-        let contact1 = Contact::new(
-            "Uche".to_string(),
-            "01234567890".to_string(),
-            "ucheuche@gmail.com".to_string(),
-            "".to_string(),
-        );
+        let created = Utc::now();
+        let id_1 = Uuid::new_v4();
+        let id_2 = Uuid::new_v4();
 
-        let contact2 = Contact::new(
-            "Alex".to_string(),
-            "01234567890".to_string(),
-            "".to_string(),
-            "".to_string(),
-        );
+        let contact1 = Contact {
+            id: id_1.clone(),
+            name: "Uche".to_string(),
+            phone: "01234567890".to_string(),
+            email: "ucheuche@gmail.com".to_string(),
+            tag: "".to_string(),
+            created_at: created.clone(),
+            updated_at: created.clone(),
+        };
+        
+
+        let contact2 = Contact{
+            id: id_2,
+            name: "Alex".to_string(),
+            phone: "01234567890".to_string(),
+            email: "".to_string(),
+            tag: "".to_string(),
+            created_at: created.clone(),
+            updated_at: created.clone(),
+        };
 
         storage.add_contact(contact1);
         storage.add_contact(contact2);
@@ -705,8 +729,8 @@ mod tests {
         storage.index = Index::new(&storage)?;
 
         assert_eq!(
-            storage.mem[0],
-            Contact::new(
+            storage.mem.get(&id_1).unwrap(),
+            &Contact::new(
                 "Uche".to_string(),
                 "01234567890".to_string(),
                 "ucheuche@gmail.com".to_string(),
@@ -715,8 +739,8 @@ mod tests {
         );
 
         assert_eq!(
-            storage.mem[1],
-            Contact::new(
+            storage.mem.get(&id_2).unwrap(),
+            &Contact::new(
                 "Alex".to_string(),
                 "01234567890".to_string(),
                 "".to_string(),
@@ -724,7 +748,8 @@ mod tests {
             )
         );
 
-        storage.delete_contact(0)?;
+
+        storage.delete_contact(&id_1)?;
         storage.save(&storage.mem)?;
 
         storage.mem.clear();
@@ -735,12 +760,15 @@ mod tests {
 
         assert_ne!(
             *storage.contact_list()[0],
-            Contact::new(
-                "Uche".to_string(),
-                "01234567890".to_string(),
-                "ucheuche@gmail.com".to_string(),
-                "".to_string(),
-            )
+            Contact {
+                id: id_1,
+                name: "Uche".to_string(),
+                phone: "01234567890".to_string(),
+                email: "ucheuche@gmail.com".to_string(),
+                tag: "".to_string(),
+                created_at: created.clone(),
+                updated_at: created.clone(),
+            }
         );
 
         storage.mem.clear();
@@ -752,7 +780,7 @@ mod tests {
     #[test]
     fn migrates_contact() -> Result<(), AppError> {
         let mut txt_store = Store {
-            mem: Vec::new(),
+            mem: HashMap::new(),
             path: TXT_STORAGE_PATH,
             index: Index {
                 name: HashMap::new(),
@@ -788,17 +816,18 @@ mod tests {
         json_store.mem.clear();
 
         json_store.mem = json_store.load()?;
+        let contact_list = json_store.contact_list();
 
-        assert!(json_store.contact_list().len() == 2);
+        assert!(contact_list.len() == 2);
 
-        assert!(json_store.mem.contains(&Contact::new(
+        assert!(contact_list.contains(&&Contact::new(
             "Uche".to_string(),
             "01234567890".to_string(),
             "ucheuche@gmail.com".to_string(),
             "".to_string(),
         )));
 
-        assert!(json_store.mem.contains(&Contact::new(
+        assert!(contact_list.contains(&&Contact::new(
             "Alex".to_string(),
             "+44731484372".to_string(),
             "".to_string(),
@@ -817,7 +846,7 @@ mod tests {
     #[test]
     fn index_invalidation_and_non_alpha_keys() -> Result<(), AppError> {
         let mut store = Store {
-            mem: Vec::new(),
+            mem: HashMap::new(),
             path: TXT_STORAGE_PATH,
             index: Index {
                 name: HashMap::new(),
@@ -840,11 +869,11 @@ mod tests {
         ));
 
         // Build index for "Uche"
-        let uche_indices = store.get_indices_by_name("Uche").unwrap();
+        let uche_indices = store.get_ids_by_name("Uche").unwrap();
         assert_eq!(uche_indices.len(), 1);
 
         // Non-alphabetic name should be indexed under '#'
-        let non_alpha_indices = store.get_indices_by_name("123Name").unwrap();
+        let non_alpha_indices = store.get_ids_by_name("123Name").unwrap();
         assert_eq!(non_alpha_indices.len(), 1);
 
         // Add another "Uche" -> add_contact updates the index,
@@ -856,15 +885,15 @@ mod tests {
             "".to_string(),
         ));
 
-        let uche_indices_after = store.get_indices_by_name("Uche").unwrap();
-        assert_eq!(uche_indices_after.len(), 2);
+        let uche_id_after = store.get_ids_by_name("Uche").unwrap();
+        assert_eq!(uche_id_after.len(), 2);
 
         // Delete one "Uche" -> index should be updated
-        let index_to_delete = uche_indices_after[0];
-        store.delete_contact(index_to_delete)?;
+        let id_to_delete = uche_id_after[0];
+        store.delete_contact(&id_to_delete)?;
 
-        let uche_new_indices = store.get_indices_by_name("Uche").unwrap();
-        assert_eq!(uche_new_indices.len(), 1);
+        let uche_new_ids = store.get_ids_by_name("Uche").unwrap();
+        assert_eq!(uche_new_ids.len(), 1);
 
         Ok(())
     }

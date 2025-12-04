@@ -2,16 +2,16 @@ pub mod memory;
 pub mod storage_port;
 pub mod filestore;
 
-use crate::prelude::{AppError, Contact};
+use crate::prelude::{AppError, Contact, uuid::Uuid, HashMap};
 use dotenv::dotenv;
 use std::fs::{self, OpenOptions};
 use std::io::{BufReader, Read, Write};
 use std::path::Path;
 
 pub trait ContactStore {
-    fn load(&self) -> Result<Vec<Contact>, AppError>;
+    fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError>;
 
-    fn save(&self, contacts: &[Contact]) -> Result<(), AppError>;
+    fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError>;
 
 }
 

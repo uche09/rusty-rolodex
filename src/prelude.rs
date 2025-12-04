@@ -4,3 +4,5 @@ pub use crate::domain::{
 };
 pub use crate::errors::AppError;
 pub use crate::store::{self, ContactStore, memory, filestore::Store};
+pub use uuid;
+pub use std::collections::HashMap;

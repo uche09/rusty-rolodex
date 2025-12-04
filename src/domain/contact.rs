@@ -5,6 +5,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct Contact {
+    #[serde(default = "Uuid::new_v4")] // For backward compatibility with contacts without id.
+    pub id: Uuid,
+
     pub name: String,
     pub phone: String,
     pub email: String,
@@ -40,6 +43,7 @@ impl ValidationReq {
 impl Contact {
     pub fn new(name: String, phone: String, email: String, tag: String) -> Self {
         Contact {
+            id: Uuid::new_v4(),
             name,
             phone,
             email,
