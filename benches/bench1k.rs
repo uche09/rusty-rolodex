@@ -39,10 +39,10 @@ fn make_store_with_n<'a>(n: usize) -> Store<'a> {
 
 // Add-benchmark: measure constructing & inserting one contact (in-memory).
 fn bech_add(c: &mut Criterion) {
-    c.bench_function("Adding 5k contact (in-memory single add)", |b| {
+    c.bench_function("Adding 1k contact (in-memory single add)", |b| {
         // prepare an empty store once per iteration setup. We measure adding single contact.
         b.iter_batched(
-            || make_store_with_n(5_000),               // setup (expensive)
+            || make_store_with_n(1_000),               // setup (expensive)
             |mut storage| {                           // measured closure: add one contact
                 let new_contact = Contact::new(
                     "Zoe".to_string(),
@@ -60,8 +60,8 @@ fn bech_add(c: &mut Criterion) {
 
 // List-benchmark: measure one listing (collect + sort + filter) per iteration.
 fn bench_list(c: &mut Criterion){
-    c.bench_function("listing 5k contact (collect + sort + filter)", |b| {
-        let storage = make_store_with_n(5_000);
+    c.bench_function("listing 1k contact (collect + sort + filter)", |b| {
+        let storage = make_store_with_n(1_000);
         b.iter(|| {
             let mut contact_list = storage.contact_list();
             // CPU work only: sort + reverse + filter once per iteration
@@ -79,8 +79,8 @@ fn bench_list(c: &mut Criterion){
 // Search-benchmark: measure a single fuzzy search per iteration.
 // Previously: the code called fuzzy_search many times inside one iteration.
 fn bench_search(c: &mut Criterion){
-    c.bench_function("Searching 5k contact (single fuzzy search)", |b| {
-        let storage = make_store_with_n(5_000);
+    c.bench_function("Searching 1k contact (single fuzzy search)", |b| {
+        let storage = make_store_with_n(1_000);
         b.iter(|| {
             // measure a single search call (index already built in setup)
             let result = storage.fuzzy_search_name_index("User").expect("search failed");
@@ -92,8 +92,8 @@ fn bench_search(c: &mut Criterion){
 // Edit-benchmark: measure editing a single contact per iteration.
 // Previously: it did 5k edits inside one iteration and saved each time.
 fn bench_edit(c: &mut Criterion){
-    c.bench_function("Editing 5k contact (single edit)", |b| {
-        let mut storage = make_store_with_n(5_000);
+    c.bench_function("Editing 1k contact (single edit)", |b| {
+        let mut storage = make_store_with_n(1_000);
         b.iter(|| {
             // pick one id to edit (stable behavior)
             let sample_name = "User100";
@@ -111,10 +111,10 @@ fn bench_edit(c: &mut Criterion){
 
 // Delete-benchmark: measure deleting a single contact per iteration.
 fn bench_delete(c: &mut Criterion){
-    c.bench_function("Deleting from 5k contact", |b| {
+    c.bench_function("Deleting from 1k contact", |b| {
         
         b.iter_batched(
-            || make_store_with_n(5_000), 
+            || make_store_with_n(1_000), 
             |mut storage| {
                 // delete a single existing id
                 let sample_name = "User200";
@@ -133,8 +133,9 @@ fn bench_delete(c: &mut Criterion){
 
 // Save-benchmark (Store::save) for JSON storage: create a unique temp dir, chdir into it,
 // build store, then measure Store::save writing to the relative JSON path.
+// Each iteration uses a fresh temp dir and store so results are independent.
 fn bench_save_store_json(c: &mut Criterion) {
-    c.bench_function("save_5k_json_contacts", |b| {
+    c.bench_function("save_1k_json_contacts", |b| {
         b.iter_batched(
             || {
                 // Setup: create temp dir and enter it
@@ -149,7 +150,7 @@ fn bench_save_store_json(c: &mut Criterion) {
                 }
 
                 // Build store in setup (excluded from measured timing)
-                let storage = make_store_with_n(5_000);
+                let storage = make_store_with_n(1_000);
 
                 (storage, base)
             },
@@ -172,7 +173,7 @@ fn bench_save_store_json(c: &mut Criterion) {
 // Read-benchmark (Store::load) for JSON storage: create a temp dir and save a file in setup,
 // then measure Store::load reading and deserializing that file.
 fn bench_read_store_json(c: &mut Criterion) {
-    c.bench_function("read_5k_json_contacts", |b| {
+    c.bench_function("read_1k_json_contacts", |b| {
         b.iter_batched(
             || {
                 // Setup: create temp dir and enter it
@@ -186,7 +187,7 @@ fn bench_read_store_json(c: &mut Criterion) {
                 }
 
                 // Build and save the store so there's something to load
-                let storage = make_store_with_n(5_000);
+                let storage = make_store_with_n(1_000);
                 storage.save(&storage.mem).expect("setup save failed");
 
                 // restore cwd so setup leaves global state clean; measured closure will chdir into base
@@ -217,7 +218,7 @@ fn bench_read_store_json(c: &mut Criterion) {
 
 // Save-benchmark (Store::save) for TXT storage: same pattern but set STORAGE_CHOICE to "txt".
 fn bench_save_store_txt(c: &mut Criterion) {
-    c.bench_function("save_5k_txt_contacts", |b| {
+    c.bench_function("save_1k_txt_contacts", |b| {
         b.iter_batched(
             || {
                 let base = std::env::temp_dir().join(format!("rusty-rolodex-bench-txt-{}", BenchUuid::new_v4()));
@@ -228,7 +229,7 @@ fn bench_save_store_txt(c: &mut Criterion) {
                     std::env::set_var("STORAGE_CHOICE", "txt");
                 }
 
-                let storage = make_store_with_n(5_000);
+                let storage = make_store_with_n(1_000);
 
                 (storage, base)
             },
@@ -248,7 +249,7 @@ fn bench_save_store_txt(c: &mut Criterion) {
 
 // Read-benchmark (Store::load) for TXT storage.
 fn bench_read_store_txt(c: &mut Criterion) {
-    c.bench_function("read_5k_txt_contacts", |b| {
+    c.bench_function("read_1k_txt_contacts", |b| {
         b.iter_batched(
             || {
                 let base = std::env::temp_dir().join(format!("rusty-rolodex-bench-txt-{}", BenchUuid::new_v4()));
@@ -260,7 +261,7 @@ fn bench_read_store_txt(c: &mut Criterion) {
                     std::env::set_var("STORAGE_CHOICE", "txt");
                 }
 
-                let storage = make_store_with_n(5_000);
+                let storage = make_store_with_n(1_000);
                 storage.save(&storage.mem).expect("setup save failed");
 
                 std::env::set_current_dir(&original_cwd).expect("restore cwd after setup");

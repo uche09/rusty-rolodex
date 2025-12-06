@@ -1,3 +1,3 @@
 pub mod contact;
 
-use crate::prelude::AppError;
+use crate::prelude::{AppError, uuid::Uuid};

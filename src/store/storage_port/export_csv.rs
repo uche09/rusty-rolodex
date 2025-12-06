@@ -6,7 +6,7 @@ use csv::Writer;
 const EXPORT_PATH: &str = "./import_export/exported.csv";
 
 pub fn export_contacts_to_csv(
-    contacts: &Vec<Contact>,
+    contacts: &Vec<&Contact>,
     des: Option<&str>,
 ) -> Result<(PathBuf, u64), AppError> {
     let mut file_path = PathBuf::from(EXPORT_PATH);

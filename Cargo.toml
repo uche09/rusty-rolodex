@@ -7,15 +7,12 @@ edition = "2024"
 chrono = { version = "0.4", features = ["serde"] }
 clap = {version = "4", features = ["derive", "env", "default"] }
 csv = "1.3"
-
 serde = {version = "1", features = ["derive"] }
-
 serde_json = "1"
-
 regex = "1"
-
 dotenv = "0.15"
 rust-fuzzy-search = "0.1.1"
+uuid = { version = "1", features = ["v4", "serde"] }
 
 [dev-dependencies]
 assert_cmd = "2.0"
@@ -24,7 +21,23 @@ predicates = "3.1"
 
 
 [[bench]]
+name = "bench1k"
+harness = false
+
+[[bench]]
 name = "bench5k"
+harness = false
+
+[[bench]]
+name = "bench10k"
+harness = false
+
+[[bench]]
+name = "bench20k"
+harness = false
+
+[[bench]]
+name = "bench50k"
 harness = false
 
 [[bench]]
