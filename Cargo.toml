@@ -21,7 +21,23 @@ predicates = "3.1"
 
 
 [[bench]]
+name = "bench1k"
+harness = false
+
+[[bench]]
 name = "bench5k"
+harness = false
+
+[[bench]]
+name = "bench10k"
+harness = false
+
+[[bench]]
+name = "bench20k"
+harness = false
+
+[[bench]]
+name = "bench50k"
 harness = false
 
 [[bench]]
