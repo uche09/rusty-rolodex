@@ -296,7 +296,7 @@ impl Store<'_> {
             return Err(AppError::Validation("Search string too long".to_string()));
         }
 
-        const MIN_DISTANCE: f32 = 0.7;
+        const MIN_DISTANCE: f32 = 0.5;
 
         let index = &self.index;
         let default_vec: Vec<Uuid> = Vec::new();
