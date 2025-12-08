@@ -54,7 +54,8 @@ pub fn deserialize_contacts_from_txt_buffer(
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
-    let mut id = Uuid::new_v4();
+    let mut test_id = Uuid::new_v4();
+    let mut id = test_id;
     let mut name = "".to_string();
     let mut phone = "".to_string();
     let mut email = "".to_string();
@@ -72,6 +73,11 @@ pub fn deserialize_contacts_from_txt_buffer(
         }
 
         if value == "}" {
+            // if contact data doesn't have id, generate new Uuid for each contact
+            if id == test_id {
+                id = Uuid::new_v4();
+                test_id = id;
+            }
             // End of a contact format
             let contact = Contact {
                 id: id.clone(),
