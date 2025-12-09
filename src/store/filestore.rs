@@ -1,7 +1,7 @@
 use super::*;
 
 use rust_fuzzy_search::fuzzy_compare;
-use std::{collections::HashMap, sync::{Arc, Mutex}, thread};
+use std::{collections::{HashMap, HashSet}, sync::{Arc, Mutex}, thread};
 use crate::helper;
 
 pub const JSON_STORAGE_PATH: &str = "./.instance/contacts.json";
@@ -20,9 +20,10 @@ pub struct Store<'a> {
 // }
 
 
+// TODO: use string (jack) as name index key rather than char (j)
 pub struct Index {
-    pub name: HashMap<char, Vec<Uuid>>,
-    pub domain: HashMap<String, Vec<Uuid>>,
+    pub name: HashMap<char, HashSet<Uuid>>,
+    pub domain: HashMap<String, HashSet<Uuid>>,
 }
 
 impl Index {
@@ -44,7 +45,7 @@ impl Index {
             };
             self.name.entry(key)
                 .or_default()
-                .push(contact.id.clone());
+                .insert(contact.id.clone());
         }
 
         let email_parts: Vec<&str> = contact.email.split('@').collect();
@@ -52,7 +53,7 @@ impl Index {
 
         self.domain.entry(domain)
             .or_default()
-            .push(contact.id.clone());
+            .insert(contact.id.clone());
     }
 
     pub fn decrement_index(&mut self, contact: &Contact) {
@@ -152,7 +153,7 @@ impl Store<'_> {
     }
 
 
-    pub fn create_name_search_index(&self) -> Result<HashMap<char, Vec<Uuid>>, AppError> {
+    pub fn create_name_search_index(&self) -> Result<HashMap<char, HashSet<Uuid>>, AppError> {
         const MAX_WORKER_THREADS: usize = 5;
         let contact_list = Arc::new(self.contact_list());
         let worker_threads: usize;
@@ -167,7 +168,7 @@ impl Store<'_> {
         }
 
         let chunk = length / worker_threads;
-        let index: Arc<Mutex<HashMap<char, Vec<Uuid>>>> = Arc::new(Mutex::new(
+        let index: Arc<Mutex<HashMap<char, HashSet<Uuid>>>> = Arc::new(Mutex::new(
             HashMap::new()
         ));
 
@@ -197,12 +198,12 @@ impl Store<'_> {
                             if key.is_alphabetic() {
                                 map1_lock.entry(key.to_ascii_lowercase())
                                 .or_default()
-                                .push(contact.id);
+                                .insert(contact.id);
                             } else {
                                 // If contact name does not start with an alphabet
                                 map1_lock.entry('#')
                                 .or_default()
-                                .push(contact.id);
+                                .insert(contact.id);
                             }
                         }
                     }
@@ -222,7 +223,7 @@ impl Store<'_> {
 
 
 
-    pub fn create_email_domain_search_index(&self) -> Result<HashMap<String, Vec<Uuid>>, AppError> {
+    pub fn create_email_domain_search_index(&self) -> Result<HashMap<String, HashSet<Uuid>>, AppError> {
         const MAX_WORKER_THREADS: usize = 5;
         let contact_list = Arc::new(self.contact_list());
         let worker_threads: usize;
@@ -237,7 +238,7 @@ impl Store<'_> {
         }
 
         let chunk = length / worker_threads;
-        let index: Arc<Mutex<HashMap<String, Vec<Uuid>>>> = Arc::new(Mutex::new(
+        let index: Arc<Mutex<HashMap<String, HashSet<Uuid>>>> = Arc::new(Mutex::new(
             HashMap::new()
         ));
 
@@ -267,7 +268,7 @@ impl Store<'_> {
                         
                         map1_lock.entry(domain)
                         .or_default()
-                        .push(contact.id);
+                        .insert(contact.id);
                     }
 
                     Ok(())
@@ -299,15 +300,18 @@ impl Store<'_> {
         const MIN_DISTANCE: f32 = 0.5;
 
         let index = &self.index;
-        let default_vec: Vec<Uuid> = Vec::new();
+        let default_set: HashSet<Uuid> = HashSet::new();
 
         let mut index_key = name.chars().next().unwrap_or_default();
         if !index_key.is_alphabetic() {
             index_key = '#';
         }
 
-        let index_match = Arc::new(index.name.get(&index_key).unwrap_or(&default_vec));
-        let length = index_match.len();
+        let ids_as_set = index.name.get(&index_key).unwrap_or(&default_set);
+
+        // Convert set to HashSet<Uuid> to Vec<Uuid> to enable slice for threads
+        let id_as_vec = Arc::new(ids_as_set.into_iter().collect::<Vec<&Uuid>>());
+        let length = id_as_vec.len();
         let worker_threads: usize;
 
         match length {
@@ -330,7 +334,7 @@ impl Store<'_> {
             for i in 1..worker_threads {
                 let name = Arc::clone(&name);
                 let fzz_match = Arc::clone(&fuzzy_match);
-                let uuids = Arc::clone(&index_match);
+                let uuids = Arc::clone(&id_as_vec);
 
                 s.spawn(move || -> Result<(), AppError> {
                     // Get next starting index multiplying chunk with current iteration
@@ -388,10 +392,11 @@ impl Store<'_> {
 
         let index = &self.index;
 
-        let default_vec: Vec<Uuid> = Vec::new();
+        let default_set: HashSet<Uuid> = HashSet::new();
 
-        // let index = create_email_domain_search_index(contact_list)?;
-        let index_match = Arc::new(index.domain.get(domain).unwrap_or(&default_vec));
+        let ids_as_set = index.domain.get(domain).unwrap_or(&default_set);
+
+        let index_match = Arc::new(ids_as_set.into_iter().collect::<Vec<&Uuid>>());
         let worker_threads: usize;
         let length = index_match.len();
 
