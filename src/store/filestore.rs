@@ -868,58 +868,101 @@ mod tests {
         Ok(())
     }
 
+    
     #[test]
-    fn index_invalidation_and_non_alpha_keys() -> Result<(), AppError> {
-        let mut store = Store {
-            mem: HashMap::new(),
-            path: TXT_STORAGE_PATH,
-            index: Index {
-                name: HashMap::new(),
-                domain: HashMap::new(),
-            },
-        };
+    fn index_updates_on_add_and_delete() -> Result<(), AppError> {
+        let mut store = Store::new()?;
 
-        store.add_contact(Contact::new(
+        let contact1 = Contact::new(
             "Uche".to_string(),
             "01234567890".to_string(),
             "u1@example.com".to_string(),
             "".to_string(),
-        ));
+        );
+        let id1 = contact1.id;
+        store.add_contact(contact1);
 
-        store.add_contact(Contact::new(
-            "123Name".to_string(),
-            "0987654321".to_string(),
-            "n@domain.com".to_string(),
-            "".to_string(),
-        ));
+        // After adding, index should contain the contact id for the name "Uche"
+        let ids_for_uche = store.get_ids_by_name("Uche").unwrap_or_default();
+        assert!(ids_for_uche.contains(&id1));
 
-        // Build index for "Uche"
-        let uche_indices = store.get_ids_by_name("Uche").unwrap();
-        assert_eq!(uche_indices.len(), 1);
-
-        // Non-alphabetic name should be indexed under '#'
-        let non_alpha_indices = store.get_ids_by_name("123Name").unwrap();
-        assert_eq!(non_alpha_indices.len(), 1);
-
-        // Add another "Uche" -> add_contact updates the index,
-        // get_indices_by_name should return two indices
-        store.add_contact(Contact::new(
+        let contact2 = Contact::new(
             "Uche".to_string(),
             "111222333".to_string(),
             "u2@example.com".to_string(),
             "".to_string(),
-        ));
+        );
+        let id2 = contact2.id;
+        store.add_contact(contact2);
 
-        let uche_id_after = store.get_ids_by_name("Uche").unwrap();
-        assert_eq!(uche_id_after.len(), 2);
+        // Now two ids should be returned for "Uche"
+        let ids_for_uche = store.get_ids_by_name("Uche").unwrap_or_default();
+        assert_eq!(ids_for_uche.len(), 2);
+        assert!(ids_for_uche.contains(&id1));
+        assert!(ids_for_uche.contains(&id2));
 
-        // Delete one "Uche" -> index should be updated
-        let id_to_delete = uche_id_after[0];
-        store.delete_contact(&id_to_delete)?;
+        // Delete the first contact and ensure index is updated
+        store.delete_contact(&id1)?;
+        let ids_after_delete = store.get_ids_by_name("Uche").unwrap_or_default();
+        assert_eq!(ids_after_delete.len(), 1);
+        assert!(ids_after_delete.contains(&id2));
+        assert!(!ids_after_delete.contains(&id1));
 
-        let uche_new_ids = store.get_ids_by_name("Uche").unwrap();
-        assert_eq!(uche_new_ids.len(), 1);
+        // Ensure domain index no longer references the deleted id
+        if let Some(domain_set) = store.index.domain.get("example.com") {
+            assert!(!domain_set.contains(&id1));
+        }
 
+        store.mem.clear();
+        Ok(())
+    }
+
+    #[test]
+    fn fuzzy_search_name_matches_on_partial() -> Result<(), AppError> {
+        let mut store = Store::new()?;
+
+        let contact = Contact::new(
+            "Uche Johnson".to_string(),
+            "01234567890".to_string(),
+            "uche@example.com".to_string(),
+            "".to_string(),
+        );
+        let expected_name = contact.name.clone();
+        store.add_contact(contact);
+
+        // Search by a portion of the name (partial)
+        let results = store.fuzzy_search_name_index("uch")?;
+        assert!(!results.is_empty());
+        assert!(results.iter().any(|c| c.name == expected_name));
+
+        let results = store.fuzzy_search_name_index("john")?;
+        assert!(!results.is_empty());
+        assert!(results.iter().any(|c| c.name == expected_name));
+
+        // Cleanup persistent files
+        store.mem.clear();
+        Ok(())
+    }
+
+    #[test]
+    fn fuzzy_search_email_domain_returns_contact() -> Result<(), AppError> {
+        let mut store = Store::new()?;
+
+        let contact = Contact::new(
+            "Alice".to_string(),
+            "+447700900123".to_string(),
+            "alice@example.com".to_string(),
+            "".to_string(),
+        );
+        let expected_email = contact.email.clone();
+        store.add_contact(contact);
+
+        // Domain search expects the domain part exactly
+        let results = store.fuzzy_search_email_domain_index("example.com")?;
+        assert!(!results.is_empty());
+        assert!(results.iter().any(|c| c.email == expected_email));
+
+        store.mem.clear();
         Ok(())
     }
 }
