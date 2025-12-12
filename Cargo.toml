@@ -18,6 +18,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 assert_cmd = "2.0"
 criterion = "0.5"
 predicates = "3.1"
+tempfile = "3.6"
 
 
 [[bench]]

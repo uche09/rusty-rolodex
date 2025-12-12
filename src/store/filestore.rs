@@ -20,7 +20,6 @@ pub struct Store<'a> {
 // }
 
 
-// TODO: use string (jack) as name index key rather than char (j)
 #[derive(Debug)]
 pub struct Index {
     pub name: HashMap<String, HashSet<Uuid>>,
@@ -117,14 +116,7 @@ impl Store<'_> {
     pub fn get_ids_by_name(&self, name: &str) -> Option<Vec<Uuid>> {
         let names = name.split_ascii_whitespace();
 
-        // If the index is not built or invalidated, build it
         let index = &self.index;
-            
-         // If the first character is not alphabetic, use '#' as key
-        // if !key.is_alphabetic() {
-        //     key = '#';
-        //}
-
         let mut ids_as_set: HashSet<Uuid> = HashSet::new();
 
         for name_slice in names {
@@ -213,17 +205,10 @@ impl Store<'_> {
                         let contact_names: Vec<&str> = contact.name.split_ascii_whitespace().collect();
 
                         for name in contact_names {
-                            // if name.is_alphabetic() {
                             map1_lock.entry(name.to_ascii_lowercase())
                             .or_default()
                             .insert(contact.id);
-
-                            // } else {
-                            //     // If contact name does not start with an alphabet
-                            //     map1_lock.entry('#')
-                            //     .or_default()
-                            //     .insert(contact.id);
-                            // }
+                            
                         }
                     }
 
@@ -320,11 +305,6 @@ impl Store<'_> {
 
         let index = &self.index;
 
-
-        // let mut index_key = name.chars().next().unwrap_or_default();
-        // if !index_key.is_alphabetic() {
-        //     index_key = '#';
-        // }
          
         
         let names: Vec<&str> = name.trim().split_ascii_whitespace().collect();
@@ -433,8 +413,7 @@ impl Store<'_> {
         );
 
         if length < 1 {
-            let result = Arc::into_inner(fuzzy_match).unwrap_or_default().into_inner()?;
-            return Ok(result);
+            return Ok(Vec::new());
         }
 
         thread::scope(|s| {
