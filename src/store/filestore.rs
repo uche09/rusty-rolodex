@@ -21,8 +21,9 @@ pub struct Store<'a> {
 
 
 // TODO: use string (jack) as name index key rather than char (j)
+#[derive(Debug)]
 pub struct Index {
-    pub name: HashMap<char, HashSet<Uuid>>,
+    pub name: HashMap<String, HashSet<Uuid>>,
     pub domain: HashMap<String, HashSet<Uuid>>,
 }
 
@@ -37,41 +38,45 @@ impl Index {
     }
 
     pub fn increment_index(&mut self, contact: &Contact) {
-        if let Some(key) = contact.name.chars().next() {
-            let key = if key.is_alphabetic() {
-                key.to_ascii_lowercase()
-            } else {
-                '#'
-            };
-            self.name.entry(key)
-                .or_default()
-                .insert(contact.id.clone());
+        let name = &contact.name;
+
+        if !name.is_empty(){
+            let names = name.split_ascii_whitespace();
+            
+            for name_slice in names {
+                self.name.entry(name_slice.to_lowercase())
+                    .or_default()
+                    .insert(contact.id.clone());
+            }
+
         }
 
         let email_parts: Vec<&str> = contact.email.split('@').collect();
         let domain = email_parts[email_parts.len() -1].to_string();
 
-        self.domain.entry(domain)
+        self.domain.entry(domain.to_lowercase())
             .or_default()
             .insert(contact.id.clone());
     }
 
     pub fn decrement_index(&mut self, contact: &Contact) {
-        if let Some(key) = contact.name.chars().next() {
-            let key = if key.is_alphabetic() {
-                key.to_ascii_lowercase()
-            } else {
-                '#'
-            };
-            if let Some(indices) = self.name.get_mut(&key) {
-                indices.retain(|&i| i != contact.id);
+        let name = &contact.name;
+
+        if !name.is_empty() {
+            let names = name.split_ascii_whitespace();
+
+            for name_slice in names {
+                if let Some(indices) = self.name.get_mut(&name_slice.to_lowercase()) {
+                    indices.retain(|&i| i != contact.id);
+                }
             }
+
         }
 
         let email_parts: Vec<&str> = contact.email.split('@').collect();
         let domain = email_parts[email_parts.len() -1].to_string();
 
-        if let Some(indices) = self.domain.get_mut(&domain) {
+        if let Some(indices) = self.domain.get_mut(&domain.to_ascii_lowercase()) {
             indices.retain(|&i| i != contact.id);
         }
     }
@@ -110,22 +115,30 @@ impl Store<'_> {
 
     
     pub fn get_ids_by_name(&self, name: &str) -> Option<Vec<Uuid>> {
-        let mut key = name.to_ascii_lowercase().chars().next().unwrap_or_default();
+        let names = name.split_ascii_whitespace();
 
         // If the index is not built or invalidated, build it
         let index = &self.index;
             
          // If the first character is not alphabetic, use '#' as key
-        if !key.is_alphabetic() {
-            key = '#';
+        // if !key.is_alphabetic() {
+        //     key = '#';
+        //}
+
+        let mut ids_as_set: HashSet<Uuid> = HashSet::new();
+
+        for name_slice in names {
+            let ids = index.name.get(&name_slice.to_ascii_lowercase())?;
+            ids_as_set = ids_as_set.union(ids)
+                .map(|&id| id)
+                .collect()
         }
 
-        let ids: Vec<Uuid> = index
-            .name.get(&key)?
+        let ids: Vec<Uuid> = ids_as_set
             .iter()
             .filter_map(|id| {
                 self.mem.get(id).and_then(|contact| {
-                    if contact.name == name { Some(id.clone()) } else { None }
+                    if contact.name.eq_ignore_ascii_case(name) { Some(id.clone()) } else { None }
                 })
             })
             .collect();
@@ -153,7 +166,7 @@ impl Store<'_> {
     }
 
 
-    pub fn create_name_search_index(&self) -> Result<HashMap<char, HashSet<Uuid>>, AppError> {
+    pub fn create_name_search_index(&self) -> Result<HashMap<String, HashSet<Uuid>>, AppError> {
         const MAX_WORKER_THREADS: usize = 5;
         let contact_list = Arc::new(self.contact_list());
         let worker_threads: usize;
@@ -168,7 +181,7 @@ impl Store<'_> {
         }
 
         let chunk = length / worker_threads;
-        let index: Arc<Mutex<HashMap<char, HashSet<Uuid>>>> = Arc::new(Mutex::new(
+        let index: Arc<Mutex<HashMap<String, HashSet<Uuid>>>> = Arc::new(Mutex::new(
             HashMap::new()
         ));
 
@@ -194,17 +207,23 @@ impl Store<'_> {
                     for idx in start..end {
                         let contact = list1[idx];
 
-                        if let Some(key) = contact.name.chars().next(){
-                            if key.is_alphabetic() {
-                                map1_lock.entry(key.to_ascii_lowercase())
-                                .or_default()
-                                .insert(contact.id);
-                            } else {
-                                // If contact name does not start with an alphabet
-                                map1_lock.entry('#')
-                                .or_default()
-                                .insert(contact.id);
-                            }
+                        // All parts of the contact name (seperated by space) is inserted as a new key
+                        // To ensure that searching any part of a contact name (not just the first name) will also
+                        // provide the expected contact
+                        let contact_names: Vec<&str> = contact.name.split_ascii_whitespace().collect();
+
+                        for name in contact_names {
+                            // if name.is_alphabetic() {
+                            map1_lock.entry(name.to_ascii_lowercase())
+                            .or_default()
+                            .insert(contact.id);
+
+                            // } else {
+                            //     // If contact name does not start with an alphabet
+                            //     map1_lock.entry('#')
+                            //     .or_default()
+                            //     .insert(contact.id);
+                            // }
                         }
                     }
 
@@ -266,7 +285,7 @@ impl Store<'_> {
                         let email_parts: Vec<&str> = contact.email.split('@').collect();
                         let domain = email_parts[email_parts.len() -1].to_string();
                         
-                        map1_lock.entry(domain)
+                        map1_lock.entry(domain.to_ascii_lowercase())
                         .or_default()
                         .insert(contact.id);
                     }
@@ -300,18 +319,17 @@ impl Store<'_> {
         const MIN_DISTANCE: f32 = 0.5;
 
         let index = &self.index;
-        let default_set: HashSet<Uuid> = HashSet::new();
 
-        let mut index_key = name.chars().next().unwrap_or_default();
-        if !index_key.is_alphabetic() {
-            index_key = '#';
-        }
 
-        let ids_as_set = index.name.get(&index_key).unwrap_or(&default_set);
-
-        // Convert set to HashSet<Uuid> to Vec<Uuid> to enable slice for threads
-        let id_as_vec = Arc::new(ids_as_set.into_iter().collect::<Vec<&Uuid>>());
-        let length = id_as_vec.len();
+        // let mut index_key = name.chars().next().unwrap_or_default();
+        // if !index_key.is_alphabetic() {
+        //     index_key = '#';
+        // }
+         
+        
+        let names: Vec<&str> = name.trim().split_ascii_whitespace().collect();
+        let keys: Arc<Vec<_>> = Arc::new(index.name.keys().collect());
+        let length = keys.len();
         let worker_threads: usize;
 
         match length {
@@ -321,57 +339,59 @@ impl Store<'_> {
         }
 
         let chunk = length / worker_threads;
-        let fuzzy_match: Arc<Mutex<Vec<&Contact>>> = Arc::new(
-            Mutex::new(Vec::new())
+        let fuzzy_match_id_set: Arc<Mutex<HashSet<Uuid>>> = Arc::new(
+            Mutex::new(HashSet::new()) // This would hold contact ids of all contacts where the search string matches their membership key in the Index. 
         );
 
         if length < 1 {
-            let result = Arc::into_inner(fuzzy_match).unwrap_or_default().into_inner()?;
-            return Ok(result);
+            return Ok(Vec::new());
         }
 
         thread::scope(|s| {
-            for i in 1..worker_threads {
-                let name = Arc::clone(&name);
-                let fzz_match = Arc::clone(&fuzzy_match);
-                let uuids = Arc::clone(&id_as_vec);
+            // search for all parts of the search string (seperated by space if any) for an inclusive search. 
+            for name_slice in &names {
 
-                s.spawn(move || -> Result<(), AppError> {
-                    // Get next starting index multiplying chunk with current iteration
-                    let start = chunk * (i-1); // -1 to start from index zero and also catch unincluded end index from previous iteration
-                    let end: usize;
+                for i in 1..=worker_threads {
+                    let fuzzy_match_id_set = Arc::clone(&fuzzy_match_id_set);
+                    let keys = Arc::clone(&keys);
 
-                    if i == worker_threads {
-                        // Last thread takes the remainder if any
-                        end = (chunk * i).max(length);
-                    } else {
-                        end = chunk * i;
-                    }
+                    s.spawn(move || -> Result<(), AppError> {
+                        // Get next starting index multiplying chunk with current iteration
+                        let start = chunk * (i-1); // -1 to start from index zero and also catch unincluded end index from previous iteration
+                        let end: usize;
 
-                    let mut matches = fzz_match.lock()?;
+                        if i == worker_threads {
+                            // Last thread takes the remainder if any
+                            end = (chunk * i).max(length);
+                        } else {
+                            end = chunk * i;
+                        }
 
-                    for &id in &uuids[start..end] {
-                        if let Some(contact) = self.mem.get(&id) {
-                            let distance = fuzzy_compare(
-                                &contact.name.to_ascii_lowercase(),
-                            &name);
+                        let mut matches = fuzzy_match_id_set.lock()?;
+
+                        for &key in &keys[start..end] {
+                            let distance = fuzzy_compare(key, name_slice);
 
                             if distance >= MIN_DISTANCE {
-                                matches.push(contact);
+                                if let Some(ids) = index.name.get(key) {
+                                    matches.extend(ids.iter());
+                                }
+
                             }
                         }
-                        
-                    }
 
-
-                    Ok(())
-                });
+                        Ok(())
+                    });
+                }
             }
-            
         });
         
         // get the data of the Arc (Arc::into_inner()) a Mutex data, the get the value of the Mutex (.into_inner())
-        let result = Arc::into_inner(fuzzy_match).unwrap_or_default().into_inner()?;
+        let result = Arc::into_inner(fuzzy_match_id_set).unwrap_or_default().into_inner()?;
+        let result = result.iter()
+                .filter_map(|id| {
+                    self.mem.get(id).and_then(|contact| Some(contact))
+                }).collect();
         Ok(result)
     }
 
@@ -380,7 +400,7 @@ impl Store<'_> {
         const MAX_SEARCH_LENGTH: u8 = 15;
         const MAX_WORKER_THREADS: usize = 3;
 
-        let domain = domain.trim();
+        let domain = &domain.trim().to_lowercase();
 
         if domain.is_empty() {
             return Err(AppError::Validation("No email domain provided".to_string()));
@@ -418,7 +438,7 @@ impl Store<'_> {
         }
 
         thread::scope(|s| {
-            for i in 1..worker_threads {
+            for i in 1..=worker_threads {
                 let match1 = Arc::clone(&fuzzy_match);
                 let uuids = Arc::clone(&index_match);
 
