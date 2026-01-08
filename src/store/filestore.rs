@@ -162,10 +162,10 @@ impl Store<'_> {
         let length = contact_list.len();
         
         let worker_threads: usize = match length {
-            0..=10 => 1,
-            11..=50 => 2,
-            51..=200 => 3,
-            201..=500 =>4,
+            0..=50 => 1,
+            51..=100 => 2,
+            101..=200 => 3,
+            201..=500 => 4,
             _ => MAX_WORKER_THREADS,
         };
 
@@ -229,9 +229,9 @@ impl Store<'_> {
         let length = contact_list.len();
 
         let worker_threads: usize = match length {
-            0..=10 => 1,
-            11..=50 => 2,
-            51..=200 => 3,
+            0..=50 => 1,
+            51..=100 => 2,
+            101..=200 => 3,
             201..=500 => 4,
             _ => MAX_WORKER_THREADS,
         };
@@ -285,7 +285,7 @@ impl Store<'_> {
 
     pub fn fuzzy_search_name(&self, name: &str) -> Result<Vec<&Contact>, AppError> {
         const MAX_SEARCH_LENGTH: u8 = 30;
-        const MAX_WORKER_THREADS: usize = 3;
+        const MAX_WORKER_THREADS: usize = 5;
         let name = Arc::new(name.trim().to_ascii_lowercase());
 
         if name.is_empty() {
@@ -295,14 +295,16 @@ impl Store<'_> {
             return Err(AppError::Validation("Search string too long".to_string()));
         }
 
-        const MIN_DISTANCE: f32 = 0.5;         
+        const MIN_DISTANCE: f32 = 0.4;         
         
         let contact_list = Arc::new(self.contact_list());
         let length = contact_list.len();
 
         let worker_threads: usize = match length {
-            0..=10 => 1,
-            11..=50 => 2,
+            0..=50 => 1,
+            51..=100 => 2,
+            101..=200 => 3,
+            201..=500 => 4,
             _ => MAX_WORKER_THREADS,
         };
 
@@ -340,7 +342,7 @@ impl Store<'_> {
                         // That is the reason we are using a tuple of i32 instead of float (i32, &Contact) here
                         // fuzzy_compare() returns a f32 value ranging from 0.0 to 1.0. To convert it to i32 for hashing and Eqality, we multiply by 1000.0
                             
-                        let distance = (fuzzy_compare(&contact.name, &name) * 1000.0) as i32;
+                        let distance = (fuzzy_compare(&contact.name.to_ascii_lowercase(), &name) * 1000.0) as i32;
 
                         if distance >= (MIN_DISTANCE * 1000.0) as i32 {
                             let mut matches = fuzzy_match_id_set.lock()?;
@@ -395,8 +397,8 @@ impl Store<'_> {
         let length = index_match.len();
 
         let worker_threads: usize = match length {
-            0..=10 => 1,
-            11..=50 => 2,
+            0..=100 => 1,
+            101..=300 => 2,
             _ => MAX_WORKER_THREADS,
         };
 
@@ -903,11 +905,11 @@ mod tests {
         store.add_contact(contact);
 
         // Search by a portion of the name (partial)
-        let results = store.fuzzy_search_name("uch")?;
+        let results = store.fuzzy_search_name("uche j")?;
         assert!(!results.is_empty());
         assert!(results.iter().any(|c| c.name == expected_name));
 
-        let results = store.fuzzy_search_name("john")?;
+        let results = store.fuzzy_search_name("johnson")?;
         assert!(!results.is_empty());
         assert!(results.iter().any(|c| c.name == expected_name));
 
