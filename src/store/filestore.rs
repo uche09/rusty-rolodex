@@ -45,7 +45,7 @@ impl Index {
             for name_slice in names {
                 self.name.entry(name_slice.to_lowercase())
                     .or_default()
-                    .insert(contact.id.clone());
+                    .insert(contact.id);
             }
 
         }
@@ -55,7 +55,7 @@ impl Index {
 
         self.domain.entry(domain.to_lowercase())
             .or_default()
-            .insert(contact.id.clone());
+            .insert(contact.id);
     }
 
     pub fn decrement_index(&mut self, contact: &Contact) {
@@ -109,7 +109,7 @@ impl Store<'_> {
 
 
     pub fn contact_list(&self) -> Vec<&Contact> {
-        self.mem.iter().map(|(_, cont)| cont).collect::<Vec<&Contact>>() 
+        self.mem.values().collect::<Vec<&Contact>>() 
     }
 
     
@@ -121,16 +121,14 @@ impl Store<'_> {
 
         for name_slice in names {
             let ids = index.name.get(&name_slice.to_ascii_lowercase())?;
-            ids_as_set = ids_as_set.union(ids)
-                .map(|&id| id)
-                .collect()
+            ids_as_set = ids_as_set.union(ids).copied().collect()
         }
 
         let ids: Vec<Uuid> = ids_as_set
             .iter()
-            .filter_map(|id| {
-                self.mem.get(id).and_then(|contact| {
-                    if contact.name.eq_ignore_ascii_case(name) { Some(id.clone()) } else { None }
+            .filter_map(|&id| {
+                self.mem.get(&id).and_then(|contact| {
+                    if contact.name.eq_ignore_ascii_case(name) { Some(id) } else { None }
                 })
             })
             .collect();
@@ -141,7 +139,7 @@ impl Store<'_> {
     pub fn add_contact(&mut self, contact: Contact) {
         self.index.increment_index(&contact);
 
-        self.mem.insert(contact.id.clone(), contact);
+        self.mem.insert(contact.id, contact);
 
     }
 
@@ -161,16 +159,15 @@ impl Store<'_> {
     pub fn create_name_search_index(&self) -> Result<HashMap<String, HashSet<Uuid>>, AppError> {
         const MAX_WORKER_THREADS: usize = 5;
         let contact_list = Arc::new(self.contact_list());
-        let worker_threads: usize;
         let length = contact_list.len();
         
-        match length {
-            0..=10 => worker_threads = 1,
-            11..=50 => worker_threads = 2,
-            51..=200 => worker_threads = 3,
-            201..=500 => worker_threads = 4,
-            _ => worker_threads = MAX_WORKER_THREADS,
-        }
+        let worker_threads: usize = match length {
+            0..=10 => 1,
+            11..=50 => 2,
+            51..=200 => 3,
+            201..=500 =>4,
+            _ => MAX_WORKER_THREADS,
+        };
 
         let chunk = length / worker_threads;
         let index: Arc<Mutex<HashMap<String, HashSet<Uuid>>>> = Arc::new(Mutex::new(
@@ -185,14 +182,13 @@ impl Store<'_> {
                 s.spawn(move || -> Result<(), AppError> {
                     // Get next starting index multiplying chunk with current iteration
                     let start = chunk * (i-1); // -1 to start from index zero and also catch unincluded end index from previous iteration
-                    let end: usize;
 
-                    if i == worker_threads {
+                    let end: usize = if i == worker_threads {
                         // Last thread takes the remainder if any
-                        end = (chunk * i).max(length);
+                        (chunk * i).max(length)
                     } else {
-                        end = chunk * i;
-                    }
+                        chunk * i
+                    };
 
                     let mut map1_lock = map1.lock()?;
 
@@ -230,16 +226,15 @@ impl Store<'_> {
     pub fn create_email_domain_search_index(&self) -> Result<HashMap<String, HashSet<Uuid>>, AppError> {
         const MAX_WORKER_THREADS: usize = 5;
         let contact_list = Arc::new(self.contact_list());
-        let worker_threads: usize;
         let length = contact_list.len();
 
-        match length {
-            0..=10 => worker_threads = 1,
-            11..=50 => worker_threads = 2,
-            51..=200 => worker_threads = 3,
-            201..=500 => worker_threads = 4,
-            _ => worker_threads = MAX_WORKER_THREADS,
-        }
+        let worker_threads: usize = match length {
+            0..=10 => 1,
+            11..=50 => 2,
+            51..=200 => 3,
+            201..=500 => 4,
+            _ => MAX_WORKER_THREADS,
+        };
 
         let chunk = length / worker_threads;
         let index: Arc<Mutex<HashMap<String, HashSet<Uuid>>>> = Arc::new(Mutex::new(
@@ -254,14 +249,13 @@ impl Store<'_> {
                 s.spawn(move || -> Result<(), AppError> {
                     // Get next starting index multiplying chunk with current iteration
                     let start = chunk * (i-1); // -1 to start from index zero and also catch unincluded end index from previous iteration
-                    let end: usize;
 
-                    if i == worker_threads {
+                    let end: usize = if i == worker_threads {
                         // Last thread takes the remainder if any
-                        end = (chunk * i).max(length);
+                        (chunk * i).max(length)
                     } else {
-                        end = chunk * i;
-                    }
+                        chunk * i
+                    };
 
                     let mut map1_lock = map1.lock()?;
 
@@ -305,13 +299,12 @@ impl Store<'_> {
         
         let contact_list = Arc::new(self.contact_list());
         let length = contact_list.len();
-        let worker_threads: usize;
 
-        match length {
-            0..=10 => worker_threads = 1,
-            11..=50 => worker_threads = 2,
-            _ => worker_threads = MAX_WORKER_THREADS,
-        }
+        let worker_threads: usize = match length {
+            0..=10 => 1,
+            11..=50 => 2,
+            _ => MAX_WORKER_THREADS,
+        };
 
         let chunk = length / worker_threads;
         let fuzzy_match_id_set: Arc<Mutex<HashSet<(i32, &Contact)>>> = Arc::new(
@@ -332,14 +325,13 @@ impl Store<'_> {
                 s.spawn(move || -> Result<(), AppError> {
                     // Get next starting index multiplying chunk with current iteration
                     let start = chunk * (i-1); // -1 to start from index zero and also catch unincluded end index from previous iteration
-                    let end: usize;
 
-                    if i == worker_threads {
+                    let end: usize = if i == worker_threads {
                         // Last thread takes the remainder if any
-                        end = (chunk * i).max(length);
+                        (chunk * i).max(length)
                     } else {
-                        end = chunk * i;
-                    }
+                        chunk * i
+                    };
 
                     
 
@@ -399,15 +391,14 @@ impl Store<'_> {
 
         let ids_as_set = index.domain.get(domain).unwrap_or(&default_set);
 
-        let index_match = Arc::new(ids_as_set.into_iter().collect::<Vec<&Uuid>>());
-        let worker_threads: usize;
+        let index_match = Arc::new(ids_as_set.iter().collect::<Vec<&Uuid>>());
         let length = index_match.len();
 
-        match length {
-            0..=10 => worker_threads = 1,
-            11..=50 => worker_threads = 2,
-            _ => worker_threads = MAX_WORKER_THREADS,
-        }
+        let worker_threads: usize = match length {
+            0..=10 => 1,
+            11..=50 => 2,
+            _ => MAX_WORKER_THREADS,
+        };
 
         let chunk = length / worker_threads;
 
@@ -427,19 +418,18 @@ impl Store<'_> {
                 s.spawn(move || -> Result<(), AppError> {
 
                     let start = chunk * (i-1); // -1 to start from index zero and also catch unincluded end index from previous iteration
-                    let end: usize;
 
-                    if i == worker_threads {
+                    let end: usize = if i == worker_threads {
                         // Last thread takes the remainder if any
-                        end = (chunk * i).max(length);
+                        (chunk * i).max(length)
                     } else {
-                        end = chunk * i;
-                    }
+                        chunk * i
+                    };
 
                     let mut matches = match1.lock()?;
 
                     for &id in &uuids[start..end] {
-                        if let Some(contact) = self.mem.get(&id){
+                        if let Some(contact) = self.mem.get(id){
                             matches.push(contact);
                         }
                     }

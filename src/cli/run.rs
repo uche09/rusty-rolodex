@@ -134,8 +134,7 @@ pub fn run_app() -> Result<(), AppError> {
             let matching_id = ids
                 .iter()
                 .find(|c| {
-                    storage.mem.get(&c)
-                    .map_or(false, |contact| contact == &desired_contact)
+                    storage.mem.get(c) == Some(&desired_contact)
                 });
 
             let found_contact = matching_id.and_then(|id| storage.mem.get_mut(id));
@@ -184,14 +183,11 @@ pub fn run_app() -> Result<(), AppError> {
                             exit(0);
                         } else {
                             for id in &ids {
-                                if let Some(contact) = storage.mem.get(id) {
-                                    if contact == &desired_contact
-                                    {
-                                        storage.delete_contact(id)?;
-                                        storage.save(&storage.mem)?;
-                                        println!("Contact deleted successfully");
-                                        exit(0);
-                                    }
+                                if let Some(contact) = storage.mem.get(id) && contact == &desired_contact {
+                                    storage.delete_contact(id)?;
+                                    storage.save(&storage.mem)?;
+                                    println!("Contact deleted successfully");
+                                    exit(0);
                                 }
                                 
                             }
