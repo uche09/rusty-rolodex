@@ -74,7 +74,18 @@ pub fn run_app() -> Result<(), AppError> {
 
         // Listing contacts
         Commands::List { sort, tag, reverse } => {
-            let mut contact_list = storage.contact_list();
+            let mut contact_list: Vec<&Contact>;
+
+            if let Some(tag) = tag {
+                contact_list = storage.mem
+                    .iter()
+                    .filter_map(|(_, cont)| if cont.tag.to_lowercase() == tag.to_lowercase() {Some(cont)} else {None})
+                    // .filter(|&c| c.tag.to_lowercase() == tag.to_lowercase())
+                    // .map(|c| *c)
+                    .collect();
+            } else {
+                contact_list = storage.contact_list();
+            }
 
             if contact_list.is_empty() {
                 println!("No contact yet");
@@ -95,28 +106,6 @@ pub fn run_app() -> Result<(), AppError> {
 
             if reverse {
                 contact_list.reverse();
-            }
-
-            if let Some(tag) = tag {
-                let filtered_contacts: Vec<&Contact> = contact_list
-                    .iter()
-                    .filter(|&c| c.tag.to_lowercase() == tag.to_lowercase())
-                    .map(|c| *c)
-                    .collect();
-
-                if filtered_contacts.is_empty() {
-                    println!("Found no contact with this {{{}}} tag", tag);
-                    return Ok(());
-                }
-
-                for (mut i, c) in filtered_contacts.iter().enumerate() {
-                    i += 1;
-                    println!(
-                        "{i:>3}. {:<20} {:15} {:^30} {:<15}",
-                        c.name, c.phone, c.email, c.tag
-                    );
-                }
-                return Ok(());
             }
 
             for (mut i, c) in contact_list.iter().enumerate() {
