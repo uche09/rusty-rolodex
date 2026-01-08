@@ -301,15 +301,10 @@ impl Store<'_> {
             return Err(AppError::Validation("Search string too long".to_string()));
         }
 
-        const MIN_DISTANCE: f32 = 0.5;
-
-        let index = &self.index;
-
-         
+        const MIN_DISTANCE: f32 = 0.5;         
         
-        let names: Vec<&str> = name.trim().split_ascii_whitespace().collect();
-        let keys: Arc<Vec<_>> = Arc::new(index.name.keys().collect());
-        let length = keys.len();
+        let contact_list = Arc::new(self.contact_list());
+        let length = contact_list.len();
         let worker_threads: usize;
 
         match length {
@@ -319,8 +314,8 @@ impl Store<'_> {
         }
 
         let chunk = length / worker_threads;
-        let fuzzy_match_id_set: Arc<Mutex<HashSet<Uuid>>> = Arc::new(
-            Mutex::new(HashSet::new()) // This would hold contact ids of all contacts where the search string matches their membership key in the Index. 
+        let fuzzy_match_id_set: Arc<Mutex<HashSet<(i32, &Contact)>>> = Arc::new(
+            Mutex::new(HashSet::new()) // This would hold &contact and the corresponding Lavenchtine distance of all contact that passes the MIN_DISTANCE threshold. 
         );
 
         if length < 1 {
@@ -328,50 +323,58 @@ impl Store<'_> {
         }
 
         thread::scope(|s| {
-            // search for all parts of the search string (seperated by space if any) for an inclusive search. 
-            for name_slice in &names {
 
-                for i in 1..=worker_threads {
-                    let fuzzy_match_id_set = Arc::clone(&fuzzy_match_id_set);
-                    let keys = Arc::clone(&keys);
+            for i in 1..=worker_threads {
+                let name = Arc::clone(&name);
+                let fuzzy_match_id_set = Arc::clone(&fuzzy_match_id_set);
+                let contact_list = Arc::clone(&contact_list);
 
-                    s.spawn(move || -> Result<(), AppError> {
-                        // Get next starting index multiplying chunk with current iteration
-                        let start = chunk * (i-1); // -1 to start from index zero and also catch unincluded end index from previous iteration
-                        let end: usize;
+                s.spawn(move || -> Result<(), AppError> {
+                    // Get next starting index multiplying chunk with current iteration
+                    let start = chunk * (i-1); // -1 to start from index zero and also catch unincluded end index from previous iteration
+                    let end: usize;
 
-                        if i == worker_threads {
-                            // Last thread takes the remainder if any
-                            end = (chunk * i).max(length);
-                        } else {
-                            end = chunk * i;
+                    if i == worker_threads {
+                        // Last thread takes the remainder if any
+                        end = (chunk * i).max(length);
+                    } else {
+                        end = chunk * i;
+                    }
+
+                    
+
+                    for &contact in &contact_list[start..end] {
+                        // HashSet values must implement Eq and Hash traits. Float does not implement the Eq and Hash trait
+                        // That is the reason we are using a tuple of i32 instead of float (i32, &Contact) here
+                        // fuzzy_compare() returns a f32 value ranging from 0.0 to 1.0. To convert it to i32 for hashing and Eqality, we multiply by 1000.0
+                            
+                        let distance = (fuzzy_compare(&contact.name, &name) * 1000.0) as i32;
+
+                        if distance >= (MIN_DISTANCE * 1000.0) as i32 {
+                            let mut matches = fuzzy_match_id_set.lock()?;
+                            matches.insert((distance, contact));
+
                         }
+                    }
 
-                        let mut matches = fuzzy_match_id_set.lock()?;
-
-                        for &key in &keys[start..end] {
-                            let distance = fuzzy_compare(key, name_slice);
-
-                            if distance >= MIN_DISTANCE {
-                                if let Some(ids) = index.name.get(key) {
-                                    matches.extend(ids.iter());
-                                }
-
-                            }
-                        }
-
-                        Ok(())
-                    });
-                }
+                    Ok(())
+                });
             }
+        
         });
         
-        // get the data of the Arc (Arc::into_inner()) a Mutex data, the get the value of the Mutex (.into_inner())
+        // get the data of the Arc (Arc::into_inner()) a Mutex data, then get the value of the Mutex (.into_inner())
         let result = Arc::into_inner(fuzzy_match_id_set).unwrap_or_default().into_inner()?;
-        let result = result.iter()
-                .filter_map(|id| {
-                    self.mem.get(id).and_then(|contact| Some(contact))
-                }).collect();
+
+        // Sort by top 10 highest distance value
+        let mut result = result.into_iter()
+            .collect::<Vec<(i32, &Contact)>>();
+
+        result.sort_by(|a, b| a.0.cmp(&b.0));
+        result.reverse();
+        
+        let result = result.iter().take(10)
+                .map(|(_, contact)| *contact).collect::<Vec<&Contact>>();
         Ok(result)
     }
 
