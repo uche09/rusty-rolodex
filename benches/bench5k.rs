@@ -63,14 +63,14 @@ fn bench_list(c: &mut Criterion){
     c.bench_function("listing 5k contact (collect + sort + filter)", |b| {
         let storage = make_store_with_n(5_000);
         b.iter(|| {
-            let mut contact_list = storage.contact_list();
             // CPU work only: sort + reverse + filter once per iteration
-            contact_list.sort_by(|a, b| a.email.to_lowercase().cmp(&b.email.to_lowercase()));
-            contact_list.reverse();
-            let filtered_contacts: Vec<&Contact> = contact_list
-                .into_iter()
-                .filter(|c| c.tag.to_lowercase() == "friends")
+            let mut filtered_contacts: Vec<&Contact> = storage.mem
+                .iter()
+                .filter_map(|(_, cont)| if cont.tag.to_lowercase() == "friends" {Some(cont)} else {None})
                 .collect();
+            filtered_contacts.sort_by(|a, b| a.email.to_lowercase().cmp(&b.email.to_lowercase()));
+            filtered_contacts.reverse();
+            
             black_box(filtered_contacts);
         });
     });
@@ -83,7 +83,7 @@ fn bench_search(c: &mut Criterion){
         let storage = make_store_with_n(5_000);
         b.iter(|| {
             // measure a single search call (index already built in setup)
-            let result = storage.fuzzy_search_name_index("User").expect("search failed");
+            let result = storage.fuzzy_search_name("User").expect("search failed");
             black_box(result);
         });
     });
