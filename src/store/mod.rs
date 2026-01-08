@@ -49,10 +49,8 @@ pub fn parse_storage_choice() -> StoreChoice {
 pub fn create_file_parent(path: &str) -> Result<(), AppError> {
     let path = Path::new(path);
 
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
+    if let Some(parent) = path.parent() && !parent.exists() {
             fs::create_dir_all(parent)?;
-        }
     }
     Ok(())
 }

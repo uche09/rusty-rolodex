@@ -1,3 +1,5 @@
+use std::hash::{Hash, Hasher};
+
 use super::*;
 pub use chrono::{DateTime, Utc};
 use regex::Regex;
@@ -90,6 +92,13 @@ impl PartialEq for Contact {
 }
 
 impl Eq for Contact {}
+
+impl Hash for Contact {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.phone.hash(state);
+    }
+}
 
 pub fn phone_number_matches(phone1: &str, phone2: &str) -> bool {
     let phone1: Vec<char> = phone1.chars().collect();

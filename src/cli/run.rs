@@ -74,7 +74,18 @@ pub fn run_app() -> Result<(), AppError> {
 
         // Listing contacts
         Commands::List { sort, tag, reverse } => {
-            let mut contact_list = storage.contact_list();
+            let mut contact_list: Vec<&Contact>;
+
+            if let Some(tag) = tag {
+                contact_list = storage.mem
+                    .iter()
+                    .filter_map(|(_, cont)| if cont.tag.to_lowercase() == tag.to_lowercase() {Some(cont)} else {None})
+                    // .filter(|&c| c.tag.to_lowercase() == tag.to_lowercase())
+                    // .map(|c| *c)
+                    .collect();
+            } else {
+                contact_list = storage.contact_list();
+            }
 
             if contact_list.is_empty() {
                 println!("No contact yet");
@@ -95,28 +106,6 @@ pub fn run_app() -> Result<(), AppError> {
 
             if reverse {
                 contact_list.reverse();
-            }
-
-            if let Some(tag) = tag {
-                let filtered_contacts: Vec<&Contact> = contact_list
-                    .iter()
-                    .filter(|&c| c.tag.to_lowercase() == tag.to_lowercase())
-                    .map(|c| *c)
-                    .collect();
-
-                if filtered_contacts.is_empty() {
-                    println!("Found no contact with this {{{}}} tag", tag);
-                    return Ok(());
-                }
-
-                for (mut i, c) in filtered_contacts.iter().enumerate() {
-                    i += 1;
-                    println!(
-                        "{i:>3}. {:<20} {:15} {:^30} {:<15}",
-                        c.name, c.phone, c.email, c.tag
-                    );
-                }
-                return Ok(());
             }
 
             for (mut i, c) in contact_list.iter().enumerate() {
@@ -145,8 +134,7 @@ pub fn run_app() -> Result<(), AppError> {
             let matching_id = ids
                 .iter()
                 .find(|c| {
-                    storage.mem.get(&c)
-                    .map_or(false, |contact| contact == &desired_contact)
+                    storage.mem.get(c) == Some(&desired_contact)
                 });
 
             let found_contact = matching_id.and_then(|id| storage.mem.get_mut(id));
@@ -195,14 +183,11 @@ pub fn run_app() -> Result<(), AppError> {
                             exit(0);
                         } else {
                             for id in &ids {
-                                if let Some(contact) = storage.mem.get(id) {
-                                    if contact == &desired_contact
-                                    {
-                                        storage.delete_contact(id)?;
-                                        storage.save(&storage.mem)?;
-                                        println!("Contact deleted successfully");
-                                        exit(0);
-                                    }
+                                if let Some(contact) = storage.mem.get(id) && contact == &desired_contact {
+                                    storage.delete_contact(id)?;
+                                    storage.save(&storage.mem)?;
+                                    println!("Contact deleted successfully");
+                                    exit(0);
                                 }
                                 
                             }
@@ -257,7 +242,7 @@ pub fn run_app() -> Result<(), AppError> {
                     // Default to search by name
                     let searched_for = name.unwrap_or_default();
                 
-                    let result = storage.fuzzy_search_name_index(&searched_for)?;
+                    let result = storage.fuzzy_search_name(&searched_for)?;
                     
                     for (mut i, &c) in result.iter().enumerate() {
                         i += 1;

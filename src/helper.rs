@@ -8,7 +8,7 @@ use std::str::FromStr;
 pub fn serialize_contacts(contacts: &HashMap<Uuid, Contact>) -> String {
     let mut data = String::new();
 
-    for (_, contact) in contacts {
+    for contact in contacts.values() {
         let created_at_str = contact
             .created_at.to_string();
 
@@ -25,7 +25,7 @@ pub fn serialize_contacts(contacts: &HashMap<Uuid, Contact>) -> String {
         created_at: {}\n\
         updated_at: {}\n\
         }}\n",
-            contact.id.to_string(), contact.name, contact.phone, contact.email, contact.tag, created_at_str, updated_at_str,
+            contact.id, contact.name, contact.phone, contact.email, contact.tag, created_at_str, updated_at_str,
         );
 
         data.push_str(&ser_contact);
@@ -54,7 +54,8 @@ pub fn deserialize_contacts_from_txt_buffer(
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
-    let mut id = Uuid::new_v4();
+    let mut test_id = Uuid::new_v4();
+    let mut id = test_id;
     let mut name = "".to_string();
     let mut phone = "".to_string();
     let mut email = "".to_string();
@@ -72,9 +73,14 @@ pub fn deserialize_contacts_from_txt_buffer(
         }
 
         if value == "}" {
+            // if contact data doesn't have id, generate new Uuid for each contact
+            if id == test_id {
+                id = Uuid::new_v4();
+                test_id = id;
+            }
             // End of a contact format
             let contact = Contact {
-                id: id.clone(),
+                id,
                 name: name.clone(),
                 phone: phone.clone(),
                 email: email.clone(),
@@ -82,16 +88,18 @@ pub fn deserialize_contacts_from_txt_buffer(
                 created_at,
                 updated_at,
             };
-            contacts.insert(contact.id.clone(), contact);
+            contacts.insert(contact.id, contact);
             continue;
         }
 
         if key == Some("id") {
             let parse_result =  Uuid::try_parse(value);
             
-            if parse_result.is_ok(){
-                id = parse_result.unwrap();
+            if let Ok(temp) = parse_result {
+                id = temp;
+                continue;
             }
+            
         }
 
         if key == Some("name") {
