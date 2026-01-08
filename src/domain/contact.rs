@@ -3,7 +3,7 @@ pub use chrono::{DateTime, Utc};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(Debug, Serialize, Deserialize, PartialOrd, Ord, Hash)]
 pub struct Contact {
     #[serde(default = "Uuid::new_v4")] // For backward compatibility with contacts without id.
     pub id: Uuid,
