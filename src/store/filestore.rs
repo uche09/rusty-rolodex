@@ -289,7 +289,7 @@ impl Store<'_> {
     }
 
 
-    pub fn fuzzy_search_name_index(&self, name: &str) -> Result<Vec<&Contact>, AppError> {
+    pub fn fuzzy_search_name(&self, name: &str) -> Result<Vec<&Contact>, AppError> {
         const MAX_SEARCH_LENGTH: u8 = 30;
         const MAX_WORKER_THREADS: usize = 3;
         let name = Arc::new(name.trim().to_ascii_lowercase());
@@ -913,11 +913,11 @@ mod tests {
         store.add_contact(contact);
 
         // Search by a portion of the name (partial)
-        let results = store.fuzzy_search_name_index("uch")?;
+        let results = store.fuzzy_search_name("uch")?;
         assert!(!results.is_empty());
         assert!(results.iter().any(|c| c.name == expected_name));
 
-        let results = store.fuzzy_search_name_index("john")?;
+        let results = store.fuzzy_search_name("john")?;
         assert!(!results.is_empty());
         assert!(results.iter().any(|c| c.name == expected_name));
 

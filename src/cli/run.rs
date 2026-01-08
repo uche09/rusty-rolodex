@@ -246,7 +246,7 @@ pub fn run_app() -> Result<(), AppError> {
                     // Default to search by name
                     let searched_for = name.unwrap_or_default();
                 
-                    let result = storage.fuzzy_search_name_index(&searched_for)?;
+                    let result = storage.fuzzy_search_name(&searched_for)?;
                     
                     for (mut i, &c) in result.iter().enumerate() {
                         i += 1;
