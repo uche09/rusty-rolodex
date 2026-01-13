@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 
-use crate::prelude::{AppError, Contact, uuid::Uuid, HashMap};
+use crate::prelude::{AppError, Contact, HashMap, uuid::Uuid};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str::FromStr;
@@ -9,11 +9,9 @@ pub fn serialize_contacts(contacts: &HashMap<Uuid, Contact>) -> String {
     let mut data = String::new();
 
     for contact in contacts.values() {
-        let created_at_str = contact
-            .created_at.to_string();
+        let created_at_str = contact.created_at.to_string();
 
-        let updated_at_str = contact
-            .updated_at.to_string();
+        let updated_at_str = contact.updated_at.to_string();
 
         let ser_contact = format!(
             "{{\n\
@@ -25,7 +23,13 @@ pub fn serialize_contacts(contacts: &HashMap<Uuid, Contact>) -> String {
         created_at: {}\n\
         updated_at: {}\n\
         }}\n",
-            contact.id, contact.name, contact.phone, contact.email, contact.tag, created_at_str, updated_at_str,
+            contact.id,
+            contact.name,
+            contact.phone,
+            contact.email,
+            contact.tag,
+            created_at_str,
+            updated_at_str,
         );
 
         data.push_str(&ser_contact);
@@ -93,13 +97,12 @@ pub fn deserialize_contacts_from_txt_buffer(
         }
 
         if key == Some("id") {
-            let parse_result =  Uuid::try_parse(value);
-            
+            let parse_result = Uuid::try_parse(value);
+
             if let Ok(temp) = parse_result {
                 id = temp;
                 continue;
             }
-            
         }
 
         if key == Some("name") {
@@ -172,8 +175,6 @@ mod tests {
     use super::*;
     use std::env;
 
-    
-
     #[test]
     fn check_serialize_contact() -> Result<(), AppError> {
         let dt_now = Utc::now();
@@ -196,7 +197,8 @@ mod tests {
 
         assert_eq!(
             ser_data,
-            format!("{{\n\
+            format!(
+                "{{\n\
                 id: {}\n\
                 name: Uche\n\
                 phone: 012345678901\n\
@@ -205,8 +207,10 @@ mod tests {
                 created_at: {}\n\
                 updated_at: {}\n\
             }}\n",
-            id.clone(), dt_now.to_string(), dt_now.to_string())
-            
+                id.clone(),
+                dt_now.to_string(),
+                dt_now.to_string()
+            )
         );
 
         Ok(())
@@ -214,7 +218,6 @@ mod tests {
 
     #[test]
     fn check_deserialization_from_txt() -> Result<(), AppError> {
-
         // Testing should be ran explicitly on a single thread to avoid race condition from multiply test threads
         unsafe {
             env::set_var("STORAGE_CHOICE", "txt");

@@ -1,8 +1,7 @@
 use assert_cmd::Command;
 use predicates::str::contains;
-use tempfile::tempdir;
 use std::{fs, path::Path};
-
+use tempfile::tempdir;
 
 fn listing_format(i: i32, name: &str, phone: &str, email: &str, tag: &str) -> String {
     format!("{i:>3}. {name:<20} {phone:15} {email:^30} {tag:<15}")
@@ -46,7 +45,7 @@ fn export_import() -> Result<(), Box<dyn std::error::Error>> {
     let exported = fs::read_to_string(&out_path_str)?;
     assert!(exported.contains("Alice"));
 
-    // Delete the contact by name 
+    // Delete the contact by name
     Command::cargo_bin(env!("CARGO_PKG_NAME"))?
         .env(storage_env.0, storage_env.1)
         .arg("delete")
@@ -65,7 +64,6 @@ fn export_import() -> Result<(), Box<dyn std::error::Error>> {
         .assert()
         .success()
         .stdout(contains("Successfully imported"));
-
 
     Command::cargo_bin(env!("CARGO_PKG_NAME"))?
         .env(storage_env.0, storage_env.1)

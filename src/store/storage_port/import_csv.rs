@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use crate::prelude::Store;
+use std::path::PathBuf;
 
 use super::*;
 use csv::Reader;
