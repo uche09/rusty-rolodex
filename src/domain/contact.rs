@@ -15,10 +15,16 @@ pub struct Contact {
     pub email: String,
     pub tag: String,
 
-    #[serde(default = "default_timestamp", deserialize_with = "deserialize_timestamp")]
+    #[serde(
+        default = "default_timestamp",
+        deserialize_with = "deserialize_timestamp"
+    )]
     pub created_at: DateTime<Utc>,
-    
-    #[serde(default = "default_timestamp", deserialize_with = "deserialize_timestamp")]
+
+    #[serde(
+        default = "default_timestamp",
+        deserialize_with = "deserialize_timestamp"
+    )]
     pub updated_at: DateTime<Utc>,
 }
 
@@ -142,22 +148,19 @@ pub fn phone_number_matches(phone1: &str, phone2: &str) -> bool {
     rest_of_phone1 == rest_of_phone2
 }
 
-
 fn default_timestamp() -> DateTime<Utc> {
     Utc::now()
 }
 
 fn deserialize_timestamp<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
-where 
+where
     D: Deserializer<'de>,
 {
     let opt = Option::<String>::deserialize(deserializer)?;
     match opt {
-        Some(s) => {
-            DateTime::parse_from_rfc3339(&s)
-                .map(|dt| dt.with_timezone(&Utc))
-                .map_err(serde::de::Error::custom)
-        }
+        Some(s) => DateTime::parse_from_rfc3339(&s)
+            .map(|dt| dt.with_timezone(&Utc))
+            .map_err(serde::de::Error::custom),
         None => Ok(Utc::now()), // fallback for old contacts
     }
 }

@@ -47,7 +47,6 @@ fn edit_search() -> Result<(), Box<dyn std::error::Error>> {
         .success()
         .stdout(contains("Contact updated successfully"));
 
-
     // Delete the contact by name and updated phone
     Command::cargo_bin(env!("CARGO_PKG_NAME"))?
         .env(storage_env.0, storage_env.1)

@@ -107,6 +107,81 @@ If no such contact is found, prints:
 Contact Not found
 ```
 
+### rolodex edit
+```text
+Usage: rolodex edit --name <NAME> --phone <PHONE> [--new_name <NEW_NAME>] [--new_phone <NEW_PHONE>] [--new_email <NEW_EMAIL>] [--new_tag <NEW_TAG>]
+```
+
+**Options:**
+- --name <NAME> — current contact name
+- --phone <PHONE> — current phone number
+- --new_name <NEW_NAME> — optional new name
+- --new_phone <NEW_PHONE> — optional new phone number
+- --new_email <NEW_EMAIL> — optional new email address
+- --new_tag <NEW_TAG> — optional new tag
+
+
+On success, prints something like:
+```text
+Contact updated successfully
+```
+
+If no such contact is found, prints:
+```text
+Contact Not found
+```
+
+### rolodex search
+Search for contacts.
+```text
+Usage: rolodex search [--by <KEY>] [--name <NAME>] [--domain <DOMAIN>]
+```
+
+**Options:**
+- --by <KEY> — search mode: N for name, D for email domain
+- --name <NAME> — name to search for (when --by N)
+- --domain <DOMAIN> — email domain to search for (when --by D)
+
+Output lists matching contacts, similar to list command.
+
+If no matches, prints:
+```text
+No matching contacts found
+```
+
+
+### rolodex import
+Import contacts from a CSV file.
+```text
+Usage: rolodex import [--src <FILE>]
+```
+**Options:**
+- --src <FILE> — path to the source CSV file; if not provided, defaults to `"./import_export/contacts.csv"`.
+
+On success, prints:
+```text
+Contacts imported successfully
+```
+
+On error (file not found, invalid format), prints an error message.
+
+
+### rolodex export
+Export contacts to a CSV file.
+```text
+Usage: rolodex export [--des <FILE>]
+```
+**Options:**
+--des <FILE> — path to the destination CSV file; if not provided, defaults to `"./import_export/exported.csv"`.
+
+On success, prints something like:
+```text
+Contacts exported successfully
+```
+
+On error, prints an error message.
+
+
 ### rolodex help
 Automatic help via clap:
 ```bash

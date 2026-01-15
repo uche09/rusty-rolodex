@@ -29,39 +29,39 @@ Also see implementation details on [WALKTHROUGH.md](./docs/WALKTHROUGH.md)
 - View all saved contacts
 - Search for a contact by name
 - Delete a contact by name
+- Edit an existing contact
+- Search for contacts by name or email domain
+- Import contacts from a CSV file
+- Export contacts to a CSV file
 - Command line argument input handling and validation using clap
 - Save contacts to a file so that data is persistent across sessions.
 - List sorted contacts.
 
 
 ## What I Learned
-Working on this project helped me practice and understand:
-- **Structs**: Using structs to represent a `Contact` with name and phone fields.
-- **Enum**: Using represent unique variants like user possible action/command.
-- **Vectors**: Storing and managing a dynamic list of contacts.
-- **Ownership and Borrowing**: Handling references properly when adding, searching, and deleting contacts.
-- **Pattern Matching**: Using `match` statements to control user options and handle possible errors.
-- **Input/Output**: Reading user input from the terminal and processing it.
-- **Error Handling**: Managing common issues like invalid input and empty searches and also using rust powerful features for error handling like `Result<T, E>`.
-- **Methods**: Using the `impl` construct to implement methods.
-- **Trait**: How to implement traits (behavior) that can be implemented (inherited) by other constructs.
-**Generic**: Reduce duplicated logic by implementing once and use it on any data types or constructs.
-**GitHub Workflow**: This project doesn't just aim to improve my rust proficiency, but also aims at making me a better developer by applying standard professional level best practices. I added some branch protection ruleset and implemented a CI workflow using GitHub workflow.
-- **Regex**: Validating user inputs like name, phone number and email using regex pattern.
-- **JSON**: Used `serde_json` to parse and store contact in json format.
-- **Clap**: Introduced Command Line Argument Parser in project with `clap` crate.
-- **Unit Test**: Over the course of this project I've been constantly writing unit test to make sure functionalities works as expected, which is also required to pass the github workflow I set up.
-- **Iterator Trait**: I've learned how to implement `Iterator` trait on my collects to enable lazy iteration.
-- **Lifetime In Rust**: I'm begining to understand lifetime in rust and how it can optimize code performance and using a lifetime reference rather than a time and memory expensive copy.
-- **Integration (Black Box) Test**: Integrated black-box testing into project using the `assert_cmd` and `predicate` external crate. A system testing from outside without referencing internal implementation, just providing input and asserting output, system behavior or response. Treating the system just like a user would.
+Working on this project helped me practice and solidify many core Rust concepts and features, including but not limited to:
+- **Structs and Enums**
+- **Collections**
+- **Ownership and Borrowing**
+- **Pattern Matching**
+- **Error Handling**
+- **Traits and Generics**
+- **Lifetimes**
+- **Memory Management** (Stack vs Heap)
+- **Multithreading and Concurrency**
+- **File I/O**
+- **Crates and Modules**
+- **Command Line Argument Parsing**
+- **Serialization and Deserialization**
+- **Testing** (Unit and Integration Testing)
+- **CI/CD** (GitHub Workflows)
+
+
 
 ## Challenges Encountered
-- Managing **borrowing and ownership rules**, especially when parsing variables to some built-in construct without knowing if they consume the value (take ownership) or reference them by default.
-- Handling **mutable and immutable references** correctly without causing borrow checker errors.
-- Keeping the program **interactive** and **user-friendly** while avoiding panics.
-- Rapping my head around some of the concept in rust can be challenging and requires indepth study, as some of these concepts are very technical, low level, or unique to rust and have never learned them anywhere before, and I have to learn them good enough to implement the next feature in the project within a very short and limited time.
+- I'm begining to have a solid understanding on these concepts that once felt new and alien to me, so it's not a challange anymore.
 
-And I was able to overcome these challenges to the best of my knowledge yet. And thankfully I always have `cargo clippy` to help me catch and properly explain the cause of errors.
+`cargo clippy` has also been a very helpful tool in improving my code quality.
 
 ## Example Usage
 
@@ -155,6 +155,21 @@ list --sort name
   3. james                +2348881454872  ja.mes@gmail.com
   4. Jerry                09422138746     jex@gmail.com
 
+edit --name Alice --phone +234123456789 --new_email alice@example.com
+# Contact updated successfully
+
+search --by N --name Jerry
+  1. Jerry                09422138746     jex@gmail.com
+
+search --by D --domain gmail.com
+  1. Alice                +234123456789   alice@example.com
+  2. james                +2348881454872  ja.mes@gmail.com
+
+import --src contacts.csv
+# Contacts imported successfully
+
+export --des backup.csv
+# Contacts exported successfully
 ```
 
 ## How to Run

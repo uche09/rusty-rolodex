@@ -196,7 +196,7 @@ fn deleting_contacts() {
         .assert()
         .success()
         .stdout(predicate::str::contains(
-            "Found multiple contacts with this name: John, please provide number. See help"
+            "Found multiple contacts with this name: John, please provide number. See help",
         ));
 
     // Delete 3 out of 6

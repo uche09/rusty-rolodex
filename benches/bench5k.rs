@@ -1,15 +1,12 @@
+use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
-use criterion::{criterion_group, criterion_main, Criterion, BatchSize};
 
-use rusty_rolodex::{prelude::{
-    Contact, Store, contact,
-    uuid::Uuid, ContactStore,
-    store::filestore::Index
-}};
+use rusty_rolodex::prelude::{
+    Contact, ContactStore, Store, contact, store::filestore::Index, uuid::Uuid,
+};
 use std::fs;
-use uuid::Uuid as BenchUuid;
 use std::path::PathBuf;
-
+use uuid::Uuid as BenchUuid;
 
 // Helper to create a Store prepopulated with `n` contacts in-memory.
 // Note: we avoid calling `save()` here so the measured benchmark focuses
@@ -25,7 +22,11 @@ fn make_store_with_n<'a>(n: usize) -> Store<'a> {
                 name: format!("User{i}"),
                 phone: format!("08885499529"),
                 email: format!("user{i}@yahoo.com"),
-                tag: if i % 2 == 0 { "friends".to_string() } else { "work".to_string() },
+                tag: if i % 2 == 0 {
+                    "friends".to_string()
+                } else {
+                    "work".to_string()
+                },
                 created_at: created_at.clone(),
                 updated_at: created_at.clone(),
             };
@@ -42,8 +43,9 @@ fn bech_add(c: &mut Criterion) {
     c.bench_function("Adding 5k contact (in-memory single add)", |b| {
         // prepare an empty store once per iteration setup. We measure adding single contact.
         b.iter_batched(
-            || make_store_with_n(5_000),               // setup (expensive)
-            |mut storage| {                           // measured closure: add one contact
+            || make_store_with_n(5_000), // setup (expensive)
+            |mut storage| {
+                // measured closure: add one contact
                 let new_contact = Contact::new(
                     "Zoe".to_string(),
                     "08885499529".to_string(),
@@ -59,18 +61,25 @@ fn bech_add(c: &mut Criterion) {
 }
 
 // List-benchmark: measure one listing (collect + sort + filter) per iteration.
-fn bench_list(c: &mut Criterion){
+fn bench_list(c: &mut Criterion) {
     c.bench_function("listing 5k contact (collect + sort + filter)", |b| {
         let storage = make_store_with_n(5_000);
         b.iter(|| {
             // CPU work only: sort + reverse + filter once per iteration
-            let mut filtered_contacts: Vec<&Contact> = storage.mem
+            let mut filtered_contacts: Vec<&Contact> = storage
+                .mem
                 .iter()
-                .filter_map(|(_, cont)| if cont.tag.to_lowercase() == "friends" {Some(cont)} else {None})
+                .filter_map(|(_, cont)| {
+                    if cont.tag.to_lowercase() == "friends" {
+                        Some(cont)
+                    } else {
+                        None
+                    }
+                })
                 .collect();
             filtered_contacts.sort_by(|a, b| a.email.to_lowercase().cmp(&b.email.to_lowercase()));
             filtered_contacts.reverse();
-            
+
             black_box(filtered_contacts);
         });
     });
@@ -78,7 +87,7 @@ fn bench_list(c: &mut Criterion){
 
 // Search-benchmark: measure a single fuzzy search per iteration.
 // Previously: the code called fuzzy_search many times inside one iteration.
-fn bench_search(c: &mut Criterion){
+fn bench_search(c: &mut Criterion) {
     c.bench_function("Searching 5k contact (single fuzzy search)", |b| {
         let storage = make_store_with_n(5_000);
         b.iter(|| {
@@ -91,7 +100,7 @@ fn bench_search(c: &mut Criterion){
 
 // Edit-benchmark: measure editing a single contact per iteration.
 // Previously: it did 5k edits inside one iteration and saved each time.
-fn bench_edit(c: &mut Criterion){
+fn bench_edit(c: &mut Criterion) {
     c.bench_function("Editing 5k contact (single edit)", |b| {
         let mut storage = make_store_with_n(5_000);
         b.iter(|| {
@@ -110,11 +119,10 @@ fn bench_edit(c: &mut Criterion){
 }
 
 // Delete-benchmark: measure deleting a single contact per iteration.
-fn bench_delete(c: &mut Criterion){
+fn bench_delete(c: &mut Criterion) {
     c.bench_function("Deleting from 5k contact", |b| {
-        
         b.iter_batched(
-            || make_store_with_n(5_000), 
+            || make_store_with_n(5_000),
             |mut storage| {
                 // delete a single existing id
                 let sample_name = "User200";
@@ -124,12 +132,10 @@ fn bench_delete(c: &mut Criterion){
                     black_box(&storage.mem);
                 }
             },
-            BatchSize::SmallInput
+            BatchSize::SmallInput,
         );
     });
 }
-
-
 
 // Save-benchmark (Store::save) for JSON storage: create a unique temp dir, chdir into it,
 // build store, then measure Store::save writing to the relative JSON path.
@@ -138,7 +144,8 @@ fn bench_save_store_json(c: &mut Criterion) {
         b.iter_batched(
             || {
                 // Setup: create temp dir and enter it
-                let base = std::env::temp_dir().join(format!("rusty-rolodex-bench-json-{}", BenchUuid::new_v4()));
+                let base = std::env::temp_dir()
+                    .join(format!("rusty-rolodex-bench-json-{}", BenchUuid::new_v4()));
                 fs::create_dir_all(&base).expect("create temp dir");
 
                 // chdir into temp dir so relative storage path is isolated
@@ -176,7 +183,8 @@ fn bench_read_store_json(c: &mut Criterion) {
         b.iter_batched(
             || {
                 // Setup: create temp dir and enter it
-                let base = std::env::temp_dir().join(format!("rusty-rolodex-bench-json-{}", BenchUuid::new_v4()));
+                let base = std::env::temp_dir()
+                    .join(format!("rusty-rolodex-bench-json-{}", BenchUuid::new_v4()));
                 fs::create_dir_all(&base).expect("create temp dir");
                 let original_cwd = std::env::current_dir().expect("cwd");
 
@@ -220,7 +228,8 @@ fn bench_save_store_txt(c: &mut Criterion) {
     c.bench_function("save_5k_txt_contacts", |b| {
         b.iter_batched(
             || {
-                let base = std::env::temp_dir().join(format!("rusty-rolodex-bench-txt-{}", BenchUuid::new_v4()));
+                let base = std::env::temp_dir()
+                    .join(format!("rusty-rolodex-bench-txt-{}", BenchUuid::new_v4()));
                 fs::create_dir_all(&base).expect("create temp dir");
 
                 std::env::set_current_dir(&base).expect("chdir into tempdir");
@@ -251,7 +260,8 @@ fn bench_read_store_txt(c: &mut Criterion) {
     c.bench_function("read_5k_txt_contacts", |b| {
         b.iter_batched(
             || {
-                let base = std::env::temp_dir().join(format!("rusty-rolodex-bench-txt-{}", BenchUuid::new_v4()));
+                let base = std::env::temp_dir()
+                    .join(format!("rusty-rolodex-bench-txt-{}", BenchUuid::new_v4()));
                 fs::create_dir_all(&base).expect("create temp dir");
                 let original_cwd = std::env::current_dir().expect("cwd");
 
@@ -269,7 +279,7 @@ fn bench_read_store_txt(c: &mut Criterion) {
             },
             |base| {
                 std::env::set_current_dir(&base).expect("chdir into tempdir for read");
-                
+
                 let store = Store::new().expect("failed to create store for load");
                 let _ = store.load();
 
@@ -290,18 +300,21 @@ fn restore_to_manifest() {
     if std::env::set_current_dir(&manifest_dir).is_ok() {
         return;
     }
-    eprintln!("warning: fallback restore to manifest_dir {:?} failed. trying '/' fallback.", manifest_dir);
+    eprintln!(
+        "warning: fallback restore to manifest_dir {:?} failed. trying '/' fallback.",
+        manifest_dir
+    );
     let _ = std::env::set_current_dir("/");
 }
 
 fn configure() -> Criterion {
     Criterion::default()
-        // .without_plots() 
-        // .sample_size(10) 
-        // .measurement_time(std::time::Duration::from_secs(3))
+    // .without_plots()
+    // .sample_size(10)
+    // .measurement_time(std::time::Duration::from_secs(3))
 }
 
-criterion_group!{
+criterion_group! {
     name = benches;
     config = configure();
     targets = bech_add, bench_list, bench_edit, bench_search, bench_delete, bench_save_store_json,

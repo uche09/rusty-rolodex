@@ -5,9 +5,8 @@ use crate::{
         command::{Cli, Commands, SearchKey, SortKey},
         contact::{Contact, ValidationReq},
         store::{
-            self,
-            ContactStore,
-            filestore::{Store, Index},
+            self, ContactStore,
+            filestore::{Index, Store},
             storage_port::{export_contacts_to_csv, import_contacts_from_csv},
         },
     },
@@ -77,9 +76,16 @@ pub fn run_app() -> Result<(), AppError> {
             let mut contact_list: Vec<&Contact>;
 
             if let Some(tag) = tag {
-                contact_list = storage.mem
+                contact_list = storage
+                    .mem
                     .iter()
-                    .filter_map(|(_, cont)| if cont.tag.to_lowercase() == tag.to_lowercase() {Some(cont)} else {None})
+                    .filter_map(|(_, cont)| {
+                        if cont.tag.to_lowercase() == tag.to_lowercase() {
+                            Some(cont)
+                        } else {
+                            None
+                        }
+                    })
                     // .filter(|&c| c.tag.to_lowercase() == tag.to_lowercase())
                     // .map(|c| *c)
                     .collect();
@@ -97,10 +103,12 @@ pub fn run_app() -> Result<(), AppError> {
                         .sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase())),
                     SortKey::Email => contact_list
                         .sort_by(|a, b| a.email.to_lowercase().cmp(&b.email.to_lowercase())),
-                    SortKey::Created => contact_list
-                        .sort_by(|a, b| a.created_at.cmp(&b.created_at)),
-                    SortKey::Updated => contact_list
-                        .sort_by(|a, b| a.updated_at.cmp(&b.updated_at)),
+                    SortKey::Created => {
+                        contact_list.sort_by(|a, b| a.created_at.cmp(&b.created_at))
+                    }
+                    SortKey::Updated => {
+                        contact_list.sort_by(|a, b| a.updated_at.cmp(&b.updated_at))
+                    }
                 }
             }
 
@@ -129,13 +137,13 @@ pub fn run_app() -> Result<(), AppError> {
             new_tag,
         } => {
             let desired_contact = Contact::new(name, phone, "".to_string(), "".to_string());
-            let ids = storage.get_ids_by_name(&desired_contact.name).unwrap_or_default();
+            let ids = storage
+                .get_ids_by_name(&desired_contact.name)
+                .unwrap_or_default();
 
             let matching_id = ids
                 .iter()
-                .find(|c| {
-                    storage.mem.get(c) == Some(&desired_contact)
-                });
+                .find(|c| storage.mem.get(c) == Some(&desired_contact));
 
             let found_contact = matching_id.and_then(|id| storage.mem.get_mut(id));
 
@@ -154,7 +162,6 @@ pub fn run_app() -> Result<(), AppError> {
                 }
 
                 contact.updated_at = contact::Utc::now();
-
             } else {
                 return Err(AppError::NotFound("Contact".to_string()));
             }
@@ -169,7 +176,8 @@ pub fn run_app() -> Result<(), AppError> {
             let ids = storage.get_ids_by_name(&name);
 
             let phone = phone.unwrap_or_default();
-            let desired_contact = Contact::new(name.clone(), phone.clone(), "".to_string(), "".to_string());
+            let desired_contact =
+                Contact::new(name.clone(), phone.clone(), "".to_string(), "".to_string());
 
             match ids {
                 Some(ids) => {
@@ -183,13 +191,14 @@ pub fn run_app() -> Result<(), AppError> {
                             exit(0);
                         } else {
                             for id in &ids {
-                                if let Some(contact) = storage.mem.get(id) && contact == &desired_contact {
+                                if let Some(contact) = storage.mem.get(id)
+                                    && contact == &desired_contact
+                                {
                                     storage.delete_contact(id)?;
                                     storage.save(&storage.mem)?;
                                     println!("Contact deleted successfully");
                                     exit(0);
                                 }
-                                
                             }
 
                             eprintln!("{}", AppError::NotFound("Contact".to_string()));
@@ -212,25 +221,21 @@ pub fn run_app() -> Result<(), AppError> {
 
         // Search for a contact
         Commands::Search { by, name, domain } => {
-
             // Default search = name (if not provided)
             let search_by = by.unwrap_or(SearchKey::N);
-
 
             match search_by {
                 // Search using email domain
                 SearchKey::D => {
                     // user's provided email strig is assigned to "search_for"
                     let searched_for = domain.unwrap_or_default();
-                    
 
                     let result = storage.fuzzy_search_email_domain_index(&searched_for)?;
-                    
+
                     for (mut i, c) in result.iter().enumerate() {
                         i += 1;
 
-                        let date = c
-                            .updated_at.date_naive().to_string();
+                        let date = c.updated_at.date_naive().to_string();
 
                         println!(
                             "{i:>3}. {:<20} {:15} {:^30} {:<15} 'Updated on:' {:<12}",
@@ -241,14 +246,13 @@ pub fn run_app() -> Result<(), AppError> {
                 _ => {
                     // Default to search by name
                     let searched_for = name.unwrap_or_default();
-                
+
                     let result = storage.fuzzy_search_name(&searched_for)?;
-                    
+
                     for (mut i, &c) in result.iter().enumerate() {
                         i += 1;
 
-                        let date = c
-                            .updated_at.date_naive().to_string();
+                        let date = c.updated_at.date_naive().to_string();
 
                         println!(
                             "{i:>3}. {:<20} {:15} {:^30} {:<15} 'Updated on:' {:<12}",
@@ -257,7 +261,7 @@ pub fn run_app() -> Result<(), AppError> {
                     }
                 }
             }
-            
+
             Ok(())
         }
 

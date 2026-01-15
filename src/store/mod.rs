@@ -1,8 +1,8 @@
+pub mod filestore;
 pub mod memory;
 pub mod storage_port;
-pub mod filestore;
 
-use crate::prelude::{AppError, Contact, uuid::Uuid, HashMap};
+use crate::prelude::{AppError, Contact, HashMap, uuid::Uuid};
 use dotenv::dotenv;
 use std::fs::{self, OpenOptions};
 use std::io::{BufReader, Read, Write};
@@ -12,9 +12,7 @@ pub trait ContactStore {
     fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError>;
 
     fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError>;
-
 }
-
 
 #[derive(Debug)]
 pub enum StoreChoice {
@@ -49,8 +47,10 @@ pub fn parse_storage_choice() -> StoreChoice {
 pub fn create_file_parent(path: &str) -> Result<(), AppError> {
     let path = Path::new(path);
 
-    if let Some(parent) = path.parent() && !parent.exists() {
-            fs::create_dir_all(parent)?;
+    if let Some(parent) = path.parent()
+        && !parent.exists()
+    {
+        fs::create_dir_all(parent)?;
     }
     Ok(())
 }
