@@ -1,6 +1,9 @@
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
+use rusty_rolodex::domain::contact::phone_number_matches;
 use std::hint::black_box;
 
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use rusty_rolodex::prelude::{
     Contact, ContactStore, Store, contact, store::filestore::Index, uuid::Uuid,
 };
@@ -8,44 +11,94 @@ use std::fs;
 use std::path::PathBuf;
 use uuid::Uuid as BenchUuid;
 
-// Helper to create a Store prepopulated with `n` contacts in-memory.
-// Note: we avoid calling `save()` here so the measured benchmark focuses
-// on CPU operations (list/search/edit/delete) rather than disk I/O.
 fn make_store_with_n<'a>(n: usize) -> Store<'a> {
+    let mut rng = StdRng::seed_from_u64(42); // Seeded for reproducibility in benchmarks
+
+    // Randomized and more realistic data pools
+    let first_names = vec![
+        "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Henry", "Ivy", "Jack",
+        "Kate", "Liam", "Mia", "Noah", "Olivia", "Peter", "Quinn", "Ryan", "Sophia", "Tyler",
+        "Uma", "Victor", "Wendy", "Xander", "Yara", "Zoe",
+    ];
+    let last_names = vec![
+        "Smith",
+        "Johnson",
+        "Williams",
+        "Brown",
+        "Jones",
+        "Garcia",
+        "Miller",
+        "Davis",
+        "Rodriguez",
+        "Martinez",
+        "Hernandez",
+        "Lopez",
+        "Gonzalez",
+        "Wilson",
+        "Anderson",
+        "Thomas",
+        "Taylor",
+        "Moore",
+        "Jackson",
+        "Martin",
+    ];
+    let domains = vec![
+        "gmail.com",
+        "yahoo.com",
+        "hotmail.com",
+        "outlook.com",
+        "example.com",
+        "test.org",
+        "company.net",
+    ];
+    let tags = vec![
+        "friends",
+        "work",
+        "family",
+        "acquaintance",
+        "colleague",
+        "neighbor",
+        "",
+    ];
+
     let mut storage = Store::new().expect("Store not created");
     let created_at = contact::Utc::now();
     storage.mem = (0..n)
-        .map(|i| {
+        .map(|_| {
             let id = Uuid::new_v4();
+            let first = first_names[rng.gen_range(0..first_names.len())];
+            let last = last_names[rng.gen_range(0..last_names.len())];
+            let name = format!("{} {}", first, last);
+            let email_domain = domains[rng.gen_range(0..domains.len())];
+            let email = format!(
+                "{}.{}@{}",
+                first.to_lowercase(),
+                last.to_lowercase(),
+                email_domain
+            );
+            let phone = format!("{:010}", rng.gen_range(1000000000..9999999999u64)); // Random 10-digit phone
+            let tag = tags[rng.gen_range(0..tags.len())].to_string();
             let contact = Contact {
                 id,
-                name: format!("User{i}"),
-                phone: format!("08885499529"),
-                email: format!("user{i}@yahoo.com"),
-                tag: if i % 2 == 0 {
-                    "friends".to_string()
-                } else {
-                    "work".to_string()
-                },
+                name,
+                phone,
+                email,
+                tag,
                 created_at: created_at.clone(),
                 updated_at: created_at.clone(),
             };
             (id, contact)
         })
         .collect();
-    // Build index once. Use full path to Index to avoid importing filestore::Index.
     storage.index = Index::new(&storage).expect("index build");
     storage
 }
 
-// Add-benchmark: measure constructing & inserting one contact (in-memory).
 fn bech_add(c: &mut Criterion) {
     c.bench_function("Adding 5k contact (in-memory single add)", |b| {
-        // prepare an empty store once per iteration setup. We measure adding single contact.
         b.iter_batched(
-            || make_store_with_n(5_000), // setup (expensive)
+            || make_store_with_n(5_000),
             |mut storage| {
-                // measured closure: add one contact
                 let new_contact = Contact::new(
                     "Zoe".to_string(),
                     "08885499529".to_string(),
@@ -55,17 +108,15 @@ fn bech_add(c: &mut Criterion) {
                 storage.add_contact(new_contact);
                 black_box(&storage.mem);
             },
-            BatchSize::SmallInput, // choose a batch size appropriate for the work
+            BatchSize::SmallInput,
         );
     });
 }
 
-// List-benchmark: measure one listing (collect + sort + filter) per iteration.
 fn bench_list(c: &mut Criterion) {
     c.bench_function("listing 5k contact (collect + sort + filter)", |b| {
         let storage = make_store_with_n(5_000);
         b.iter(|| {
-            // CPU work only: sort + reverse + filter once per iteration
             let mut filtered_contacts: Vec<&Contact> = storage
                 .mem
                 .iter()
@@ -85,51 +136,45 @@ fn bench_list(c: &mut Criterion) {
     });
 }
 
-// Search-benchmark: measure a single fuzzy search per iteration.
-// Previously: the code called fuzzy_search many times inside one iteration.
 fn bench_search(c: &mut Criterion) {
     c.bench_function("Searching 5k contact (single fuzzy search)", |b| {
         let storage = make_store_with_n(5_000);
         b.iter(|| {
-            // measure a single search call (index already built in setup)
-            let result = storage.fuzzy_search_name("User").expect("search failed");
+            let result = storage.fuzzy_search_name("zoe").expect("search failed");
             black_box(result);
         });
     });
 }
 
-// Edit-benchmark: measure editing a single contact per iteration.
-// Previously: it did 5k edits inside one iteration and saved each time.
 fn bench_edit(c: &mut Criterion) {
     c.bench_function("Editing 5k contact (single edit)", |b| {
-        let mut storage = make_store_with_n(5_000);
-        b.iter(|| {
-            // pick one id to edit (stable behavior)
-            let sample_name = "User100";
-            if let Some(ids) = storage.get_ids_by_name(sample_name) {
-                let id = ids[0];
-                if let Some(contact) = storage.mem.get_mut(&id) {
-                    contact.name = format!("{}-edited", contact.name);
-                    contact.updated_at = contact::Utc::now();
-                    black_box(contact);
-                }
-            }
-        });
-    });
-}
-
-// Delete-benchmark: measure deleting a single contact per iteration.
-fn bench_delete(c: &mut Criterion) {
-    c.bench_function("Deleting from 5k contact", |b| {
         b.iter_batched(
-            || make_store_with_n(5_000),
+            || {
+                let mut storage = make_store_with_n(5_000);
+
+                let new_contact = Contact::new(
+                    "Zoe".to_string(),
+                    "08885499529".to_string(),
+                    "bryanwelch@gmail.com".to_string(),
+                    "friends".to_string(),
+                );
+                storage.add_contact(new_contact);
+                storage
+            },
             |mut storage| {
-                // delete a single existing id
-                let sample_name = "User200";
-                if let Some(mut ids) = storage.get_ids_by_name(sample_name) {
-                    let id = ids.remove(0);
-                    let _ = storage.delete_contact(&id);
-                    black_box(&storage.mem);
+                let sample_name = "zoe";
+                let sample_phone = "08885499529";
+                if let Some(ids) = storage.get_ids_by_name(sample_name) {
+                    for id in ids {
+                        if let Some(contact) = storage.mem.get_mut(&id)
+                            && phone_number_matches(&contact.phone, sample_phone)
+                        {
+                            contact.name = format!("{}-edited", contact.name);
+                            contact.updated_at = contact::Utc::now();
+                            black_box(contact);
+                            continue;
+                        }
+                    }
                 }
             },
             BatchSize::SmallInput,
@@ -137,8 +182,77 @@ fn bench_delete(c: &mut Criterion) {
     });
 }
 
-// Save-benchmark (Store::save) for JSON storage: create a unique temp dir, chdir into it,
-// build store, then measure Store::save writing to the relative JSON path.
+fn bench_delete(c: &mut Criterion) {
+    c.bench_function("Deleting 5k contact (single delete)", |b| {
+        b.iter_batched(
+            || {
+                let mut storage = make_store_with_n(5_000);
+
+                let new_contact = Contact::new(
+                    "Zoe".to_string(),
+                    "08885499529".to_string(),
+                    "bryanwelch@gmail.com".to_string(),
+                    "friends".to_string(),
+                );
+                storage.add_contact(new_contact);
+                storage
+            },
+            |mut storage| {
+                let sample_name = "Zoe";
+                let sample_phone = "08885499529";
+                if let Some(ids) = storage.get_ids_by_name(sample_name) {
+                    for id in ids {
+                        if let Some(contact) = storage.mem.get(&id)
+                            && phone_number_matches(&contact.phone, sample_phone)
+                        {
+                            let _ = storage.delete_contact(&id);
+                            black_box(&storage.mem);
+                        }
+                    }
+                }
+            },
+            BatchSize::SmallInput,
+        );
+    });
+}
+
+fn bench_increment_index(c: &mut Criterion) {
+    c.bench_function("Increment index for 5k store", |b| {
+        b.iter_batched(
+            || make_store_with_n(5_000),
+            |mut storage| {
+                let new_contact = Contact::new(
+                    "NewUser".to_string(),
+                    "08885499529".to_string(),
+                    "newuser@example.com".to_string(),
+                    "test".to_string(),
+                );
+                storage.index.increment_index(&new_contact);
+                black_box(&storage.index);
+            },
+            BatchSize::SmallInput,
+        );
+    });
+}
+
+fn bench_decrement_index(c: &mut Criterion) {
+    c.bench_function("Decrement index for 5k store", |b| {
+        b.iter_batched(
+            || make_store_with_n(5_000),
+            |mut storage| {
+                // Take the first contact from the store to decrement
+                if let Some((_, contact)) = storage.mem.iter().next() {
+                    let contact_clone = (*contact).clone();
+                    storage.index.decrement_index(&contact_clone);
+                    black_box(&storage.index);
+                }
+            },
+            BatchSize::SmallInput,
+        );
+    });
+}
+
+// IO
 fn bench_save_store_json(c: &mut Criterion) {
     c.bench_function("save_5k_json_contacts", |b| {
         b.iter_batched(
@@ -176,8 +290,6 @@ fn bench_save_store_json(c: &mut Criterion) {
     });
 }
 
-// Read-benchmark (Store::load) for JSON storage: create a temp dir and save a file in setup,
-// then measure Store::load reading and deserializing that file.
 fn bench_read_store_json(c: &mut Criterion) {
     c.bench_function("read_5k_json_contacts", |b| {
         b.iter_batched(
@@ -223,7 +335,6 @@ fn bench_read_store_json(c: &mut Criterion) {
     });
 }
 
-// Save-benchmark (Store::save) for TXT storage: same pattern but set STORAGE_CHOICE to "txt".
 fn bench_save_store_txt(c: &mut Criterion) {
     c.bench_function("save_5k_txt_contacts", |b| {
         b.iter_batched(
@@ -255,7 +366,6 @@ fn bench_save_store_txt(c: &mut Criterion) {
     });
 }
 
-// Read-benchmark (Store::load) for TXT storage.
 fn bench_read_store_txt(c: &mut Criterion) {
     c.bench_function("read_5k_txt_contacts", |b| {
         b.iter_batched(
@@ -293,8 +403,6 @@ fn bench_read_store_txt(c: &mut Criterion) {
     });
 }
 
-/// Restore to project's `CARGO_MANIFEST_DIR`, then `/`.
-/// Logs warnings on failures but does not panic.
 fn restore_to_manifest() {
     let manifest_dir: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     if std::env::set_current_dir(&manifest_dir).is_ok() {
@@ -311,13 +419,13 @@ fn configure() -> Criterion {
     Criterion::default()
     // .without_plots()
     // .sample_size(10)
-    // .measurement_time(std::time::Duration::from_secs(3))
+    // .measurement_time(std::time::Duration::from_secs(2))
 }
 
 criterion_group! {
     name = benches;
     config = configure();
-    targets = bech_add, bench_list, bench_edit, bench_search, bench_delete, bench_save_store_json,
-              bench_read_store_json, bench_save_store_txt, bench_read_store_txt
+    targets = bech_add, bench_list, bench_edit, bench_search, bench_delete, bench_save_store_json, bench_read_store_json,
+                        bench_save_store_txt, bench_read_store_txt, bench_increment_index, bench_decrement_index
 }
 criterion_main!(benches);

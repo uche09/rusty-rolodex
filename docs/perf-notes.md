@@ -68,98 +68,62 @@
 
 
 ## 2.0 (criterion):
-- This performance benchmark provides insight on the time-based performance of our project as data grows to perform a unit/single task.
+- This performance benchmark provides insight on the time-based performance of our project to perform a unit/single task as the data grows.
 - The 1k, 5k, 10k, 20k, 50k and 100k (denoting one thousand, five thousand, ten thousand, twenty thousand, fifty thousand and hundred thousand repectively) columns represent the size of the sample data the task was carried on.
-- That means each reading reading simply says, for example *"it takes approx this amount of time to perform a search through 5 thousand contacts at a worse case scenario"*.
-- This Benchmark mostly assumes worst case scenario. For example the search benchmark literally matches the entre 5000 thousand contacts due to fuzzy search logic and automated contact generation.
+- That means each reading simply says, for example *"it takes approx this amount of time to perform a search through 5 thousand contacts"*.
+- The elements of the sample data were randomly generated to mimic real life application/use to an extent.
 
 | **Command**           | **1k** (ms) | **5k** (ms)| **10k** (ms) | **20k** (ms)| **50k** (ms)| **100k** (ms)|
 |:-----------           |   :------:  |  :------:  |   :------:   |  :------:   |   :------:  |   :------:   |
-| add                   |    ~0.32    |   ~1.59    |    ~3.63     |    ~7.92    |    ~29.20   |   ~ 90.40    |
-| list (sort + filter)  |    ~0.41    |   ~2.88    |    ~6.66     |    ~16.19   |    ~62.72   |   ~ 165.72   |
-| Edit                  |    ~0.0003  |   ~0.0003  |    ~0.0003   |    ~0.0003  |    ~0.0003  |   ~ 0.0003   |
-| Search --name         |    ~0.49    |   ~2.27    |    ~4.53     |    ~9.93    |    ~32.94   |   ~ 90.71    |
-|delete --name          |    ~0.34    |   ~1.71    |    ~3.30     |    ~8.48    |    ~28.30   |   ~ 91.36    |
-|save JSON contacts     |    ~2.06    |   ~9.01    |    ~18.21    |    ~41.06   |    ~127.66  |   ~ 307.98   |
-|read JSON contacts     |    ~1.98    |   ~9.64    |    ~19.44    |    ~42.00   |    ~107.59  |   ~ 255.65   |
-|save TXT contacts      |    ~2.17    |   ~10.77   |    ~22.81    |    ~51.01   |    ~137.05  |   ~ 336.56   |
-|read TXT contacts      |    ~2.87    |   ~13.30   |    ~30.89    |    ~60.25   |    ~154.31  |   ~ 347.09   |
+| add                   |    ~0.24    |   ~1.16    |    ~2.29     |    ~4.97    |    ~16.51   |   ~ 54.08    |
+| list (sort + filter)  |    ~0.16    |   ~1.18    |    ~2.70     |    ~6.01    |    ~19.68   |   ~ 56.35    |
+| Edit                  |    ~0.24    |   ~1.12    |    ~2.33     |    ~5.08    |    ~15.60   |   ~ 52.28    |
+| Search --name         |    ~0.40    |   ~1.62    |    ~3.14     |    ~5.69    |    ~14.44   |   ~ 30.13    |
+|delete --name          |    ~0.21    |   ~1.08    |    ~2.37     |    ~5.30    |    ~16.31   |   ~ 51.67    |
+|save JSON contacts     |    ~2.06    |   ~8.53    |    ~18.39    |    ~40.98   |    ~111.06  |   ~ 269.75   |
+|read JSON contacts     |    ~2.14    |   ~8.64    |    ~19.27    |    ~45.92   |    ~122.46  |   ~ 261.91   |
+|save TXT contacts      |    ~2.21    |   ~9.00    |    ~18.31    |    ~38.71   |    ~118.02  |   ~ 257.01   |
+|read TXT contacts      |    ~2.87    |   ~13.22   |    ~29.21    |    ~61.44   |    ~165.73  |   ~ 341.50   |
+|increment Index        |    ~0.21    |   ~1.06    |    ~2.27     |    ~4.89    |    ~15.71   |   ~ 48.14    |
+|decrement Index        |    ~0.24    |   ~1.10    |    ~2.34     |    ~4.81    |    ~13.89   |   ~ 48.51    |
 
 
 
 ### Observations
 
 **Overview:**  
-The benchmark evaluates how long core operations in the system take as dataset size grows from 1k to 100k contacts. All timings represent approximate worst-case scenarios where all contacts fit into just one subset of the index, especially for search-related operations where fuzzy matching forces every record to be scanned.
-
-**The core insight implies that:** the system scales linearly (O(n)) across all operations, and this is exactly what the timing curves reveal.
+The Benchmark 2.0 data illustrates the time-based performance of core operations as the dataset grows from 1k to 100k contacts. All operations exhibit linear scaling (O(n)), with some variations due to algorithmic differences.
 
 #### Key Observations
 
-1. **Edit Operations Are Exceptionally Fast and Constant:**  
-    Edit operations show remarkable performance characteristics across all dataset sizes:
-    
-    - Consistent ~0.0003 ms across 1k, 5k, 10k, 20k, 50k, and 100k contacts
-    - Effectively O(1) in complexity, indicating direct lookups
-    - The operation completes in microseconds regardless of dataset size
-    
-    **This implies that editing is not a bottleneck and users can modify contact information with virtually no perceivable delay.**
+1. **CRUD Operations (Add, Edit, Delete) Scale Linearly:**  
+   - Add: ~0.24 ms (1k) → ~54.08 ms (100k)  
+   - Edit: ~0.24 ms (1k) → ~52.28 ms (100k)  
+   - Delete --name: ~0.21 ms (1k) → ~51.67 ms (100k)  
+   These operations show consistent linear growth, indicating efficient data structures for insertions, updates, and removals.
 
-2. **List Operations Scale O(n log n) Due to Sorting:**  
-    List operations with sorting and filtering show clear quadratic-logarithmic growth:
-    
-    - 1k contacts: ~0.41 ms
-    - 100k contacts: ~165.72 ms
-    - Growth factor: ~405x for 100x increase in data
-    
-    **This implies that sorting dominates the list operation cost, making it the most expensive user-facing operation in the system.**
+2. **Search Operations Are Efficient:**  
+   - Search --name: ~0.40 ms (1k) → ~30.13 ms (100k)  
+   Search is faster than add/edit/delete at larger scales, suggesting the effect of multithreading and the concurrent search.
 
-3. **Core CRUD Operations Scale Linearly (O(n)):**  
-    Add, search, and delete operations follow predictable linear scaling:
-    
-    - Add: 0.32 ms (1k) → 90.40 ms (100k)
-    - Search --name: 0.49 ms (1k) → 90.71 ms (100k)
-    - Delete --name: 0.34 ms (1k) → 91.36 ms (100k)
-    - Approximate growth: ~280x for 100x increase in data
-    
-    **This implies that the system maintains efficient linear performance characteristics, allowing it to handle growing datasets predictably.**
+3. **List Operations Incur Sorting Overhead:**  
+   - List (sort + filter): ~0.16 ms (1k) → ~56.35 ms (100k)  
+   The time increases more steeply than pure linear, implying O(n log n) complexity due to sorting, making it the slowest user-facing operation.
 
-4. **Search and Delete Have Nearly Identical Scaling Rates:**  
-    Both search and delete operations consume approximately the same time across all dataset sizes:
-    
-    - 1k: search 0.49 ms vs delete 0.34 ms
-    - 100k: search 90.71 ms vs delete 91.36 ms
-    
-    **This implies that both operations likely traverse similar index structures, and deleting is not significantly more expensive than searching.**
+4. **File I/O Is the Primary Bottleneck:**  
+   - Save JSON: ~2.06 ms (1k) → ~269.75 ms (100k)  
+   - Read JSON: ~2.14 ms (1k) → ~261.91 ms (100k)  
+   - Save TXT: ~2.21 ms (1k) → ~257.01 ms (100k)  
+   - Read TXT: ~2.87 ms (1k) → ~341.50 ms (100k)  
+   Persistence operations scale linearly but are significantly slower than in-memory operations, with TXT reading being the most expensive at scale.
 
-5. **File I/O Operations Scale Linearly and Are More Expensive Than In-Memory Operations:**  
-    All file operations show clear linear growth:
-    
-    - JSON save: 2.06 ms (1k) → 307.98 ms (100k)
-    - JSON read: 1.98 ms (1k) → 255.65 ms (100k)
-    - TXT save: 2.17 ms (1k) → 336.56 ms (100k)
-    - TXT read: 2.87 ms (1k) → 347.09 ms (100k)
-    
-    TXT and JSON show similar performance profiles, with TXT reading being slightly slower at larger scales.
-    
-    **This implies that file I/O is the primary bottleneck for persistence operations, but remains acceptable for contact management workflows.**
-
-6. **Microoperations (Add, Search, Delete) Remain Fast Even at 100k Scale:**  
-    Individual in-memory operations stay under 100 ms even with 100k contacts:
-    
-    - Fastest: Edit at ~0.0003 ms
-    - Slowest among micro-ops: Search and Delete at ~90 ms
-    
-    **This implies that the system remains responsive for single-contact operations and interactive workflows.**
+5. **Index Operations Are Fast and Consistent:**  
+   - Increment Index: ~0.21 ms (1k) → ~48.14 ms (100k)  
+   - Decrement Index: ~0.24 ms (1k) → ~48.51 ms (100k)  
+   These micro-operations remain under 50 ms even at 100k, indicating lightweight index management.
 
 ### Overall Assessment
 
-The benchmark demonstrates a well-architected system with predictable performance characteristics:
-- **Edit operations** provide near-instant feedback to users
-- **List operations** are the performance constraint due to O(n log n) sorting requirements
-- **Core CRUD operations** scale linearly and remain practical up to 100k contacts
-- **File I/O** is the persistence bottleneck, not algorithmic complexity
+The system demonstrates solid performance for contact management up to 100k entries, with in-memory operations staying under 100 ms. File I/O dominates persistence costs, but remains viable for typical use. Sorting in list operations introduces the most variability, suggesting optimizations like lazy sorting or pagination could improve user experience for large datasets. The linear scaling ensures predictability, making the application suitable for growing workloads without unexpected performance degradation.
 
-The system is suitable for real-world contact management workloads with hundreds of thousands of contacts. For interactive use cases, single operations complete in milliseconds. For batch operations like full listing with sorting, users should expect sub-second response times up to 100k contacts.
-
-**NOTE:** This benchmark was done on the worst-case scenario where contact names were formatted as User{i}, where i increases from 0 to sample size. This means the alphabetical index implemented in the project will group all contacts in a single set. In a real-world application with diverse naming conventions, data would be distributed across the index and performance would be even better, except of course in pathological worst-case scenarios just like this.
+**NOTE:** This benchmark was done on data sets with randomized elements (contacts), this randomize selection helped mimic real world use cases to an extent.
