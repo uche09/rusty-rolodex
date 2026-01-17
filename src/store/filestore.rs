@@ -30,10 +30,14 @@ pub struct Index {
 
 impl Index {
     pub fn new(storage: &Store) -> Result<Self, AppError> {
-        Ok(Self {
+        let mut index = Self {
             name: storage.create_name_search_index()?,
             domain: storage.create_email_domain_search_index()?,
-        })
+        };
+
+        index.name.reserve(storage.mem.len() * 2); // Assume each contact has two unique name parts on average
+        index.domain.reserve(storage.mem.len() / 5); // Assume 1 in 5 contacts share the same email domain
+        Ok(index)
     }
 
     pub fn increment_index(&mut self, contact: &Contact) {
@@ -48,6 +52,10 @@ impl Index {
                     .or_default()
                     .insert(contact.id);
             }
+        }
+
+        if contact.email.is_empty() {
+            return;
         }
 
         let email_parts: Vec<&str> = contact.email.split('@').collect();
@@ -66,17 +74,31 @@ impl Index {
             let names = name.split_ascii_whitespace();
 
             for name_slice in names {
-                if let Some(indices) = self.name.get_mut(&name_slice.to_lowercase()) {
-                    indices.retain(|&i| i != contact.id);
+                let name_slice = name_slice.to_lowercase();
+                if let Some(indices) = self.name.get_mut(&name_slice) {
+                    indices.remove(&contact.id);
+
+                    if indices.is_empty() {
+                        self.name.remove(&name_slice);
+                    }
                 }
             }
         }
 
-        let email_parts: Vec<&str> = contact.email.split('@').collect();
-        let domain = email_parts[email_parts.len() - 1].to_string();
+        if contact.email.is_empty() {
+            return;
+        }
 
-        if let Some(indices) = self.domain.get_mut(&domain.to_ascii_lowercase()) {
-            indices.retain(|&i| i != contact.id);
+        let email_parts: Vec<&str> = contact.email.split('@').collect();
+        let domain = email_parts[email_parts.len() - 1];
+        let domain = domain.to_ascii_lowercase();
+
+        if let Some(indices) = self.domain.get_mut(&domain) {
+            indices.remove(&contact.id);
+
+            if indices.is_empty() {
+                self.domain.remove(&domain);
+            }
         }
     }
 }
