@@ -28,6 +28,11 @@ pub struct Index {
     pub domain: HashMap<String, HashSet<Uuid>>,
 }
 
+pub enum IndexUpdateType {
+    Add,
+    Remove,
+}
+
 impl Index {
     pub fn new(storage: &Store) -> Result<Self, AppError> {
         let mut index = Self {
@@ -40,67 +45,74 @@ impl Index {
         Ok(index)
     }
 
-    pub fn increment_index(&mut self, contact: &Contact) {
+    pub fn updated_name_index(&mut self, contact: &Contact, update_type: &IndexUpdateType) {
         let name = &contact.name;
 
-        if !name.is_empty() {
-            let names = name.split_ascii_whitespace();
+        if name.is_empty() {
+            return;
+        }
+        
+        let names = name.split_ascii_whitespace();
 
-            for name_slice in names {
-                self.name
-                    .entry(name_slice.to_lowercase())
-                    .or_default()
-                    .insert(contact.id);
+        match update_type {
+            IndexUpdateType::Add => {
+                for name_slice in names {
+                    self.name
+                        .entry(name_slice.to_lowercase())
+                        .or_default()
+                        .insert(contact.id);
+                }
+            },
+            IndexUpdateType::Remove => {
+                for name_slice in names {
+                    let name_slice = name_slice.to_lowercase();
+                    if let Some(indices) = self.name.get_mut(&name_slice) {
+                        indices.remove(&contact.id);
+
+                        if indices.is_empty() {
+                            self.name.remove(&name_slice);
+                        }
+                    }
+                }
             }
         }
+        
+    }
 
+    pub fn update_domain_index(&mut self, contact: &Contact, update_type: &IndexUpdateType) {
         if contact.email.is_empty() {
             return;
         }
 
         let email_parts: Vec<&str> = contact.email.split('@').collect();
         let domain = email_parts[email_parts.len() - 1].to_string();
+        let domain = domain.to_ascii_lowercase();
 
-        self.domain
-            .entry(domain.to_lowercase())
-            .or_default()
-            .insert(contact.id);
-    }
-
-    pub fn decrement_index(&mut self, contact: &Contact) {
-        let name = &contact.name;
-
-        if !name.is_empty() {
-            let names = name.split_ascii_whitespace();
-
-            for name_slice in names {
-                let name_slice = name_slice.to_lowercase();
-                if let Some(indices) = self.name.get_mut(&name_slice) {
+        match update_type {
+            IndexUpdateType::Add => {
+                self.domain
+                    .entry(domain)
+                    .or_default()
+                    .insert(contact.id);
+            },
+            IndexUpdateType::Remove => {
+                if let Some(indices) = self.domain.get_mut(&domain) {
                     indices.remove(&contact.id);
 
                     if indices.is_empty() {
-                        self.name.remove(&name_slice);
+                        self.domain.remove(&domain);
                     }
                 }
             }
         }
-
-        if contact.email.is_empty() {
-            return;
-        }
-
-        let email_parts: Vec<&str> = contact.email.split('@').collect();
-        let domain = email_parts[email_parts.len() - 1];
-        let domain = domain.to_ascii_lowercase();
-
-        if let Some(indices) = self.domain.get_mut(&domain) {
-            indices.remove(&contact.id);
-
-            if indices.is_empty() {
-                self.domain.remove(&domain);
-            }
-        }
+        
     }
+
+    pub fn update_both_indexes(&mut self, contact: &Contact, update_type: &IndexUpdateType) {
+        self.updated_name_index(contact, update_type);
+        self.update_domain_index(contact, update_type);
+    }
+   
 }
 
 impl Store<'_> {
@@ -160,7 +172,7 @@ impl Store<'_> {
     }
 
     pub fn add_contact(&mut self, contact: Contact) {
-        self.index.increment_index(&contact);
+        self.index.update_both_indexes(&contact, &IndexUpdateType::Add);
 
         self.mem.insert(contact.id, contact);
     }
@@ -168,7 +180,7 @@ impl Store<'_> {
     pub fn delete_contact(&mut self, id: &Uuid) -> Result<(), AppError> {
         match self.mem.remove(id) {
             Some(deleted_contact) => {
-                self.index.decrement_index(&deleted_contact);
+                self.index.update_both_indexes(&deleted_contact, &IndexUpdateType::Remove);
                 Ok(())
             }
             None => Err(AppError::NotFound("Contact".to_string())),

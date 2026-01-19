@@ -5,7 +5,7 @@ use std::hint::black_box;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use rusty_rolodex::prelude::{
-    Contact, ContactStore, Store, contact, store::filestore::Index, uuid::Uuid,
+    Contact, ContactStore, Store, contact, store::filestore::{Index, IndexUpdateType}, uuid::Uuid,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -227,7 +227,7 @@ fn bench_increment_index(c: &mut Criterion) {
                     "newuser@example.com".to_string(),
                     "test".to_string(),
                 );
-                storage.index.increment_index(&new_contact);
+                storage.index.update_both_indexes(&new_contact, &IndexUpdateType::Add);
                 black_box(&storage.index);
             },
             BatchSize::SmallInput,
@@ -243,7 +243,7 @@ fn bench_decrement_index(c: &mut Criterion) {
                 // Take the first contact from the store to decrement
                 if let Some((_, contact)) = storage.mem.iter().next() {
                     let contact_clone = (*contact).clone();
-                    storage.index.decrement_index(&contact_clone);
+                    storage.index.update_both_indexes(&contact_clone, &IndexUpdateType::Remove);
                     black_box(&storage.index);
                 }
             },
