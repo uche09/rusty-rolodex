@@ -10,6 +10,7 @@ use std::{
 
 pub const JSON_STORAGE_PATH: &str = "./.instance/contacts.json";
 pub const TXT_STORAGE_PATH: &str = "./.instance/contacts.txt";
+const MAX_WORKER_THREADS: usize = 5;
 
 pub struct Store<'a> {
     pub mem: HashMap<Uuid, Contact>,
@@ -184,21 +185,16 @@ impl Store<'_> {
     }
 
     pub fn create_name_search_index(&self) -> Result<HashMap<String, HashSet<Uuid>>, AppError> {
-        const MAX_WORKER_THREADS: usize = 5;
-        let contact_list = Arc::new(self.contact_list());
-        let length = contact_list.len();
-
-        let worker_threads: usize = match length {
-            0..=100 => 1,
-            101..=200 => 2,
-            201..=500 => 3,
-            501..=1000 => 4,
-            _ => MAX_WORKER_THREADS,
-        };
-
-        let chunk = length / worker_threads;
         let index: Arc<Mutex<HashMap<String, HashSet<Uuid>>>> =
             Arc::new(Mutex::new(HashMap::new()));
+        let contact_list = Arc::new(self.contact_list());
+
+        let length = contact_list.len();
+        if length < 1 {
+            return Ok(Arc::into_inner(index).unwrap_or_default().into_inner()?);
+        }
+
+        let worker_threads = determine_num_of_workers_thread_for_a_work_size(length);
 
         thread::scope(|s| {
             for i in 1..=worker_threads {
@@ -206,17 +202,10 @@ impl Store<'_> {
                 let list1 = Arc::clone(&contact_list);
 
                 s.spawn(move || -> Result<(), AppError> {
-                    // Get next starting index multiplying chunk with current iteration
-                    let start = chunk * (i - 1); // -1 to start from index zero and also catch unincluded end index from previous iteration
-
-                    let end: usize = if i == worker_threads {
-                        // Last thread takes the remainder if any
-                        (chunk * i).max(length)
-                    } else {
-                        chunk * i
-                    };
-
                     let mut local_map: HashMap<String, HashSet<Uuid>> = HashMap::new();
+
+                    let (start, end) =
+                        allocate_work_size_for_single_thread(i, length, worker_threads);
 
                     for idx in start..end {
                         let contact = list1[idx];
@@ -252,21 +241,16 @@ impl Store<'_> {
     pub fn create_email_domain_search_index(
         &self,
     ) -> Result<HashMap<String, HashSet<Uuid>>, AppError> {
-        const MAX_WORKER_THREADS: usize = 5;
-        let contact_list = Arc::new(self.contact_list());
-        let length = contact_list.len();
-
-        let worker_threads: usize = match length {
-            0..=100 => 1,
-            101..=200 => 2,
-            201..=500 => 3,
-            501..=1000 => 4,
-            _ => MAX_WORKER_THREADS,
-        };
-
-        let chunk = length / worker_threads;
         let index: Arc<Mutex<HashMap<String, HashSet<Uuid>>>> =
             Arc::new(Mutex::new(HashMap::new()));
+        let contact_list = Arc::new(self.contact_list());
+
+        let length = contact_list.len();
+        if length < 1 {
+            return Ok(Arc::into_inner(index).unwrap_or_default().into_inner()?);
+        }
+
+        let worker_threads: usize = determine_num_of_workers_thread_for_a_work_size(length);
 
         thread::scope(|s| {
             for i in 1..=worker_threads {
@@ -274,17 +258,9 @@ impl Store<'_> {
                 let list1 = Arc::clone(&contact_list);
 
                 s.spawn(move || -> Result<(), AppError> {
-                    // Get next starting index multiplying chunk with current iteration
-                    let start = chunk * (i - 1); // -1 to start from index zero and also catch unincluded end index from previous iteration
-
-                    let end: usize = if i == worker_threads {
-                        // Last thread takes the remainder if any
-                        (chunk * i).max(length)
-                    } else {
-                        chunk * i
-                    };
-
                     let mut local_map: HashMap<String, HashSet<Uuid>> = HashMap::new();
+                    let (start, end) =
+                        allocate_work_size_for_single_thread(i, length, worker_threads);
 
                     for idx in start..end {
                         let contact = list1[idx];
@@ -311,19 +287,18 @@ impl Store<'_> {
     }
 
     pub fn fuzzy_search_name(&self, name: &str) -> Result<Vec<&Contact>, AppError> {
-        const MAX_SEARCH_LENGTH: u8 = 30;
-        const MAX_WORKER_THREADS: usize = 5;
-        const TOP_RESULTS: usize = 10;
+        let max_search_length: u8 = 30;
+        let top_results: usize = 10;
         let name = Arc::new(name.trim().to_ascii_lowercase());
 
         if name.is_empty() {
             return Err(AppError::Validation("No Name provided".to_string()));
         }
-        if name.len() > MAX_SEARCH_LENGTH as usize {
+        if name.len() > max_search_length as usize {
             return Err(AppError::Validation("Search string too long".to_string()));
         }
 
-        const MIN_DISTANCE: f32 = 0.4;
+        let min_distance: f32 = 0.4;
 
         let contact_list = Arc::new(self.contact_list());
         let length = contact_list.len();
@@ -332,15 +307,8 @@ impl Store<'_> {
             return Ok(Vec::new());
         }
 
-        let worker_threads: usize = match length {
-            0..=100 => 1,
-            101..=200 => 2,
-            201..=500 => 3,
-            501..=1000 => 4,
-            _ => MAX_WORKER_THREADS,
-        };
+        let worker_threads: usize = determine_num_of_workers_thread_for_a_work_size(length);
 
-        let chunk = length / worker_threads;
         let fuzzy_match_contact_set: Arc<Mutex<HashSet<(i32, &Contact)>>> = Arc::new(
             Mutex::new(HashSet::new()), // This would hold &contact and the corresponding Lavenchtine distance of all contact that passes the MIN_DISTANCE threshold.
         );
@@ -352,15 +320,8 @@ impl Store<'_> {
                 let contact_list = Arc::clone(&contact_list);
 
                 s.spawn(move || -> Result<(), AppError> {
-                    // Get next starting index multiplying chunk with current iteration
-                    let start = chunk * (i - 1); // -1 to start from index zero and also catch unincluded end index from previous iteration
-
-                    let end: usize = if i == worker_threads {
-                        // Last thread takes the remainder if any
-                        (chunk * i).max(length)
-                    } else {
-                        chunk * i
-                    };
+                    let (start, end) =
+                        allocate_work_size_for_single_thread(i, length, worker_threads);
 
                     // collect matches locally to reduce lock contention
                     let mut local_matches: Vec<(i32, &Contact)> = Vec::new();
@@ -373,7 +334,7 @@ impl Store<'_> {
                         let distance = (fuzzy_compare(&contact.name.to_ascii_lowercase(), &name)
                             * 1000.0) as i32;
 
-                        if distance >= (MIN_DISTANCE * 1000.0) as i32 {
+                        if distance >= (min_distance * 1000.0) as i32 {
                             local_matches.push((distance, contact));
                         }
                     }
@@ -402,23 +363,20 @@ impl Store<'_> {
 
         let result = result
             .iter()
-            .take(TOP_RESULTS)
+            .take(top_results)
             .map(|(_, contact)| *contact)
             .collect::<Vec<&Contact>>();
         Ok(result)
     }
 
     pub fn fuzzy_search_email_domain_index(&self, domain: &str) -> Result<Vec<&Contact>, AppError> {
-        const MAX_SEARCH_LENGTH: u8 = 15;
-        const MAX_WORKER_THREADS: usize = 3;
-
+        let max_search_length: u8 = 15;
         let domain = &domain.trim().to_lowercase();
 
         if domain.is_empty() {
             return Err(AppError::Validation("No email domain provided".to_string()));
         }
-
-        if domain.len() > MAX_SEARCH_LENGTH as usize {
+        if domain.len() > max_search_length as usize {
             return Err(AppError::Validation(
                 "Please provide just email domain Eg. \"example.com\"".to_string(),
             ));
@@ -429,23 +387,16 @@ impl Store<'_> {
         let default_set: HashSet<Uuid> = HashSet::new();
 
         let ids_as_set = index.domain.get(domain).unwrap_or(&default_set);
+        let index_match = Arc::new(ids_as_set.iter().collect::<Vec<&Uuid>>()); // Convert to Vec
 
-        let index_match = Arc::new(ids_as_set.iter().collect::<Vec<&Uuid>>());
         let length = index_match.len();
-
-        let worker_threads: usize = match length {
-            0..=10 => 1,
-            11..=50 => 2,
-            _ => MAX_WORKER_THREADS,
-        };
-
-        let chunk = length / worker_threads;
-
-        let fuzzy_match: Arc<Mutex<Vec<&Contact>>> = Arc::new(Mutex::new(Vec::new()));
-
         if length < 1 {
             return Ok(Vec::new());
         }
+
+        let worker_threads: usize = determine_num_of_workers_thread_for_a_work_size(length);
+
+        let fuzzy_match: Arc<Mutex<Vec<&Contact>>> = Arc::new(Mutex::new(Vec::new()));
 
         thread::scope(|s| {
             for i in 1..=worker_threads {
@@ -453,21 +404,20 @@ impl Store<'_> {
                 let uuids = Arc::clone(&index_match);
 
                 s.spawn(move || -> Result<(), AppError> {
-                    let start = chunk * (i - 1); // -1 to start from index zero and also catch unincluded end index from previous iteration
-
-                    let end: usize = if i == worker_threads {
-                        // Last thread takes the remainder if any
-                        (chunk * i).max(length)
-                    } else {
-                        chunk * i
-                    };
-
-                    let mut matches = match1.lock()?;
+                    let (start, end) =
+                        allocate_work_size_for_single_thread(i, length, worker_threads);
+                    let mut local_set: HashSet<&Contact> = HashSet::new();
 
                     for &id in &uuids[start..end] {
                         if let Some(contact) = self.mem.get(id) {
-                            matches.push(contact);
+                            local_set.insert(contact);
                         }
+                    }
+
+                    let to_vec = local_set.into_iter().collect::<Vec<&Contact>>();
+                    if !to_vec.is_empty() {
+                        let mut matches = match1.lock()?;
+                        matches.extend(to_vec);
                     }
 
                     Ok(())
@@ -554,6 +504,37 @@ impl ContactStore for Store<'_> {
     }
 }
 
+pub fn determine_num_of_workers_thread_for_a_work_size(work_length: usize) -> usize {
+    if work_length < 1 {
+        return 0;
+    }
+    match work_length {
+        0..=100 => 1,
+        101..=200 => 2,
+        201..=500 => 3,
+        501..=1000 => 4,
+        _ => MAX_WORKER_THREADS,
+    }
+}
+pub fn allocate_work_size_for_single_thread(
+    current_thread: usize,
+    total_work_length: usize,
+    total_workers_thread: usize,
+) -> (usize, usize) {
+    let average_work_per_thread = total_work_length / total_workers_thread;
+
+    // Get next starting index multiplying chunk with current iteration
+    let start = average_work_per_thread * (current_thread - 1); // -1 to start from index zero and also catch unincluded end index from previous iteration
+
+    let end: usize = if current_thread == total_workers_thread {
+        // Last thread takes the remainder if any
+        (average_work_per_thread * current_thread).max(total_work_length)
+    } else {
+        average_work_per_thread * current_thread
+    };
+
+    (start, end)
+}
 pub fn load_txt_contacts(path: &str) -> Result<HashMap<Uuid, Contact>, AppError> {
     if !fs::exists(Path::new(path))? {
         return Ok(HashMap::new());
