@@ -5,7 +5,9 @@ use std::hint::black_box;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use rusty_rolodex::prelude::{
-    Contact, ContactStore, Store, contact, store::filestore::{Index, IndexUpdateType}, uuid::Uuid,
+    Contact, ContactStore, Store, contact,
+    store::filestore::{Index, IndexUpdateType},
+    uuid::Uuid,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -169,8 +171,16 @@ fn bench_edit(c: &mut Criterion) {
                         if let Some(contact) = storage.mem.get_mut(&id)
                             && phone_number_matches(&contact.phone, sample_phone)
                         {
+                            storage
+                                .index
+                                .updated_name_index(contact, &IndexUpdateType::Remove);
+
                             contact.name = format!("{}-edited", contact.name);
                             contact.updated_at = contact::Utc::now();
+
+                            storage
+                                .index
+                                .updated_name_index(contact, &IndexUpdateType::Add);
                             black_box(contact);
                             continue;
                         }
@@ -227,7 +237,9 @@ fn bench_increment_index(c: &mut Criterion) {
                     "newuser@example.com".to_string(),
                     "test".to_string(),
                 );
-                storage.index.update_both_indexes(&new_contact, &IndexUpdateType::Add);
+                storage
+                    .index
+                    .update_both_indexes(&new_contact, &IndexUpdateType::Add);
                 black_box(&storage.index);
             },
             BatchSize::SmallInput,
@@ -243,7 +255,9 @@ fn bench_decrement_index(c: &mut Criterion) {
                 // Take the first contact from the store to decrement
                 if let Some((_, contact)) = storage.mem.iter().next() {
                     let contact_clone = (*contact).clone();
-                    storage.index.update_both_indexes(&contact_clone, &IndexUpdateType::Remove);
+                    storage
+                        .index
+                        .update_both_indexes(&contact_clone, &IndexUpdateType::Remove);
                     black_box(&storage.index);
                 }
             },
