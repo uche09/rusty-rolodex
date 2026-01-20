@@ -6,7 +6,7 @@ use crate::{
         contact::{Contact, ValidationReq},
         store::{
             self, ContactStore,
-            filestore::{Index, Store},
+            filestore::{Index, IndexUpdateType, Store},
             storage_port::{export_contacts_to_csv, import_contacts_from_csv},
         },
     },
@@ -149,13 +149,37 @@ pub fn run_app() -> Result<(), AppError> {
 
             if let Some(contact) = found_contact {
                 if let Some(name) = new_name {
+                    storage
+                        .index
+                        .updated_name_index(contact, &IndexUpdateType::Remove);
+
                     contact.name = name;
+
+                    storage
+                        .index
+                        .updated_name_index(contact, &IndexUpdateType::Add);
                 }
                 if let Some(phone) = new_phone {
                     contact.phone = phone;
                 }
                 if let Some(email) = new_email {
-                    contact.email = email;
+                    let new_domain: Vec<&str> = email.split('@').collect();
+                    let current_domain: Vec<&str> = contact.email.split("@").collect();
+
+                    if current_domain[current_domain.len() - 1] != new_domain[new_domain.len() - 1]
+                    {
+                        storage
+                            .index
+                            .update_domain_index(contact, &IndexUpdateType::Remove);
+
+                        contact.email = email;
+
+                        storage
+                            .index
+                            .update_domain_index(contact, &IndexUpdateType::Add);
+                    } else {
+                        contact.email = email;
+                    }
                 }
                 if let Some(tag) = new_tag {
                     contact.tag = tag;
