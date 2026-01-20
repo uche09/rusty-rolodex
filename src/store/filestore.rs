@@ -51,7 +51,7 @@ impl Index {
         if name.is_empty() {
             return;
         }
-        
+
         let names = name.split_ascii_whitespace();
 
         match update_type {
@@ -62,7 +62,7 @@ impl Index {
                         .or_default()
                         .insert(contact.id);
                 }
-            },
+            }
             IndexUpdateType::Remove => {
                 for name_slice in names {
                     let name_slice = name_slice.to_lowercase();
@@ -76,7 +76,6 @@ impl Index {
                 }
             }
         }
-        
     }
 
     pub fn update_domain_index(&mut self, contact: &Contact, update_type: &IndexUpdateType) {
@@ -90,11 +89,8 @@ impl Index {
 
         match update_type {
             IndexUpdateType::Add => {
-                self.domain
-                    .entry(domain)
-                    .or_default()
-                    .insert(contact.id);
-            },
+                self.domain.entry(domain).or_default().insert(contact.id);
+            }
             IndexUpdateType::Remove => {
                 if let Some(indices) = self.domain.get_mut(&domain) {
                     indices.remove(&contact.id);
@@ -105,14 +101,12 @@ impl Index {
                 }
             }
         }
-        
     }
 
     pub fn update_both_indexes(&mut self, contact: &Contact, update_type: &IndexUpdateType) {
         self.updated_name_index(contact, update_type);
         self.update_domain_index(contact, update_type);
     }
-   
 }
 
 impl Store<'_> {
@@ -172,7 +166,8 @@ impl Store<'_> {
     }
 
     pub fn add_contact(&mut self, contact: Contact) {
-        self.index.update_both_indexes(&contact, &IndexUpdateType::Add);
+        self.index
+            .update_both_indexes(&contact, &IndexUpdateType::Add);
 
         self.mem.insert(contact.id, contact);
     }
@@ -180,7 +175,8 @@ impl Store<'_> {
     pub fn delete_contact(&mut self, id: &Uuid) -> Result<(), AppError> {
         match self.mem.remove(id) {
             Some(deleted_contact) => {
-                self.index.update_both_indexes(&deleted_contact, &IndexUpdateType::Remove);
+                self.index
+                    .update_both_indexes(&deleted_contact, &IndexUpdateType::Remove);
                 Ok(())
             }
             None => Err(AppError::NotFound("Contact".to_string())),
@@ -911,6 +907,76 @@ mod tests {
         // Ensure domain index no longer references the deleted id
         if let Some(domain_set) = store.index.domain.get("example.com") {
             assert!(!domain_set.contains(&id1));
+        }
+
+        store.mem.clear();
+        Ok(())
+    }
+
+    #[test]
+    fn index_updates_on_edit() -> Result<(), AppError> {
+        let mut store = Store::new()?;
+
+        let contact = Contact::new(
+            "John Doe".to_string(),
+            "01234567890".to_string(),
+            "john@example.com".to_string(),
+            "".to_string(),
+        );
+        let id = contact.id;
+        store.add_contact(contact.clone());
+
+        // Verify initial index state
+        if let Some(ids_for_john) = store.index.name.get("john") {
+            assert!(ids_for_john.contains(&id));
+        }
+        if let Some(ids_for_doe) = store.index.name.get("doe") {
+            assert!(ids_for_doe.contains(&id));
+        }
+        let ids_for_jane = store.index.name.get("jane");
+        assert!(ids_for_jane.is_none());
+
+        if let Some(domain_set) = store.index.domain.get("example.com") {
+            assert!(domain_set.contains(&id));
+        }
+        let domain_set = store.index.domain.get("new.com");
+        assert!(domain_set.is_none());
+
+        // Simulate edit: change name to "Jane Doe" and email to "jane@new.com"
+        let contact_mut = store.mem.get_mut(&id).unwrap();
+        // Remove old name and email from index
+        store
+            .index
+            .updated_name_index(contact_mut, &IndexUpdateType::Remove);
+        store
+            .index
+            .update_domain_index(contact_mut, &IndexUpdateType::Remove);
+        // Update contact fields
+        contact_mut.name = "Jane Doe".to_string();
+        contact_mut.email = "jane@new.com".to_string();
+        contact_mut.updated_at = Utc::now();
+        // Add new name and email to index
+        store
+            .index
+            .update_both_indexes(contact_mut, &IndexUpdateType::Add);
+
+        // Verify updated index state
+        let ids_for_john_after = store.index.name.get("john");
+        assert!(ids_for_john_after.is_none());
+
+        if let Some(ids_for_doe_after) = store.index.name.get("Doe") {
+            assert!(ids_for_doe_after.contains(&id)); // "Doe" should still be there
+        }
+
+        if let Some(ids_for_jane_after) = store.index.name.get("Jane") {
+            assert!(ids_for_jane_after.contains(&id));
+        }
+
+        let domain_set = store.index.domain.get("example.com");
+        assert!(domain_set.is_none());
+
+        if let Some(domain_set) = store.index.domain.get("new.com") {
+            assert!(domain_set.contains(&id));
         }
 
         store.mem.clear();
