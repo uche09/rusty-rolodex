@@ -16,6 +16,12 @@ pub struct Contact {
     pub tag: String,
 
     #[serde(
+        default = "bool::default",
+        deserialize_with = "deserialize_deleted_field"
+    )]
+    pub deleted: bool,
+
+    #[serde(
         default = "default_timestamp",
         deserialize_with = "deserialize_timestamp"
     )]
@@ -56,6 +62,7 @@ impl Contact {
             phone,
             email,
             tag,
+            deleted: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
@@ -162,6 +169,17 @@ where
             .map(|dt| dt.with_timezone(&Utc))
             .map_err(serde::de::Error::custom),
         None => Ok(Utc::now()), // fallback for old contacts
+    }
+}
+
+fn deserialize_deleted_field<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<bool>::deserialize(deserializer)?;
+    match value {
+        Some(b) => Ok(b),
+        None => Ok(false), // fallback for old contacts
     }
 }
 
