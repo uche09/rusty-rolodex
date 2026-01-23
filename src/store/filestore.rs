@@ -2,6 +2,7 @@ use super::*;
 
 use crate::helper;
 use rust_fuzzy_search::fuzzy_compare;
+use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
@@ -128,15 +129,11 @@ impl Store<'_> {
         })
     }
 
-    // pub fn iter(&self) -> JsonIter<'_> {
-    //     JsonIter {
-    //         inner: &self.mem,
-    //         idx: 0,
-    //     }
-    // }
-
     pub fn contact_list(&self) -> Vec<&Contact> {
-        self.mem.values().collect::<Vec<&Contact>>()
+        self.mem
+            .values()
+            .filter(|&c| !c.deleted)
+            .collect::<Vec<&Contact>>()
     }
 
     pub fn get_ids_by_name(&self, name: &str) -> Option<Vec<Uuid>> {
@@ -154,7 +151,7 @@ impl Store<'_> {
             .iter()
             .filter_map(|&id| {
                 self.mem.get(&id).and_then(|contact| {
-                    if contact.name.eq_ignore_ascii_case(name) {
+                    if contact.name.eq_ignore_ascii_case(name) && !contact.deleted {
                         Some(id)
                     } else {
                         None
@@ -174,10 +171,11 @@ impl Store<'_> {
     }
 
     pub fn delete_contact(&mut self, id: &Uuid) -> Result<(), AppError> {
-        match self.mem.remove(id) {
+        match self.mem.get_mut(id) {
             Some(deleted_contact) => {
+                deleted_contact.deleted = true;
                 self.index
-                    .update_both_indexes(&deleted_contact, &IndexUpdateType::Remove);
+                    .update_both_indexes(deleted_contact, &IndexUpdateType::Remove);
                 Ok(())
             }
             None => Err(AppError::NotFound("Contact".to_string())),
@@ -199,7 +197,7 @@ impl Store<'_> {
         thread::scope(|s| {
             for i in 1..=worker_threads {
                 let map1 = Arc::clone(&index);
-                let list1 = Arc::clone(&contact_list);
+                let contact_list = Arc::clone(&contact_list);
 
                 s.spawn(move || -> Result<(), AppError> {
                     let mut local_map: HashMap<String, HashSet<Uuid>> = HashMap::new();
@@ -207,9 +205,7 @@ impl Store<'_> {
                     let (start, end) =
                         allocate_work_size_for_single_thread(i, length, worker_threads);
 
-                    for idx in start..end {
-                        let contact = list1[idx];
-
+                    for contact in &contact_list[start..end] {
                         // All parts of the contact name (seperated by space) is inserted as a new key
                         // To ensure that searching any part of a contact name (not just the first name) will also
                         // provide the expected contact
@@ -255,15 +251,14 @@ impl Store<'_> {
         thread::scope(|s| {
             for i in 1..=worker_threads {
                 let map1 = Arc::clone(&index);
-                let list1 = Arc::clone(&contact_list);
+                let contact_list = Arc::clone(&contact_list);
 
                 s.spawn(move || -> Result<(), AppError> {
                     let mut local_map: HashMap<String, HashSet<Uuid>> = HashMap::new();
                     let (start, end) =
                         allocate_work_size_for_single_thread(i, length, worker_threads);
 
-                    for idx in start..end {
-                        let contact = list1[idx];
+                    for contact in &contact_list[start..end] {
                         let email_parts: Vec<&str> = contact.email.split('@').collect();
                         let domain = email_parts[email_parts.len() - 1].to_string();
 
@@ -359,7 +354,6 @@ impl Store<'_> {
         let mut result = result.into_iter().collect::<Vec<(i32, &Contact)>>();
 
         result.sort_by_key(|&(dist, _)| std::cmp::Reverse(dist));
-        // result.reverse();
 
         let result = result
             .iter()
@@ -433,19 +427,6 @@ impl Store<'_> {
     }
 }
 
-// impl<'a> Iterator for JsonIter<'a> {
-//     type Item = &'a Contact;
-
-//     fn next(&mut self) -> Option<Self::Item> {
-//         if self.idx >= self.inner.len() {
-//             return None;
-//         }
-//         let contact = &self.inner[self.idx];
-//         self.idx += 1;
-//         Some(contact)
-//     }
-// }
-
 impl ContactStore for Store<'_> {
     fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
         let txt_contacts = load_txt_contacts(TXT_STORAGE_PATH)?;
@@ -504,7 +485,7 @@ impl ContactStore for Store<'_> {
     }
 }
 
-pub fn determine_num_of_workers_thread_for_a_work_size(work_length: usize) -> usize {
+fn determine_num_of_workers_thread_for_a_work_size(work_length: usize) -> usize {
     if work_length < 1 {
         return 0;
     }
@@ -516,7 +497,7 @@ pub fn determine_num_of_workers_thread_for_a_work_size(work_length: usize) -> us
         _ => MAX_WORKER_THREADS,
     }
 }
-pub fn allocate_work_size_for_single_thread(
+fn allocate_work_size_for_single_thread(
     current_thread: usize,
     total_work_length: usize,
     total_workers_thread: usize,
@@ -572,20 +553,28 @@ pub fn load_json_contacts(path: &str) -> Result<HashMap<Uuid, Contact>, AppError
         return Ok(HashMap::new());
     }
 
-    // New feature: Contacts are now stored in HashMap.
-    // Try if new feature has been effected
-    if let Ok(contacts) = serde_json::from_str::<HashMap<Uuid, Contact>>(&data) {
-        return Ok(contacts);
+    let value: Value = serde_json::from_str(&data)?;
+
+    // New Format: Contacts are now stored in HashMap.
+    // Try if new format has been effected
+    if value.is_object() {
+        let contacts: HashMap<Uuid, Contact> = serde_json::from_value(value)?;
+        Ok(contacts)
+    } else if value.is_array() {
+        // Old Format: Contacts were stored in Vec
+        let contacts: Vec<Contact> = serde_json::from_value(value)?;
+
+        // Convert Vec to HashMap for new feature backward compatibility
+        let mapped_contacts = contacts
+            .into_iter()
+            .map(|cont| (cont.id, cont))
+            .collect::<HashMap<Uuid, Contact>>();
+        Ok(mapped_contacts)
+    } else {
+        Err(AppError::Validation(
+            "Invalid JSON structure: expected object or array".to_string(),
+        ))
     }
-
-    let contacts: Vec<Contact> = serde_json::from_str(&data)?;
-
-    // Convert Vec to HashMap for new feature backward compatibility
-    let mapped_contacts = contacts
-        .into_iter()
-        .map(|cont| (cont.id, cont))
-        .collect::<HashMap<Uuid, Contact>>();
-    Ok(mapped_contacts)
 }
 
 #[cfg(test)]
@@ -670,24 +659,15 @@ mod tests {
         let index = storage
             .get_ids_by_name(&"Uche".to_string())
             .unwrap_or_default();
-        storage.delete_contact(&index[0])?;
+        storage.delete_contact(&index[0])?; // delete contact1 (Soft delete)
         storage.save(&storage.mem)?;
 
         storage.mem.clear();
         storage.mem = storage.load()?;
         storage.index = Index::new(&storage)?;
 
-        assert_eq!(storage.mem.len(), 1);
-
-        assert_ne!(
-            *storage.contact_list()[0],
-            Contact::new(
-                "Uche".to_string(),
-                "01234567890".to_string(),
-                "ucheuche@gmail.com".to_string(),
-                "".to_string(),
-            )
-        );
+        assert_eq!(storage.mem.len(), 2); // contact is soft deleted
+        assert!(storage.mem.get(&index[0]).unwrap().deleted);
 
         storage.mem.clear();
         storage.save(&storage.mem)?;
@@ -709,6 +689,7 @@ mod tests {
             phone: "01234567890".to_string(),
             email: "ucheuche@gmail.com".to_string(),
             tag: "".to_string(),
+            deleted: false,
             created_at: created.clone(),
             updated_at: created.clone(),
         };
@@ -719,6 +700,7 @@ mod tests {
             phone: "01234567890".to_string(),
             email: "".to_string(),
             tag: "".to_string(),
+            deleted: false,
             created_at: created.clone(),
             updated_at: created.clone(),
         };
@@ -759,20 +741,9 @@ mod tests {
         storage.mem = storage.load()?;
         storage.index = Index::new(&storage)?;
 
-        assert_eq!(storage.mem.len(), 1);
+        assert_eq!(storage.mem.len(), 2); // contact is soft deleted
 
-        assert_ne!(
-            *storage.contact_list()[0],
-            Contact {
-                id: id_1,
-                name: "Uche".to_string(),
-                phone: "01234567890".to_string(),
-                email: "ucheuche@gmail.com".to_string(),
-                tag: "".to_string(),
-                created_at: created.clone(),
-                updated_at: created.clone(),
-            }
-        );
+        assert!(storage.mem.get(&id_1).unwrap().deleted);
 
         storage.mem.clear();
         storage.save(&storage.mem)?;

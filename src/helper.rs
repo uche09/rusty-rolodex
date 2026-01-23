@@ -20,6 +20,7 @@ pub fn serialize_contacts(contacts: &HashMap<Uuid, Contact>) -> String {
         phone: {}\n\
         email: {}\n\
         tag: {}\n\
+        deleted: {}\n\
         created_at: {}\n\
         updated_at: {}\n\
         }}\n",
@@ -28,6 +29,7 @@ pub fn serialize_contacts(contacts: &HashMap<Uuid, Contact>) -> String {
             contact.phone,
             contact.email,
             contact.tag,
+            contact.deleted,
             created_at_str,
             updated_at_str,
         );
@@ -55,6 +57,7 @@ pub fn deserialize_contacts_from_txt_buffer(
         phone: "".to_string(),
         email: "".to_string(),
         tag: "".to_string(),
+        deleted: false,
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
@@ -64,6 +67,7 @@ pub fn deserialize_contacts_from_txt_buffer(
     let mut phone = "".to_string();
     let mut email = "".to_string();
     let mut tag: String = "".to_string();
+    let mut deleted = false;
     let mut created_at = Utc::now();
     let mut updated_at = Utc::now();
 
@@ -89,6 +93,7 @@ pub fn deserialize_contacts_from_txt_buffer(
                 phone: phone.clone(),
                 email: email.clone(),
                 tag: tag.clone(),
+                deleted,
                 created_at,
                 updated_at,
             };
@@ -101,6 +106,15 @@ pub fn deserialize_contacts_from_txt_buffer(
 
             if let Ok(temp) = parse_result {
                 id = temp;
+                continue;
+            }
+        }
+
+        if key == Some("deleted") {
+            let bool_value = value.parse::<bool>();
+
+            if let Ok(temp) = bool_value {
+                deleted = temp;
                 continue;
             }
         }
@@ -186,6 +200,7 @@ mod tests {
             phone: "012345678901".to_string(),
             email: "ucheuche@gmail.com".to_string(),
             tag: "".to_string(),
+            deleted: false,
             created_at: dt_now.clone(),
             updated_at: dt_now.clone(),
         };
@@ -204,6 +219,7 @@ mod tests {
                 phone: 012345678901\n\
                 email: ucheuche@gmail.com\n\
                 tag: \n\
+                deleted: false\n\
                 created_at: {}\n\
                 updated_at: {}\n\
             }}\n",
