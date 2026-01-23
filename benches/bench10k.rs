@@ -7,7 +7,6 @@ use rand::{Rng, SeedableRng};
 use rusty_rolodex::prelude::{
     Contact, ContactStore, Store, contact,
     store::filestore::{Index, IndexUpdateType},
-    uuid::Uuid,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -64,10 +63,8 @@ fn make_store_with_n<'a>(n: usize) -> Store<'a> {
     ];
 
     let mut storage = Store::new().expect("Store not created");
-    let created_at = contact::Utc::now();
     storage.mem = (0..n)
         .map(|_| {
-            let id = Uuid::new_v4();
             let first = first_names[rng.gen_range(0..first_names.len())];
             let last = last_names[rng.gen_range(0..last_names.len())];
             let name = format!("{} {}", first, last);
@@ -80,16 +77,9 @@ fn make_store_with_n<'a>(n: usize) -> Store<'a> {
             );
             let phone = format!("{:010}", rng.gen_range(1000000000..9999999999u64)); // Random 10-digit phone
             let tag = tags[rng.gen_range(0..tags.len())].to_string();
-            let contact = Contact {
-                id,
-                name,
-                phone,
-                email,
-                tag,
-                created_at: created_at.clone(),
-                updated_at: created_at.clone(),
-            };
-            (id, contact)
+            let contact = Contact::new(name, phone, email, tag);
+
+            (contact.id, contact)
         })
         .collect();
     storage.index = Index::new(&storage).expect("index build");

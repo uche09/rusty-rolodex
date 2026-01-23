@@ -80,14 +80,12 @@ pub fn run_app() -> Result<(), AppError> {
                     .mem
                     .iter()
                     .filter_map(|(_, cont)| {
-                        if cont.tag.to_lowercase() == tag.to_lowercase() {
+                        if cont.tag.to_lowercase() == tag.to_lowercase() && !cont.deleted {
                             Some(cont)
                         } else {
                             None
                         }
                     })
-                    // .filter(|&c| c.tag.to_lowercase() == tag.to_lowercase())
-                    // .map(|c| *c)
                     .collect();
             } else {
                 contact_list = storage.contact_list();
@@ -99,21 +97,17 @@ pub fn run_app() -> Result<(), AppError> {
             }
             if let Some(key) = sort {
                 match key {
-                    SortKey::Name => contact_list
-                        .sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase())),
-                    SortKey::Email => contact_list
-                        .sort_by(|a, b| a.email.to_lowercase().cmp(&b.email.to_lowercase())),
-                    SortKey::Created => {
-                        contact_list.sort_by(|a, b| a.created_at.cmp(&b.created_at))
+                    SortKey::Name => {
+                        contact_list.sort_by(|a, b| parse_list_order(reverse, &a.name, &b.name))
                     }
-                    SortKey::Updated => {
-                        contact_list.sort_by(|a, b| a.updated_at.cmp(&b.updated_at))
+                    SortKey::Email => {
+                        contact_list.sort_by(|a, b| parse_list_order(reverse, &a.email, &b.email))
                     }
+                    SortKey::Created => contact_list
+                        .sort_by(|a, b| parse_list_order(reverse, &a.created_at, &b.created_at)),
+                    SortKey::Updated => contact_list
+                        .sort_by(|a, b| parse_list_order(reverse, &a.updated_at, &b.updated_at)),
                 }
-            }
-
-            if reverse {
-                contact_list.reverse();
             }
 
             for (mut i, c) in contact_list.iter().enumerate() {
@@ -332,4 +326,9 @@ pub fn run_app() -> Result<(), AppError> {
             Ok(())
         }
     }
+}
+
+fn parse_list_order<T: std::cmp::Ord>(reverse: bool, a: T, b: T) -> std::cmp::Ordering {
+    let cmp = a.cmp(&b);
+    if reverse { cmp.reverse() } else { cmp }
 }
