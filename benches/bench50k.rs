@@ -4,15 +4,12 @@ use std::hint::black_box;
 
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use rusty_rolodex::prelude::{
-    Contact, ContactStore, Store, contact,
-    store::filestore::{Index, IndexUpdateType},
-};
+use rusty_rolodex::prelude::{Contact, ContactManager, contact, manager::IndexUpdateType};
 use std::fs;
 use std::path::PathBuf;
 use uuid::Uuid as BenchUuid;
 
-fn make_store_with_n<'a>(n: usize) -> Store<'a> {
+fn make_store_with_n(n: usize) -> ContactManager {
     let mut rng = StdRng::seed_from_u64(42); // Seeded for reproducibility in benchmarks
 
     // Randomized and more realistic data pools
@@ -62,7 +59,7 @@ fn make_store_with_n<'a>(n: usize) -> Store<'a> {
         "",
     ];
 
-    let mut storage = Store::new().expect("Store not created");
+    let mut storage = ContactManager::new().expect("Store not created");
     storage.mem = (0..n)
         .map(|_| {
             let first = first_names[rng.gen_range(0..first_names.len())];
@@ -82,7 +79,7 @@ fn make_store_with_n<'a>(n: usize) -> Store<'a> {
             (contact.id, contact)
         })
         .collect();
-    storage.index = Index::new(&storage).expect("index build");
+    // storage.index = Index::new(&storage).expect("index build");
     storage
 }
 
@@ -280,7 +277,7 @@ fn bench_save_store_json(c: &mut Criterion) {
             },
             |(storage, base)| {
                 // Measured: call Store::save (timed)
-                let _ = storage.save(&storage.mem);
+                let _ = storage.save();
 
                 // Restore original cwd (robustly) BEFORE removing temp dir
                 restore_to_manifest();
@@ -311,7 +308,7 @@ fn bench_read_store_json(c: &mut Criterion) {
 
                 // Build and save the store so there's something to load
                 let storage = make_store_with_n(50_000);
-                storage.save(&storage.mem).expect("setup save failed");
+                storage.save().expect("setup save failed");
 
                 // restore cwd so setup leaves global state clean; measured closure will chdir into base
                 std::env::set_current_dir(&original_cwd).expect("restore cwd after setup");
@@ -326,8 +323,8 @@ fn bench_read_store_json(c: &mut Criterion) {
                 }
 
                 // Create a Store instance that picks up JSON path via env var/current dir
-                let store = Store::new().expect("failed to create store for load");
-                let _ = store.load();
+                let mut manager = ContactManager::new().expect("failed to create store for load");
+                let _ = manager.load();
 
                 // Restore cwd to manifest dir BEFORE removing tempdir
                 restore_to_manifest();
@@ -357,7 +354,7 @@ fn bench_save_store_txt(c: &mut Criterion) {
                 (storage, base)
             },
             |(storage, base)| {
-                let _ = storage.save(&storage.mem);
+                let _ = storage.save();
 
                 // Restore original cwd (robustly) BEFORE removing temp dir
                 restore_to_manifest();
@@ -385,7 +382,7 @@ fn bench_read_store_txt(c: &mut Criterion) {
                 }
 
                 let storage = make_store_with_n(50_000);
-                storage.save(&storage.mem).expect("setup save failed");
+                storage.save().expect("setup save failed");
 
                 std::env::set_current_dir(&original_cwd).expect("restore cwd after setup");
 
@@ -394,8 +391,8 @@ fn bench_read_store_txt(c: &mut Criterion) {
             |base| {
                 std::env::set_current_dir(&base).expect("chdir into tempdir for read");
 
-                let store = Store::new().expect("failed to create store for load");
-                let _ = store.load();
+                let mut manager = ContactManager::new().expect("failed to create store for load");
+                let _ = manager.load();
 
                 // Restore original to manifest dir BEFORE removing temp dir
                 restore_to_manifest();

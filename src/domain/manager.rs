@@ -1,28 +1,20 @@
 use super::*;
 
-use crate::helper;
 use rust_fuzzy_search::fuzzy_compare;
-use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
     thread,
 };
+use stores::{CsvStorage, JsonStorage, TxtStorage};
 
-pub const JSON_STORAGE_PATH: &str = "./.instance/contacts.json";
-pub const TXT_STORAGE_PATH: &str = "./.instance/contacts.txt";
 const MAX_WORKER_THREADS: usize = 5;
 
-pub struct Store<'a> {
+pub struct ContactManager {
     pub mem: HashMap<Uuid, Contact>,
-    pub path: &'a str,
+    pub storage: Box<dyn ContactStore>,
     pub index: Index,
 }
-
-// pub struct JsonIter<'a> {
-//     inner: &'a [Contact],
-//     idx: usize,
-// }
 
 #[derive(Debug)]
 pub struct Index {
@@ -36,7 +28,7 @@ pub enum IndexUpdateType {
 }
 
 impl Index {
-    pub fn new(storage: &Store) -> Result<Self, AppError> {
+    pub fn new(storage: &ContactManager) -> Result<Self, AppError> {
         let mut index = Self {
             name: storage.create_name_search_index()?,
             domain: storage.create_email_domain_search_index()?,
@@ -111,22 +103,27 @@ impl Index {
     }
 }
 
-impl Store<'_> {
+impl ContactManager {
     pub fn new() -> Result<Self, AppError> {
-        let path = match parse_storage_choice() {
-            StoreChoice::Json => JSON_STORAGE_PATH,
-            StoreChoice::Txt => TXT_STORAGE_PATH,
-        };
-        create_file_parent(path)?;
+        let storage = storage::parse_storage_type()?;
 
-        Ok(Self {
+        let mut manager = Self {
             mem: HashMap::new(),
-            path,
+            storage,
             index: Index {
                 name: HashMap::new(),
                 domain: HashMap::new(),
             },
-        })
+        };
+        manager.load()?;
+        manager.index = Index::new(&manager)?;
+
+        if manager.storage.get_medium() == "txt" {
+            manager.migrate_from_storage(&JsonStorage::new()?)?;
+        } else {
+            manager.migrate_from_storage(&TxtStorage::new()?)?;
+        }
+        Ok(manager)
     }
 
     pub fn contact_list(&self) -> Vec<&Contact> {
@@ -180,6 +177,37 @@ impl Store<'_> {
             }
             None => Err(AppError::NotFound("Contact".to_string())),
         }
+    }
+    pub fn migrate_from_storage(&mut self, storage: &dyn ContactStore) -> Result<(), AppError> {
+        let contacts = storage.load()?;
+
+        for contact in contacts.values() {
+            self.index
+                .update_both_indexes(contact, &IndexUpdateType::Add);
+            self.mem.insert(contact.id, contact.clone());
+        }
+
+        Ok(())
+    }
+
+    pub fn load(&mut self) -> Result<(), AppError> {
+        self.mem = self.storage.load()?;
+        Ok(())
+    }
+
+    pub fn save(&self) -> Result<(), AppError> {
+        self.storage.save(&self.mem)
+    }
+
+    pub fn import_contacts_from_csv(&mut self, path: Option<&str>) -> Result<(), AppError> {
+        self.migrate_from_storage(&CsvStorage::new(path, None)?)?;
+        Ok(())
+    }
+
+    pub fn export_contacts_to_csv(&self, path: Option<&str>) -> Result<(), AppError> {
+        let storage = CsvStorage::new(None, path)?;
+        storage.save(&self.mem)?;
+        Ok(())
     }
 
     pub fn create_name_search_index(&self) -> Result<HashMap<String, HashSet<Uuid>>, AppError> {
@@ -378,6 +406,11 @@ impl Store<'_> {
 
         let index = &self.index;
 
+        // using &self in thread produces and error:
+        // "`(dyn store::ContactStore + 'static)` cannot be shared between threads safely" because of storage field
+        // Hence I try to borrow the data will be using from self below, instead of using self in thread
+        let contacts_map = Arc::new(&self.mem);
+
         let default_set: HashSet<Uuid> = HashSet::new();
 
         let ids_as_set = index.domain.get(domain).unwrap_or(&default_set);
@@ -395,6 +428,7 @@ impl Store<'_> {
         thread::scope(|s| {
             for i in 1..=worker_threads {
                 let match1 = Arc::clone(&fuzzy_match);
+                let contacts_map = Arc::clone(&contacts_map);
                 let uuids = Arc::clone(&index_match);
 
                 s.spawn(move || -> Result<(), AppError> {
@@ -403,7 +437,7 @@ impl Store<'_> {
                     let mut local_set: HashSet<&Contact> = HashSet::new();
 
                     for &id in &uuids[start..end] {
-                        if let Some(contact) = self.mem.get(id) {
+                        if let Some(contact) = contacts_map.get(id) {
                             local_set.insert(contact);
                         }
                     }
@@ -424,64 +458,6 @@ impl Store<'_> {
             .unwrap_or_default()
             .into_inner()?;
         Ok(result)
-    }
-}
-
-impl ContactStore for Store<'_> {
-    fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
-        let txt_contacts = load_txt_contacts(TXT_STORAGE_PATH)?;
-        let mut json_contacts = load_json_contacts(JSON_STORAGE_PATH)?;
-        let storage_choice = parse_storage_choice();
-
-        if storage_choice.is_json() && txt_contacts.is_empty() {
-            return Ok(json_contacts);
-        }
-
-        if storage_choice.is_txt() && json_contacts.is_empty() {
-            return Ok(txt_contacts);
-        }
-
-        json_contacts.extend(txt_contacts);
-
-        Ok(json_contacts)
-    }
-
-    fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
-        let path = Path::new(&self.path);
-        if !path.exists() {
-            create_file_parent(self.path)?;
-            // let _file = OpenOptions::new()
-            //     .write(true)
-            //     .create(true)
-            //     .truncate(true)
-            //     .open(path)?;
-        }
-
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(path)?;
-
-        if parse_storage_choice().is_txt() {
-            // use our helper to serialize data for txt file
-            let data = helper::serialize_contacts(contacts);
-            file.write_all(data.as_bytes())?;
-
-            if fs::exists(Path::new(JSON_STORAGE_PATH))? {
-                fs::remove_file(Path::new(JSON_STORAGE_PATH))?;
-            }
-        } else {
-            // user serde to serialize json data
-            let json_contact = serde_json::to_string(&contacts)?;
-            file.write_all(json_contact.as_bytes())?;
-
-            if fs::exists(Path::new(TXT_STORAGE_PATH))? {
-                fs::remove_file(Path::new(TXT_STORAGE_PATH))?;
-            }
-        }
-
-        Ok(())
     }
 }
 
@@ -516,66 +492,6 @@ fn allocate_work_size_for_single_thread(
 
     (start, end)
 }
-pub fn load_txt_contacts(path: &str) -> Result<HashMap<Uuid, Contact>, AppError> {
-    if !fs::exists(Path::new(path))? {
-        return Ok(HashMap::new());
-    }
-    // Read text fom file
-    // Using OpenOptions to open file if already exist
-    // Or create one
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .truncate(false)
-        .create(true)
-        .open(path)?;
-    let reader = BufReader::new(file);
-    let contacts = helper::deserialize_contacts_from_txt_buffer(reader)?;
-    Ok(contacts)
-}
-
-pub fn load_json_contacts(path: &str) -> Result<HashMap<Uuid, Contact>, AppError> {
-    if !fs::exists(Path::new(path))? {
-        return Ok(HashMap::new());
-    }
-    let mut file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .truncate(false)
-        .create(true)
-        .open(path)?;
-
-    let mut data = String::new();
-    file.read_to_string(&mut data)?;
-
-    // serde_json will give an error if data is empty
-    if data.is_empty() {
-        return Ok(HashMap::new());
-    }
-
-    let value: Value = serde_json::from_str(&data)?;
-
-    // New Format: Contacts are now stored in HashMap.
-    // Try if new format has been effected
-    if value.is_object() {
-        let contacts: HashMap<Uuid, Contact> = serde_json::from_value(value)?;
-        Ok(contacts)
-    } else if value.is_array() {
-        // Old Format: Contacts were stored in Vec
-        let contacts: Vec<Contact> = serde_json::from_value(value)?;
-
-        // Convert Vec to HashMap for new feature backward compatibility
-        let mapped_contacts = contacts
-            .into_iter()
-            .map(|cont| (cont.id, cont))
-            .collect::<HashMap<Uuid, Contact>>();
-        Ok(mapped_contacts)
-    } else {
-        Err(AppError::Validation(
-            "Invalid JSON structure: expected object or array".to_string(),
-        ))
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -585,9 +501,10 @@ mod tests {
 
     #[test]
     fn adds_persistent_contact_with_txt() -> Result<(), AppError> {
-        let mut storage = Store {
+        let storage_backend = Box::new(TxtStorage::new()?);
+        let mut storage = ContactManager {
             mem: HashMap::new(),
-            path: TXT_STORAGE_PATH,
+            storage: storage_backend,
             index: Index {
                 name: HashMap::new(),
                 domain: HashMap::new(),
@@ -602,9 +519,9 @@ mod tests {
         );
 
         storage.add_contact(new_contact);
-        storage.save(&storage.mem)?;
+        storage.save()?;
         storage.mem.clear();
-        storage.mem = storage.load()?;
+        storage.load()?;
         storage.index = Index::new(&storage)?;
 
         assert_eq!(
@@ -618,15 +535,16 @@ mod tests {
         );
 
         storage.mem.clear();
-        storage.save(&storage.mem)?;
+        storage.save()?;
         Ok(())
     }
 
     #[test]
     fn delete_persistent_contact_with_txt() -> Result<(), AppError> {
-        let mut storage = Store {
+        let storage_backend = Box::new(TxtStorage::new()?);
+        let mut storage = ContactManager {
             mem: HashMap::new(),
-            path: TXT_STORAGE_PATH,
+            storage: storage_backend,
             index: Index {
                 name: HashMap::new(),
                 domain: HashMap::new(),
@@ -650,34 +568,34 @@ mod tests {
         storage.add_contact(contact1);
         storage.add_contact(contact2);
 
-        storage.save(&storage.mem)?;
+        storage.save()?;
         storage.mem.clear();
 
-        storage.mem = storage.load()?;
+        storage.load()?;
         storage.index = Index::new(&storage)?;
 
         let index = storage
             .get_ids_by_name(&"Uche".to_string())
             .unwrap_or_default();
         storage.delete_contact(&index[0])?; // delete contact1 (Soft delete)
-        storage.save(&storage.mem)?;
+        storage.save()?;
 
         storage.mem.clear();
-        storage.mem = storage.load()?;
+        storage.load()?;
         storage.index = Index::new(&storage)?;
 
         assert_eq!(storage.mem.len(), 2); // contact is soft deleted
         assert!(storage.mem.get(&index[0]).unwrap().deleted);
 
         storage.mem.clear();
-        storage.save(&storage.mem)?;
+        storage.save()?;
 
         Ok(())
     }
 
     #[test]
     fn json_store_is_persistent() -> Result<(), AppError> {
-        let mut storage = Store::new()?;
+        let mut storage = ContactManager::new()?;
 
         let created = Utc::now();
         let id_1 = Uuid::new_v4();
@@ -708,10 +626,10 @@ mod tests {
         storage.add_contact(contact1);
         storage.add_contact(contact2);
 
-        storage.save(&storage.mem)?;
+        storage.save()?;
         storage.mem.clear();
 
-        storage.mem = storage.load()?;
+        storage.load()?;
         storage.index = Index::new(&storage)?;
 
         assert_eq!(
@@ -735,10 +653,10 @@ mod tests {
         );
 
         storage.delete_contact(&id_1)?;
-        storage.save(&storage.mem)?;
+        storage.save()?;
 
         storage.mem.clear();
-        storage.mem = storage.load()?;
+        storage.load()?;
         storage.index = Index::new(&storage)?;
 
         assert_eq!(storage.mem.len(), 2); // contact is soft deleted
@@ -746,16 +664,16 @@ mod tests {
         assert!(storage.mem.get(&id_1).unwrap().deleted);
 
         storage.mem.clear();
-        storage.save(&storage.mem)?;
+        storage.save()?;
 
         Ok(())
     }
 
     #[test]
     fn migrates_contact() -> Result<(), AppError> {
-        let mut txt_store = Store {
+        let mut txt_store = ContactManager {
             mem: HashMap::new(),
-            path: TXT_STORAGE_PATH,
+            storage: Box::new(TxtStorage::new()?),
             index: Index {
                 name: HashMap::new(),
                 domain: HashMap::new(),
@@ -778,18 +696,18 @@ mod tests {
         );
 
         txt_store.add_contact(contact1);
-        txt_store.save(&txt_store.mem)?;
+        txt_store.save()?;
         txt_store.mem.clear();
 
-        let mut json_store = Store::new()?;
+        let mut json_store = ContactManager::new()?;
 
-        json_store.mem = json_store.load()?;
+        // json_store.mem = json_store.load()?;
 
         json_store.add_contact(contact2);
-        json_store.save(&json_store.mem)?;
+        json_store.save()?;
         json_store.mem.clear();
 
-        json_store.mem = json_store.load()?;
+        json_store.load()?;
         let contact_list = json_store.contact_list();
 
         assert!(contact_list.len() == 2);
@@ -809,17 +727,17 @@ mod tests {
         )));
 
         json_store.mem.clear();
-        json_store.save(&json_store.mem)?;
+        json_store.save()?;
 
         txt_store.mem.clear();
-        txt_store.save(&txt_store.mem)?;
+        txt_store.save()?;
 
         Ok(())
     }
 
     #[test]
     fn index_updates_on_add_and_delete() -> Result<(), AppError> {
-        let mut store = Store::new()?;
+        let mut store = ContactManager::new()?;
 
         let contact1 = Contact::new(
             "Uche".to_string(),
@@ -867,7 +785,7 @@ mod tests {
 
     #[test]
     fn index_updates_on_edit() -> Result<(), AppError> {
-        let mut store = Store::new()?;
+        let mut store = ContactManager::new()?;
 
         let contact = Contact::new(
             "John Doe".to_string(),
@@ -937,7 +855,7 @@ mod tests {
 
     #[test]
     fn fuzzy_search_name_matches_on_partial() -> Result<(), AppError> {
-        let mut store = Store::new()?;
+        let mut store = ContactManager::new()?;
 
         let contact = Contact::new(
             "Uche Johnson".to_string(),
@@ -964,7 +882,7 @@ mod tests {
 
     #[test]
     fn fuzzy_search_email_domain_returns_contact() -> Result<(), AppError> {
-        let mut store = Store::new()?;
+        let mut store = ContactManager::new()?;
 
         let contact = Contact::new(
             "Alice".to_string(),
