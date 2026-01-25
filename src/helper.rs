@@ -183,8 +183,7 @@ pub fn deserialize_contacts_from_txt_buffer(
 #[cfg(test)]
 
 mod tests {
-    use crate::prelude::ContactStore;
-    use crate::store::filestore::Store;
+    use crate::prelude::ContactManager;
 
     use super::*;
     use std::env;
@@ -239,7 +238,7 @@ mod tests {
             env::set_var("STORAGE_CHOICE", "txt");
         }
 
-        let mut storage = Store::new()?;
+        let mut storage = ContactManager::new()?;
 
         let contact1 = Contact::new(
             "Uche".to_string(),
@@ -261,9 +260,9 @@ mod tests {
         storage.mem.insert(contact1.id.clone(), contact1);
         storage.mem.insert(contact2.id.clone(), contact2);
 
-        storage.save(&storage.mem)?;
+        storage.save()?;
         storage.mem.clear();
-        storage.mem = storage.load()?;
+        storage.load()?;
 
         assert_eq!(
             storage.mem.get(&id_1).unwrap(),
@@ -286,7 +285,7 @@ mod tests {
         );
 
         storage.mem.clear();
-        storage.save(&storage.mem)?;
+        storage.save()?;
         Ok(())
     }
 }

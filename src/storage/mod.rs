@@ -1,6 +1,5 @@
-pub mod filestore;
 pub mod memory;
-pub mod storage_port;
+pub mod stores;
 
 use crate::prelude::{AppError, Contact, HashMap, uuid::Uuid};
 use dotenv::dotenv;
@@ -12,6 +11,8 @@ pub trait ContactStore {
     fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError>;
 
     fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError>;
+
+    fn get_medium(&self) -> &str;
 }
 
 #[derive(Debug)]
@@ -41,6 +42,13 @@ pub fn parse_storage_choice() -> StoreChoice {
     match choice.to_lowercase().as_str() {
         "json" => StoreChoice::Json,
         _ => StoreChoice::Txt,
+    }
+}
+
+pub fn parse_storage_type() -> Result<Box<dyn ContactStore>, AppError> {
+    match parse_storage_choice() {
+        StoreChoice::Json => Ok(Box::new(stores::JsonStorage::new()?)),
+        StoreChoice::Txt => Ok(Box::new(stores::TxtStorage::new()?)),
     }
 }
 
