@@ -5,6 +5,16 @@ pub use chrono::{DateTime, Utc};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize};
 
+
+
+pub const NAME_REQ_MESSAGE: &str = "Name must begin with alphabet, may contain spaces, dot, hyphen, and apostrophe between alphabets \
+                                and may end with number or alphabet. Name must not exceed 50 characters";
+
+pub const PHONE_REQ_MESSAGE: &str = "Number must contain 10 to 15 digits, may begin with + and all digits";
+
+pub const EMAIL_REQ_MESSAGE: &str = "Email can be empty, or must be a valid email. Must not exceed 254 characters";
+
+
 #[derive(Debug, Serialize, Deserialize, PartialOrd, Ord, Clone)]
 pub struct Contact {
     #[serde(default = "Uuid::new_v4")] // For backward compatibility with contacts without id.
@@ -32,26 +42,6 @@ pub struct Contact {
         deserialize_with = "deserialize_timestamp"
     )]
     pub updated_at: DateTime<Utc>,
-}
-
-pub enum ValidationReq {
-    __,
-}
-
-impl ValidationReq {
-    pub fn name_req() -> String {
-        "Name must begin with alphabet, may contain spaces, dot, hyphen, and apostrophe between alphabets \
-        and may end with number or alphabet. Name must not exceed 50 characters"
-        .to_string()
-    }
-
-    pub fn phone_req() -> String {
-        "Number must contain 10 to 15 digits, may begin with + and all digits".to_string()
-    }
-
-    pub fn email_req() -> String {
-        "Email can be empty, or must be a valid email. Must not exceed 254 characters".to_string()
-    }
 }
 
 impl Contact {
@@ -94,13 +84,17 @@ impl Contact {
 
     pub fn already_exist(&self, contactlist: &[&Contact]) -> bool {
         // Check if contact alread exist in contactlist
-        contactlist.iter().any(|cont| cont == &self)
+        contactlist.iter().any(|cont| !cont.deleted && cont == &self)
     }
 }
 
 impl PartialEq for Contact {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && phone_number_matches(&self.phone, &other.phone)
+        self.name == other.name 
+        && 
+        phone_number_matches(&self.phone, &other.phone)
+        &&
+        self.id == other.id
     }
 }
 
@@ -108,6 +102,7 @@ impl Eq for Contact {}
 
 impl Hash for Contact {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
         self.name.hash(state);
         self.phone.hash(state);
     }
