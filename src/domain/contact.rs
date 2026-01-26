@@ -5,15 +5,14 @@ pub use chrono::{DateTime, Utc};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize};
 
-
-
 pub const NAME_REQ_MESSAGE: &str = "Name must begin with alphabet, may contain spaces, dot, hyphen, and apostrophe between alphabets \
                                 and may end with number or alphabet. Name must not exceed 50 characters";
 
-pub const PHONE_REQ_MESSAGE: &str = "Number must contain 10 to 15 digits, may begin with + and all digits";
+pub const PHONE_REQ_MESSAGE: &str =
+    "Number must contain 10 to 15 digits, may begin with + and all digits";
 
-pub const EMAIL_REQ_MESSAGE: &str = "Email can be empty, or must be a valid email. Must not exceed 254 characters";
-
+pub const EMAIL_REQ_MESSAGE: &str =
+    "Email can be empty, or must be a valid email. Must not exceed 254 characters";
 
 #[derive(Debug, Serialize, Deserialize, PartialOrd, Ord, Clone)]
 pub struct Contact {
@@ -84,17 +83,17 @@ impl Contact {
 
     pub fn already_exist(&self, contactlist: &[&Contact]) -> bool {
         // Check if contact alread exist in contactlist
-        contactlist.iter().any(|cont| !cont.deleted && cont == &self)
+        contactlist
+            .iter()
+            .any(|cont| !cont.deleted && cont == &self)
     }
 }
 
 impl PartialEq for Contact {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name 
-        && 
-        phone_number_matches(&self.phone, &other.phone)
-        &&
-        self.id == other.id
+        self.name == other.name
+            && phone_number_matches(&self.phone, &other.phone)
+            || self.id == other.id
     }
 }
 

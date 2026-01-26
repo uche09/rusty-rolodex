@@ -3,7 +3,7 @@ use crate::{
     prelude::{
         AppError,
         command::{Cli, Commands, SearchKey, SortKey},
-        contact::{Contact, NAME_REQ_MESSAGE, PHONE_REQ_MESSAGE, EMAIL_REQ_MESSAGE},
+        contact::{Contact, EMAIL_REQ_MESSAGE, NAME_REQ_MESSAGE, PHONE_REQ_MESSAGE},
         manager::{ContactManager, IndexUpdateType},
     },
 };
