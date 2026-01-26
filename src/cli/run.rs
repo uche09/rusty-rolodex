@@ -3,7 +3,7 @@ use crate::{
     prelude::{
         AppError,
         command::{Cli, Commands, SearchKey, SortKey},
-        contact::{Contact, ValidationReq},
+        contact::{Contact, EMAIL_REQ_MESSAGE, NAME_REQ_MESSAGE, PHONE_REQ_MESSAGE},
         manager::{ContactManager, IndexUpdateType},
     },
 };
@@ -39,15 +39,15 @@ pub fn run_app() -> Result<(), AppError> {
             );
 
             if !new_contact.validate_name()? {
-                return Err(AppError::Validation(ValidationReq::name_req()));
+                return Err(AppError::Validation(NAME_REQ_MESSAGE.to_string()));
             }
 
             if !new_contact.validate_number()? {
-                return Err(AppError::Validation(ValidationReq::phone_req()));
+                return Err(AppError::Validation(PHONE_REQ_MESSAGE.to_string()));
             }
 
             if !new_contact.validate_email()? {
-                return Err(AppError::Validation(ValidationReq::email_req()));
+                return Err(AppError::Validation(EMAIL_REQ_MESSAGE.to_string()));
             }
 
             if new_contact.already_exist(&manager.contact_list()[0..]) {
