@@ -116,6 +116,13 @@ pub enum Commands {
         #[arg(short, long)]
         des: Option<String>,
     },
+
+    /// Synchronize data from an external source file
+    Sync {
+        /// Path to data source
+        #[arg(short, long)]
+        src: String,
+    },
 }
 
 /// Supported sort keys

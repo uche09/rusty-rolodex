@@ -11,6 +11,7 @@ pub enum AppError {
     ParseInt(std::num::ParseIntError),
     Poison(String),
     RegexError(regex::Error),
+    Synchronization(String),
     Validation(String),
 }
 
@@ -81,6 +82,9 @@ impl fmt::Display for AppError {
             }
             AppError::RegexError(e) => {
                 write!(f, "Regex failed: {}", e)
+            }
+            AppError::Synchronization(msg) => {
+                write!(f, "Synchronization Error: {}", msg)
             }
             AppError::Validation(msg) => {
                 write!(f, "Validation failed: {}", msg)

@@ -16,39 +16,50 @@ pub trait ContactStore {
 }
 
 #[derive(Debug)]
-pub enum StoreChoice {
+pub enum StorageMediums {
     Txt,
     Json,
 }
 
-impl StoreChoice {
+impl StorageMediums {
     pub fn is_json(&self) -> bool {
-        matches!(self, StoreChoice::Json)
+        matches!(self, StorageMediums::Json)
     }
 
     pub fn is_txt(&self) -> bool {
-        matches!(self, StoreChoice::Txt)
+        matches!(self, StorageMediums::Txt)
     }
 
     pub fn is_which(&self) -> &str {
         if self.is_json() { "json" } else { "txt" }
     }
-}
-
-pub fn parse_storage_choice() -> StoreChoice {
-    dotenv().ok();
-
-    let choice = std::env::var("STORAGE_CHOICE").unwrap_or("json".to_string());
-    match choice.to_lowercase().as_str() {
-        "json" => StoreChoice::Json,
-        _ => StoreChoice::Txt,
+    pub fn from(str: &str) -> Result<Self, AppError> {
+        match str {
+            "json" => Ok(StorageMediums::Json),
+            "txt" => Ok(StorageMediums::Txt),
+            _ => Err(AppError::Validation(
+                "Not a recognized storage medium".to_string(),
+            )),
+        }
     }
 }
 
-pub fn parse_storage_type() -> Result<Box<dyn ContactStore>, AppError> {
-    match parse_storage_choice() {
-        StoreChoice::Json => Ok(Box::new(stores::JsonStorage::new()?)),
-        StoreChoice::Txt => Ok(Box::new(stores::TxtStorage::new()?)),
+pub fn parse_storage_type(
+    storage_medium: Option<StorageMediums>,
+) -> Result<Box<dyn ContactStore>, AppError> {
+    let medium: StorageMediums;
+    if let Some(storage_medium) = storage_medium {
+        medium = storage_medium;
+    } else {
+        dotenv().ok();
+
+        let choice = std::env::var("STORAGE_CHOICE").unwrap_or("json".to_string());
+        medium = StorageMediums::from(&choice)?;
+    }
+
+    match medium {
+        StorageMediums::Json => Ok(Box::new(stores::JsonStorage::new()?)),
+        StorageMediums::Txt => Ok(Box::new(stores::TxtStorage::new()?)),
     }
 }
 
