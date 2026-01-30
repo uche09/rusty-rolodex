@@ -91,8 +91,7 @@ impl Contact {
 
 impl PartialEq for Contact {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-            && phone_number_matches(&self.phone, &other.phone)
+        self.name == other.name && phone_number_matches(&self.phone, &other.phone)
             || self.id == other.id
     }
 }
@@ -101,7 +100,6 @@ impl Eq for Contact {}
 
 impl Hash for Contact {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
         self.name.hash(state);
         self.phone.hash(state);
     }
