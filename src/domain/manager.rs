@@ -1,5 +1,6 @@
 use super::*;
 
+use chrono::Utc;
 use rust_fuzzy_search::fuzzy_compare;
 use std::{
     collections::{HashMap, HashSet},
@@ -105,7 +106,7 @@ impl Index {
 
 impl ContactManager {
     pub fn new() -> Result<Self, AppError> {
-        let storage = storage::parse_storage_type()?;
+        let storage = storage::parse_storage_type(None)?;
 
         let mut manager = Self {
             mem: HashMap::new(),
@@ -171,6 +172,7 @@ impl ContactManager {
         match self.mem.get_mut(id) {
             Some(deleted_contact) => {
                 deleted_contact.deleted = true;
+                deleted_contact.updated_at = Utc::now();
                 self.index
                     .update_both_indexes(deleted_contact, &IndexUpdateType::Remove);
                 Ok(())
@@ -207,6 +209,81 @@ impl ContactManager {
     pub fn export_contacts_to_csv(&self, path: Option<&str>) -> Result<(), AppError> {
         let storage = CsvStorage::new(None, path)?;
         storage.save(&self.mem)?;
+        Ok(())
+    }
+
+    pub fn sync_from_storage(&mut self, storage: Box<dyn ContactStore>) -> Result<(), AppError> {
+        let mut remote_contacts = storage.load()?;
+
+        for remote_contact in remote_contacts.values_mut() {
+            // Check if contact exist in local storage
+            if let Some(local_contact) = self.mem.get_mut(&remote_contact.id) {
+                // Confirm contact were created the same time to be sure they are the same
+                if local_contact.created_at != remote_contact.created_at {
+                    return Err(AppError::Synchronization(format!(
+                        "Date conflict for contact:{{{}, {}}}",
+                        remote_contact.name, remote_contact.phone
+                    )));
+                }
+
+                // If local contact has been deleted, ensure remote counterpart is also marked deleted
+                if local_contact.deleted {
+                    remote_contact.updated_at = if !remote_contact.deleted {
+                        Utc::now()
+                    } else {
+                        remote_contact.updated_at
+                    };
+                    remote_contact.deleted = local_contact.deleted;
+                    continue;
+                }
+
+                // If local contact has the latest update, no need to update
+                if local_contact.updated_at >= remote_contact.updated_at {
+                    continue;
+                }
+
+                // Iniquality indicates update in name and/or phone
+                if local_contact != remote_contact {
+                    // Update name and corresponding Index if name has changed
+                    if local_contact.name != remote_contact.name {
+                        self.index
+                            .updated_name_index(local_contact, &IndexUpdateType::Remove);
+                        local_contact.name = remote_contact.name.clone();
+                        self.index
+                            .updated_name_index(local_contact, &IndexUpdateType::Add);
+                    }
+                    local_contact.phone = remote_contact.phone.clone();
+                    local_contact.updated_at = remote_contact.updated_at;
+                }
+
+                // Update email and corresponding Index if email has changed
+                if local_contact.email != remote_contact.email {
+                    self.index
+                        .update_domain_index(local_contact, &IndexUpdateType::Remove);
+                    local_contact.email = remote_contact.email.clone();
+                    self.index
+                        .update_domain_index(local_contact, &IndexUpdateType::Add);
+                }
+
+                local_contact.tag = remote_contact.tag.clone();
+
+                // Handle deletion
+                if remote_contact.deleted {
+                    local_contact.deleted = true;
+                    self.index
+                        .update_both_indexes(local_contact, &IndexUpdateType::Remove);
+                }
+
+                local_contact.updated_at = remote_contact.updated_at;
+            } else {
+                // Ignore duplicate contacts (same name && phone)
+                if self.mem.values().any(|c| c == remote_contact) {
+                    continue;
+                }
+
+                self.add_contact(remote_contact.clone());
+            }
+        }
         Ok(())
     }
 
