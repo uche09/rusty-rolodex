@@ -1,14 +1,16 @@
 use crate::{
     domain::contact,
     prelude::{
-        AppError,
+        AppError, ContactStore,
         command::{Cli, Commands, SearchKey, SortKey},
         contact::{Contact, EMAIL_REQ_MESSAGE, NAME_REQ_MESSAGE, PHONE_REQ_MESSAGE},
         manager::{ContactManager, IndexUpdateType},
+        stores::{JsonStorage, TxtStorage},
     },
+    storage::StorageMediums,
 };
 use clap::Parser;
-use std::{env, process::exit};
+use std::{env, path::PathBuf, process::exit};
 
 pub fn run_app() -> Result<(), AppError> {
     let cli = Cli::parse();
@@ -315,6 +317,50 @@ pub fn run_app() -> Result<(), AppError> {
             manager.export_contacts_to_csv(Some(&file_path))?;
 
             println!("Successfully exported contacts to {:?}.", file_path);
+            Ok(())
+        }
+
+        Commands::Sync { src } => {
+            let path = PathBuf::from(&src);
+            if !path.exists() {
+                return Err(AppError::NotFound("Data source".to_string()));
+            }
+
+            let file_extension = path.extension();
+            if file_extension.is_none() {
+                return Err(AppError::Validation("Can't decode file type".to_string()));
+            }
+
+            let file_extension = file_extension.unwrap();
+            let extension_str = file_extension.to_str();
+            if extension_str.is_none() {
+                return Err(AppError::Validation("Can't decode file type".to_string()));
+            }
+
+            let path = extension_str.unwrap().to_string();
+            let src_medium = StorageMediums::from(&path)?;
+
+            let storage: Box<dyn ContactStore> = match src_medium {
+                StorageMediums::Json => Box::new(JsonStorage {
+                    medium: "json".to_string(),
+                    path,
+                }),
+                StorageMediums::Txt => Box::new(TxtStorage {
+                    medium: "txt".to_string(),
+                    path,
+                }),
+            };
+
+            let base = manager.mem.clone();
+            let sync_status = manager.sync_from_storage(storage);
+
+            if sync_status.is_err() {
+                manager.mem = base;
+                return Err(sync_status.err().unwrap());
+            }
+
+            println!("Contacts synchronized successfully");
+
             Ok(())
         }
     }
