@@ -355,11 +355,15 @@ pub fn run_app() -> Result<(), AppError> {
             let sync_status = manager.sync_from_storage(storage);
 
             if sync_status.is_err() {
-                manager.mem = base;
+                manager.mem = base; // rollback to previous state on error
+                manager.save()?;
+
                 return Err(sync_status.err().unwrap());
             }
 
             println!("Contacts synchronized successfully");
+
+            manager.save()?;
 
             Ok(())
         }
