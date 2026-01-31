@@ -242,8 +242,10 @@ impl ContactManager {
                     continue;
                 }
 
-                // Iniquality indicates update in name and/or phone
-                if local_contact != remote_contact {
+                // Update name and phone if either has changed
+                if local_contact.name != remote_contact.name
+                    || !contact::phone_number_matches(&local_contact.phone, &remote_contact.phone)
+                {
                     // Update name and corresponding Index if name has changed
                     if local_contact.name != remote_contact.name {
                         self.index
