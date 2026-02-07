@@ -31,11 +31,22 @@ impl ContactStore for MockStorage {
     }
 }
 
+fn make_manager() -> Result<ContactManager, AppError> {
+    Ok(ContactManager {
+        mem: HashMap::new(),
+        storage: Box::new(MockStorage::new(HashMap::new())),
+        index: manager::Index {
+            name: HashMap::new(),
+            domain: HashMap::new(),
+        },
+    })
+}
+
 // SCENARIO 1: Same contact edited in two places
 //
 // Laptop: changed phone number
 // Phone: changed email
-// Merge policy: field-by-field, last-write-wins
+// Merge policy: last-write-wins
 
 #[test]
 fn sync_same_contact_different_fields_modified() -> Result<(), AppError> {
@@ -70,16 +81,24 @@ fn sync_same_contact_different_fields_modified() -> Result<(), AppError> {
     phone_version.updated_at = phone_time;
 
     // Local manager
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
     local_manager.add_contact(laptop_version);
 
     // Remote manager
-    let mut remote_manager = ContactManager::new()?;
+    let mut remote_manager = make_manager()?;
     remote_manager.add_contact(phone_version);
 
     // Sync: clone remote.mem into MockStorage
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
-    local_manager.sync_from_storage(Box::new(remote_storage))?;
+    let mut base = local_manager.mem.clone();
+    let sync_status = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(remote_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
+    assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
+    local_manager.mem = base;
+    local_manager.index = manager::Index::new(&local_manager)?;
 
     // Since remote has later timestamp (phone_time > laptop_time),
     // ALL remote fields win (including phone, which reverted)
@@ -128,16 +147,24 @@ fn sync_same_contact_same_field_last_write_wins() -> Result<(), AppError> {
     phone_version.updated_at = phone_time;
 
     // Local manager
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
     local_manager.add_contact(laptop_version);
 
     // Remote manager
-    let mut remote_manager = ContactManager::new()?;
+    let mut remote_manager = make_manager()?;
     remote_manager.add_contact(phone_version);
 
     // Sync: clone remote.mem into MockStorage
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
-    local_manager.sync_from_storage(Box::new(remote_storage))?;
+    let mut base = local_manager.mem.clone();
+    let sync_status = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(remote_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
+    assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
+    local_manager.mem = base;
+    local_manager.index = manager::Index::new(&local_manager)?;
 
     let synced = local_manager.mem.get(&contact_id).unwrap();
     assert_eq!(
@@ -154,7 +181,7 @@ fn sync_same_contact_same_field_last_write_wins() -> Result<(), AppError> {
 
 #[test]
 fn sync_remote_contains_new_contacts() -> Result<(), AppError> {
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
 
     let contact1 = Contact::new(
         "Bob Johnson".to_string(),
@@ -166,7 +193,7 @@ fn sync_remote_contains_new_contacts() -> Result<(), AppError> {
     local_manager.add_contact(contact1.clone());
 
     // Remote manager
-    let mut remote_manager = ContactManager::new()?;
+    let mut remote_manager = make_manager()?;
 
     // Existing contact
     remote_manager.add_contact(contact1);
@@ -196,7 +223,15 @@ fn sync_remote_contains_new_contacts() -> Result<(), AppError> {
     // Before sync: local has 1 contact
     assert_eq!(local_manager.mem.len(), 1);
 
-    local_manager.sync_from_storage(Box::new(remote_storage))?;
+    let mut base = local_manager.mem.clone();
+    let sync_status = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(remote_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
+    assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
+    local_manager.mem = base;
+    local_manager.index = manager::Index::new(&local_manager)?;
 
     // After sync: local should have 3 contacts
     assert_eq!(local_manager.mem.len(), 3);
@@ -225,15 +260,23 @@ fn sync_offline_additions_no_duplicates() -> Result<(), AppError> {
         "friend".to_string(),
     );
 
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
     local_manager.add_contact(same_contact_local);
 
-    let mut remote_manager = ContactManager::new()?;
+    let mut remote_manager = make_manager()?;
     remote_manager.add_contact(same_contact_remote);
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
 
-    local_manager.sync_from_storage(Box::new(remote_storage))?;
+    let mut base = local_manager.mem.clone();
+    let sync_status = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(remote_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
+    assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
+    local_manager.mem = base;
+    local_manager.index = manager::Index::new(&local_manager)?;
 
     // Should still have only 1 contact, not 2
     assert_eq!(
@@ -279,15 +322,22 @@ fn sync_local_delete_remote_edit_delete_wins() -> Result<(), AppError> {
     remote_edited.tag = "personal".to_string(); // Changed
     remote_edited.updated_at = remote_time;
 
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
     local_manager.add_contact(local_deleted);
 
-    let mut remote_manager = ContactManager::new()?;
+    let mut remote_manager = make_manager()?;
     remote_manager.add_contact(remote_edited);
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
-
-    local_manager.sync_from_storage(Box::new(remote_storage))?;
+    let mut base = local_manager.mem.clone();
+    let sync_status = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(remote_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
+    assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
+    local_manager.mem = base;
+    local_manager.index = manager::Index::new(&local_manager)?;
 
     // Verify: Contact should remain deleted
     let contact = local_manager.mem.get(&contact_id).unwrap();
@@ -327,15 +377,22 @@ fn sync_remote_delete_local_edit_remote_delete_wins() -> Result<(), AppError> {
     remote_deleted.deleted = true;
     remote_deleted.updated_at = remote_time;
 
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
     local_manager.add_contact(local_edited);
 
-    let mut remote_manager = ContactManager::new()?;
+    let mut remote_manager = make_manager()?;
     remote_manager.add_contact(remote_deleted);
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
-
-    local_manager.sync_from_storage(Box::new(remote_storage))?;
+    let mut base = local_manager.mem.clone();
+    let sync_status = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(remote_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
+    assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
+    local_manager.mem = base;
+    local_manager.index = manager::Index::new(&local_manager)?;
 
     let contact = local_manager.mem.get(&contact_id).unwrap();
     assert!(
@@ -366,7 +423,7 @@ fn sync_state_unchanged_on_error() -> Result<(), AppError> {
         updated_at: base_time,
     };
 
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
     local_manager.add_contact(local_contact.clone());
 
     // Create remote with contact that has mismatched created_at (will cause sync error)
@@ -381,13 +438,18 @@ fn sync_state_unchanged_on_error() -> Result<(), AppError> {
         updated_at: base_time,
     };
 
-    let mut remote_manager = ContactManager::new()?;
+    let mut remote_manager = make_manager()?;
     remote_manager.add_contact(conflicting_remote);
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
 
     // Sync should fail
-    let result = local_manager.sync_from_storage(Box::new(remote_storage));
+    let mut base = local_manager.mem.clone();
+    let result = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(remote_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
     assert!(result.is_err(), "Sync should fail on timestamp conflict");
 
     // Verify local state unchanged (rollback semantics)
@@ -431,15 +493,22 @@ fn sync_same_timestamps_uses_local() -> Result<(), AppError> {
         updated_at: base_time, // Same updated_at (clock drift)
     };
 
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
     local_manager.add_contact(local_contact);
 
-    let mut remote_manager = ContactManager::new()?;
+    let mut remote_manager = make_manager()?;
     remote_manager.add_contact(remote_contact);
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
-
-    local_manager.sync_from_storage(Box::new(remote_storage))?;
+    let mut base = local_manager.mem.clone();
+    let sync_status = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(remote_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
+    assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
+    local_manager.mem = base;
+    local_manager.index = manager::Index::new(&local_manager)?;
 
     let synced = local_manager.mem.get(&contact_id).unwrap();
     assert_eq!(
@@ -470,15 +539,20 @@ fn sync_created_at_mismatch_detected_as_conflict() -> Result<(), AppError> {
     let mut remote_contact = local_contact.clone();
     remote_contact.created_at = base_time + Duration::hours(1); // Different creation time
 
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
     local_manager.add_contact(local_contact);
 
-    let mut remote_manager = ContactManager::new()?;
+    let mut remote_manager = make_manager()?;
     remote_manager.add_contact(remote_contact);
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
 
-    let result = local_manager.sync_from_storage(Box::new(remote_storage));
+    let mut base = local_manager.mem.clone();
+    let result = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(remote_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
 
     assert!(
         result.is_err(),
@@ -501,7 +575,7 @@ fn sync_created_at_mismatch_detected_as_conflict() -> Result<(), AppError> {
 
 #[test]
 fn sync_ignores_duplicate_by_name_and_phone() -> Result<(), AppError> {
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
 
     // Local has this contact
     let local_contact = Contact::new(
@@ -523,12 +597,19 @@ fn sync_ignores_duplicate_by_name_and_phone() -> Result<(), AppError> {
     );
     let remote_id = remote_contact.id;
 
-    let mut remote_manager = ContactManager::new()?;
+    let mut remote_manager = make_manager()?;
     remote_manager.add_contact(remote_contact);
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
-
-    local_manager.sync_from_storage(Box::new(remote_storage))?;
+    let mut base = local_manager.mem.clone();
+    let sync_status = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(remote_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
+    assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
+    local_manager.mem = base;
+    local_manager.index = manager::Index::new(&local_manager)?;
 
     // Should still have 1 contact (duplicate ignored), not 2
     assert_eq!(
@@ -545,7 +626,7 @@ fn sync_ignores_duplicate_by_name_and_phone() -> Result<(), AppError> {
 
 #[test]
 fn sync_duplicate_detection_requires_name_and_phone_match() -> Result<(), AppError> {
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
 
     let local_contact = Contact::new(
         "Leo Anderson".to_string(),
@@ -574,13 +655,20 @@ fn sync_duplicate_detection_requires_name_and_phone_match() -> Result<(), AppErr
     );
     let _id2 = remote_contact2.id;
 
-    let mut remote_manager = ContactManager::new()?;
+    let mut remote_manager = make_manager()?;
     remote_manager.add_contact(remote_contact1);
     remote_manager.add_contact(remote_contact2);
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
-
-    local_manager.sync_from_storage(Box::new(remote_storage))?;
+    let mut base = local_manager.mem.clone();
+    let sync_status = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(remote_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
+    assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
+    local_manager.mem = base;
+    local_manager.index = manager::Index::new(&local_manager)?;
 
     // Should have 3 contacts (original + 2 new ones, since they don't fully match)
     assert_eq!(
@@ -596,7 +684,7 @@ fn sync_duplicate_detection_requires_name_and_phone_match() -> Result<(), AppErr
 
 #[test]
 fn sync_empty_remote_no_changes() -> Result<(), AppError> {
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
 
     let contact = Contact::new(
         "Mia Roberts".to_string(),
@@ -609,7 +697,15 @@ fn sync_empty_remote_no_changes() -> Result<(), AppError> {
 
     let empty_storage = MockStorage::new(HashMap::new());
 
-    local_manager.sync_from_storage(Box::new(empty_storage))?;
+    let mut base = local_manager.mem.clone();
+    let sync_status = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(empty_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
+    assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
+    local_manager.mem = base;
+    local_manager.index = manager::Index::new(&local_manager)?;
 
     // Local contact should remain
     assert_eq!(local_manager.mem.len(), 1);
@@ -638,15 +734,22 @@ fn sync_all_remote_contacts_deleted_locally() -> Result<(), AppError> {
     remote_contact.deleted = false; // Not deleted in remote;
     remote_contact.updated_at = base_time - Duration::seconds(10); // Older than local
 
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
     local_manager.add_contact(local_contact);
 
-    let mut remote_manager = ContactManager::new()?;
+    let mut remote_manager = make_manager()?;
     remote_manager.add_contact(remote_contact);
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
-
-    local_manager.sync_from_storage(Box::new(remote_storage))?;
+    let mut base = local_manager.mem.clone();
+    let sync_status = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(remote_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
+    assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
+    local_manager.mem = base;
+    local_manager.index = manager::Index::new(&local_manager)?;
 
     // Contact should remain deleted
     let contact = local_manager.mem.get(&contact_id).unwrap();
@@ -676,15 +779,22 @@ fn sync_index_updated_after_merge() -> Result<(), AppError> {
     remote_contact.email = "oscar@newdomain.com".to_string(); // Email changed
     remote_contact.updated_at = base_time + Duration::seconds(5);
 
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
     local_manager.add_contact(local_contact);
 
-    let mut remote_manager = ContactManager::new()?;
+    let mut remote_manager = make_manager()?;
     remote_manager.add_contact(remote_contact);
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
-
-    local_manager.sync_from_storage(Box::new(remote_storage))?;
+    let mut base = local_manager.mem.clone();
+    let sync_status = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(remote_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
+    assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
+    local_manager.mem = base;
+    local_manager.index = manager::Index::new(&local_manager)?;
 
     // Verify name index is updated (new names added)
     assert!(
@@ -797,19 +907,26 @@ fn sync_multiple_contacts_mixed_operations() -> Result<(), AppError> {
     remote_4.deleted = false; // Not deleted remotely
     remote_4.updated_at = base_time + Duration::seconds(5); // Older than local delete
 
-    let mut local_manager = ContactManager::new()?;
+    let mut local_manager = make_manager()?;
     local_manager.add_contact(local_1);
     local_manager.add_contact(local_2);
     local_manager.add_contact(local_4);
 
-    let mut remote_manager = ContactManager::new()?;
+    let mut remote_manager = make_manager()?;
     remote_manager.add_contact(remote_1);
     remote_manager.add_contact(remote_3);
     remote_manager.add_contact(remote_4);
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
-
-    local_manager.sync_from_storage(Box::new(remote_storage))?;
+    let mut base = local_manager.mem.clone();
+    let sync_status = local_manager.sync_from_storage(
+        &mut base,
+        Box::new(remote_storage),
+        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+    );
+    assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
+    local_manager.mem = base;
+    local_manager.index = manager::Index::new(&local_manager)?;
 
     // Verify results
     assert_eq!(local_manager.mem.len(), 4);
