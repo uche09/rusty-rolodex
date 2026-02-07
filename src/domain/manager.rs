@@ -11,12 +11,6 @@ use stores::{CsvStorage, JsonStorage, TxtStorage};
 
 const MAX_WORKER_THREADS: usize = 5;
 
-pub struct ContactManager {
-    pub mem: HashMap<Uuid, Contact>,
-    pub storage: Box<dyn ContactStore>,
-    pub index: Index,
-}
-
 #[derive(Debug)]
 pub struct Index {
     pub name: HashMap<String, HashSet<Uuid>>,
@@ -26,6 +20,23 @@ pub struct Index {
 pub enum IndexUpdateType {
     Add,
     Remove,
+}
+
+pub struct LastWriteWinsPolicy;
+
+pub enum SyncDecision {
+    LocalWins,
+    RemoteWins,
+}
+
+pub enum SyncPolicy {
+    LastWriteWinsPolicy(LastWriteWinsPolicy),
+}
+
+pub struct ContactManager {
+    pub mem: HashMap<Uuid, Contact>,
+    pub storage: Box<dyn ContactStore>,
+    pub index: Index,
 }
 
 impl Index {
@@ -101,6 +112,56 @@ impl Index {
     pub fn update_both_indexes(&mut self, contact: &Contact, update_type: &IndexUpdateType) {
         self.updated_name_index(contact, update_type);
         self.update_domain_index(contact, update_type);
+    }
+}
+
+impl LastWriteWinsPolicy {
+    pub fn verify_match(&self, local: &Contact, remote: &Contact) -> bool {
+        local.created_at == remote.created_at
+    }
+
+    pub fn conflict_resolution(&self, local: &mut Contact, remote: &mut Contact) -> SyncDecision {
+        // If local contact has been deleted, ensure remote counterpart is also marked deleted
+        if local.deleted {
+            remote.updated_at = if !remote.deleted {
+                local.updated_at
+            } else {
+                remote.updated_at
+            };
+            remote.deleted = local.deleted;
+            return SyncDecision::LocalWins;
+        }
+
+        // If local contact has the latest update, no need to update
+        if local.updated_at >= remote.updated_at {
+            return SyncDecision::LocalWins;
+        }
+
+        SyncDecision::RemoteWins
+    }
+
+    pub fn merge_changes(&self, local: &mut Contact, remote: &mut Contact) {
+        // Update name and phone if either has changed
+        if local.name != remote.name || !contact::phone_number_matches(&local.phone, &remote.phone)
+        {
+            local.name = remote.name.clone();
+            local.phone = remote.phone.clone();
+            local.updated_at = remote.updated_at;
+        }
+
+        local.email = remote.email.clone();
+        local.tag = remote.tag.clone();
+
+        // Handle deletion
+        if remote.deleted {
+            local.deleted = true;
+        }
+
+        local.updated_at = remote.updated_at;
+    }
+
+    pub fn is_duplicate(&self, contacts: &HashMap<Uuid, Contact>, remote: &Contact) -> bool {
+        contacts.values().any(|c| c == remote) 
     }
 }
 
@@ -212,78 +273,38 @@ impl ContactManager {
         Ok(())
     }
 
-    pub fn sync_from_storage(&mut self, storage: Box<dyn ContactStore>) -> Result<(), AppError> {
+    pub fn sync_from_storage(
+        &self,
+        base: &mut HashMap<Uuid, Contact>,
+        storage: Box<dyn ContactStore>,
+        policy: SyncPolicy,
+    ) -> Result<(), AppError> {
         let mut remote_contacts = storage.load()?;
+
+        let SyncPolicy::LastWriteWinsPolicy(policy) = policy;
 
         for remote_contact in remote_contacts.values_mut() {
             // Check if contact exist in local storage
-            if let Some(local_contact) = self.mem.get_mut(&remote_contact.id) {
+            if let Some(local_contact) = base.get_mut(&remote_contact.id) {
                 // Confirm contact were created the same time to be sure they are the same
-                if local_contact.created_at != remote_contact.created_at {
+                if !policy.verify_match(local_contact, remote_contact) {
                     return Err(AppError::Synchronization(format!(
                         "Date conflict for contact:{{{}, {}}}",
                         remote_contact.name, remote_contact.phone
                     )));
                 }
 
-                // If local contact has been deleted, ensure remote counterpart is also marked deleted
-                if local_contact.deleted {
-                    remote_contact.updated_at = if !remote_contact.deleted {
-                        Utc::now()
-                    } else {
-                        remote_contact.updated_at
-                    };
-                    remote_contact.deleted = local_contact.deleted;
-                    continue;
+                match policy.conflict_resolution(local_contact, remote_contact) {
+                    SyncDecision::LocalWins => continue,
+                    SyncDecision::RemoteWins => policy.merge_changes(local_contact, remote_contact),
                 }
-
-                // If local contact has the latest update, no need to update
-                if local_contact.updated_at >= remote_contact.updated_at {
-                    continue;
-                }
-
-                // Update name and phone if either has changed
-                if local_contact.name != remote_contact.name
-                    || !contact::phone_number_matches(&local_contact.phone, &remote_contact.phone)
-                {
-                    // Update name and corresponding Index if name has changed
-                    if local_contact.name != remote_contact.name {
-                        self.index
-                            .updated_name_index(local_contact, &IndexUpdateType::Remove);
-                        local_contact.name = remote_contact.name.clone();
-                        self.index
-                            .updated_name_index(local_contact, &IndexUpdateType::Add);
-                    }
-                    local_contact.phone = remote_contact.phone.clone();
-                    local_contact.updated_at = remote_contact.updated_at;
-                }
-
-                // Update email and corresponding Index if email has changed
-                if local_contact.email != remote_contact.email {
-                    self.index
-                        .update_domain_index(local_contact, &IndexUpdateType::Remove);
-                    local_contact.email = remote_contact.email.clone();
-                    self.index
-                        .update_domain_index(local_contact, &IndexUpdateType::Add);
-                }
-
-                local_contact.tag = remote_contact.tag.clone();
-
-                // Handle deletion
-                if remote_contact.deleted {
-                    local_contact.deleted = true;
-                    self.index
-                        .update_both_indexes(local_contact, &IndexUpdateType::Remove);
-                }
-
-                local_contact.updated_at = remote_contact.updated_at;
             } else {
                 // Ignore duplicate contacts (same name && phone)
-                if self.mem.values().any(|c| c == remote_contact) {
+                if policy.is_duplicate(base, remote_contact) {
                     continue;
                 }
 
-                self.add_contact(remote_contact.clone());
+                base.insert(remote_contact.id, remote_contact.clone());
             }
         }
         Ok(())

@@ -1,10 +1,10 @@
 use crate::{
-    domain::contact,
+    domain::{contact, manager::Index},
     prelude::{
         AppError, ContactStore,
         command::{Cli, Commands, SearchKey, SortKey},
         contact::{Contact, EMAIL_REQ_MESSAGE, NAME_REQ_MESSAGE, PHONE_REQ_MESSAGE},
-        manager::{ContactManager, IndexUpdateType},
+        manager::{ContactManager, IndexUpdateType, LastWriteWinsPolicy, SyncPolicy},
         stores::{JsonStorage, TxtStorage},
     },
     storage::StorageMediums,
@@ -338,7 +338,7 @@ pub fn run_app() -> Result<(), AppError> {
             }
 
             let path = extension_str.unwrap().to_string();
-            let src_medium = StorageMediums::from(&path)?;
+            let src_medium: StorageMediums = path.as_str().try_into()?;
 
             let storage: Box<dyn ContactStore> = match src_medium {
                 StorageMediums::Json => Box::new(JsonStorage {
@@ -351,14 +351,20 @@ pub fn run_app() -> Result<(), AppError> {
                 }),
             };
 
-            let base = manager.mem.clone();
-            let sync_status = manager.sync_from_storage(storage);
+            let mut base = manager.mem.clone();
+            let sync_status = manager.sync_from_storage(
+                &mut base,
+                storage,
+                SyncPolicy::LastWriteWinsPolicy(LastWriteWinsPolicy),
+            );
 
             if sync_status.is_err() {
-                manager.mem = base; // rollback to previous state on error
-                manager.save()?;
+                manager.save()?; // rollback to previous state on error
 
                 return Err(sync_status.err().unwrap());
+            } else {
+                manager.mem = base;
+                manager.index = Index::new(&manager)?
             }
 
             println!("Contacts synchronized successfully");

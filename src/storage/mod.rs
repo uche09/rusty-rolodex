@@ -33,8 +33,12 @@ impl StorageMediums {
     pub fn is_which(&self) -> &str {
         if self.is_json() { "json" } else { "txt" }
     }
-    pub fn from(str: &str) -> Result<Self, AppError> {
-        match str {
+}
+
+impl TryFrom<&str> for StorageMediums {
+    type Error = AppError;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
             "json" => Ok(StorageMediums::Json),
             "txt" => Ok(StorageMediums::Txt),
             _ => Err(AppError::Validation(
@@ -54,7 +58,7 @@ pub fn parse_storage_type(
         dotenv().ok();
 
         let choice = std::env::var("STORAGE_CHOICE").unwrap_or("json".to_string());
-        medium = StorageMediums::from(&choice)?;
+        medium = choice.as_str().try_into()?;
     }
 
     match medium {

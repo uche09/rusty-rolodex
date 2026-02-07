@@ -1,35 +1,34 @@
 # RUSTY-ROLODEX WEEKLY WALKTHROUGH
 
 
-## Rusty Rolodex - Week 6 Walkthrough
+## Rusty Rolodex - Week 7 Walkthrough
 
-### Data Structure
-+ The `Store` struct now uses `HashMap<Uuid, Contact>` to store contact list in memory.
-+ This Data structure was picked for it fast lookup by key, fast insert and delete operation.
-+ The HashMap picked over the initial Vec due the tradeoff of the Vec that poses significant bottleneck:
-    - Both DS has fast insert/delete operation, but Vec delete operation is more expensive when item is deleted towards the middle index, while HashMap is always O(1).
-    - Vec (Array) is preferable for storing fixed or moderatelly growing data, as it became a problem identifying contacts uniquelly by their index position for fast random access as the vec constantlly grew or shrink without searching through the entire Vec at O(n). This is problem made HashMap stood out for me as it allows items to be uniquelly identified always by their key while retaining its fast O(n) lookup by key, and fast insert and delete operation.
+### Synchronization workflow
+- **Merge Policy**: I implemented the ***last-write-wins*** merge policy for the synchronization workflow.
+- **Assumptions**:
+    - Contacts with same id and same created_at timestamp are considered the same contact.
+    - Contacts with same id but different created_at timestamps are considered id collision or date conflict.
 
-### Index & Search
-+ I implemented a search feature that allows searching of contact via contact's name or contact's email domain (yahoo.com).
-+ The underlying implementation of the search feature includes:
-    - I created an in-memory index with a Hashmap to organize contact alphabeticaly by name, and by email domain.
-    - The indexing process **concurrently** iterates through multiple chunks (depending on the data size) of the contactlist, and organize them by name (alphabetically) or by domain, depending on which function is called.
-    - By default the Search command searches by name, or email domain if specified otherwise.
-    - The search retrieves the first character of the search string as key when searching by name, or the uses the search string as key when searching by email domain. This key is used to retrieve a smaller set of the entire contactlist that matches the key, and again **concurrently** iterates through multiple chunks (depending on the data size) of this smaller matching list and uses the `rust-fuzzy-search` module to filter and collect contacts whose name/email-domain closely resembles the user provided search string, using distance of >= 7.
+### Tested Senarios
+- SCENARIO 1: Same contact edited in two places
+- SCENARIO 2: Remote file contains new contacts
+- SCENARIO 3: Local delete vs remote edit
+- SCENARIO 4: Import fails halfway
+- SCENARIO 5: Conflicting or missing timestamps
+- SCENARIO 6: Duplicate entries from different devices
+- EDGE CASES
+    - Empty remote
+    - All contacts deleted locally but not deleted in remote
+    - Index updates after merge
+    - Complex scenario: multiple contacts with add, update, delete, keep operations
 
-### Generic Store
-+ I refactored the storage handlers from having `JsonStore` for handling json storage and `TxtStore` for handling txt storage, into a single generic `Store` struct that uses the same function for both json txt storage hence reducing duplicate codes.
+### Partial Corruption Handling
+- Data is rolled back to last known good state (snapshot) is any error occurs during sync.
 
+### Duplicate Detection:
+- Contact implements `PartialEq` which defines equality based on identical id or identical name and phone number.
+- Contacts with different ids but identical name and phone number are considered duplicates and ignored during merge.
 
-### Micro-Benchmarking
-+ This benchmark is more like a stress test.
-+ This benchmarking was done with the `criterion` crate.
-+ The 1k, 5k, 10k, 20k, 50k and 100k (denoting one thousand, five thousand, ten thousand, twenty thousand, fifty thousand and hundred thousand repectively) columns represent the size of the sample data the task was carried on.
-+ That means each reading reading simply says, for example *"it takes approx this amount of time to perform a search through 5 thousand contacts at a worse case scenario"*.
-+ This Benchmark mostly assumes worst case scenario. For example the search benchmark literally matches the entre 5000 thousand contacts due to fuzzy search logic and automated contact generation.
-
-See the performance information and the benchmark summary in the [performance note](./perf-notes.md)
 
 
 <!-- ### Demo week 4

@@ -11,14 +11,18 @@ Removed: For deprecated or removed features.
  -->
 
 
-## v0.7-week-7 (31-1-2026)
+## v0.7-week-7 (07-02-2026)
 
 ### Added
 - `Contact` struct now has `deleted: bool` field to enable soft delete, which will be used in data synchronization.
-- New `sync_from_storage(&mut self, storage: Box<dyn ContactStore>) -> Result<(), AppError>` method added to `ContactManager` struct to synchronize contacts from another storage medium into the current storage medium.
+- New `sync_from_storage(&mut self, base: HashMap<Uuid, Contact>, storage: Box<dyn ContactStore>, policy: SyncPolicy,) -> Result<(), AppError>` method added to `ContactManager` struct to synchronize contacts from another storage medium into the current storage medium.
 - New function `get_medium(&self) -> &str` added to `ContactStore` trait to return the name of the storage medium (e.g., "JSON", "CSV", "TXT", etc.).
 - Synchronization error `Synchronization(String)` for AppError Enum to handle errors during synchronization operation.
 - Test cases for synchronization operation added to `tests/sync.rs` file.
+- New `SyncPolicy` Enum added to define different synchronization policies (e.g., LastWriteWins, Merge, etc.) that can be used during synchronization operation.
+- New `LastWriteWinsPolicy` struct added to implement the Last-Write-Wins synchronization policy and its underlying operations (methods), which will be used in the `sync_from_storage` method when the LastWriteWins policy is selected.
+- New `SyncDecision` Enum added to represent the possible merge decisions during synchronization (e.g., LocalWins (keep local contact), RemoteWins (merge remote contact).
+
 
 
 
@@ -30,6 +34,7 @@ Removed: For deprecated or removed features.
 - The implementation of `PartialEq` trait for `Contact` struct now implements an updated equality rule: Contact must have the **same ID** with the other, **OR** must have the **same name AND number** with the other to be seen as Equal (the same).
 - The implementation of `Hash` trait for `Contact` struct now only hashes the `name` and `phone` fields, and no longer includes the `id` field. This is to improve Hashing time by reducing the amount of data being hashed.
 - Refined storage parser (`StoreChoice` renamed to `StorageMediums`) Enum.
+- Implemented the `TryFrom` trait for `StorageMediums` Enum to convert from string input to the corresponding storage medium variant, which replaces the previous `from(str: &str)` method.
 
 ### Fixed
 - Delete opereation now updates the updated_at timestamp of the contact being deleted.
