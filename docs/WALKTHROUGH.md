@@ -30,6 +30,8 @@
 - Contacts with different ids but identical name and phone number are considered duplicates and ignored during merge.
 
 
+### Mobile Usage (Termux)
+![Contact list after sync](./media/rolodex_on_termux.jpg)
 
 <!-- ### Demo week 4
 ![Demo GIF](./media/rolodex-demoV4.gif) -->
