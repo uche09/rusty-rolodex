@@ -192,6 +192,42 @@ mod tests {
     use super::*;
     use mockito::{mock, server_url};
 
+    // JSON mapping of uuid -> Contact
+    const CONTACTS_JSON: &str = r#"
+    {
+        "ed70c65e-a25d-4c00-9633-f6bae773989d":{
+            "id":"ed70c65e-a25d-4c00-9633-f6bae773989d",
+            "name":"Lauren",
+            "phone":"09159652486",
+            "email":"yangbrandon@gmail.com",
+            "tag":"family",
+            "deleted":false,
+            "created_at":"2025-12-08T14:08:47.112315605Z",
+            "updated_at":"2026-02-07T18:33:31.733469575Z"
+        },
+        "12937456-c347-492f-a0d8-9fd2efd35eb0":{
+            "id":"12937456-c347-492f-a0d8-9fd2efd35eb0",
+            "name":"Adamu",
+            "phone":"07254715016",
+            "email":"lindalewis@gmail.com",
+            "tag":"others",
+            "deleted":false,
+            "created_at":"2025-12-08T14:08:47.112315605Z",
+            "updated_at":"2026-02-07T18:27:37.993254387Z"
+        },
+        "06b2f175-3833-4df3-b834-f8a042ff4736":{
+            "id":"06b2f175-3833-4df3-b834-f8a042ff4736",
+            "name":"Kathy",
+            "phone":"09150505086",
+            "email":"quinnjennifer@gmail.com",
+            "tag":"others",
+            "deleted":false,
+            "created_at":"2025-12-08T14:08:47.112315605Z",
+            "updated_at":"2026-02-07T18:36:14.497210882Z"
+        }
+    }
+    "#;
+
     // Implementing a MockRemoteStorage to strip out
     // all calls to read .env value.
     struct MockRemoteStorage {
@@ -276,47 +312,11 @@ mod tests {
 
     #[test]
     fn load_fetches_contacts_from_remote() {
-        // JSON mapping of uuid -> Contact (must match your Contact serde shape)
-        let contacts_json = r#"
-        {
-            "ed70c65e-a25d-4c00-9633-f6bae773989d":{
-                "id":"ed70c65e-a25d-4c00-9633-f6bae773989d",
-                "name":"Lauren",
-                "phone":"09159652486",
-                "email":"yangbrandon@gmail.com",
-                "tag":"family",
-                "deleted":false,
-                "created_at":"2025-12-08T14:08:47.112315605Z",
-                "updated_at":"2026-02-07T18:33:31.733469575Z"
-            },
-            "12937456-c347-492f-a0d8-9fd2efd35eb0":{
-                "id":"12937456-c347-492f-a0d8-9fd2efd35eb0",
-                "name":"Adamu",
-                "phone":"07254715016",
-                "email":"lindalewis@gmail.com",
-                "tag":"others",
-                "deleted":false,
-                "created_at":"2025-12-08T14:08:47.112315605Z",
-                "updated_at":"2026-02-07T18:27:37.993254387Z"
-            },
-            "06b2f175-3833-4df3-b834-f8a042ff4736":{
-                "id":"06b2f175-3833-4df3-b834-f8a042ff4736",
-                "name":"Kathy",
-                "phone":"09150505086",
-                "email":"quinnjennifer@gmail.com",
-                "tag":"others",
-                "deleted":false,
-                "created_at":"2025-12-08T14:08:47.112315605Z",
-                "updated_at":"2026-02-07T18:36:14.497210882Z"
-            }
-        }
-        "#;
-
         // Setup mock for GET /resource-id
         let _m = mock("GET", "/resource-id")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(contacts_json)
+            .with_body(CONTACTS_JSON)
             .create();
 
         // Construct the storage and point it at the mock server
@@ -337,43 +337,8 @@ mod tests {
 
     #[test]
     fn save_prefers_put_then_post_when_put_fails() {
-        let contacts_json = r#"
-        {
-            "ed70c65e-a25d-4c00-9633-f6bae773989d":{
-                "id":"ed70c65e-a25d-4c00-9633-f6bae773989d",
-                "name":"Lauren",
-                "phone":"09159652486",
-                "email":"yangbrandon@gmail.com",
-                "tag":"family",
-                "deleted":false,
-                "created_at":"2025-12-08T14:08:47.112315605Z",
-                "updated_at":"2026-02-07T18:33:31.733469575Z"
-            },
-            "12937456-c347-492f-a0d8-9fd2efd35eb0":{
-                "id":"12937456-c347-492f-a0d8-9fd2efd35eb0",
-                "name":"Adamu",
-                "phone":"07254715016",
-                "email":"lindalewis@gmail.com",
-                "tag":"others",
-                "deleted":false,
-                "created_at":"2025-12-08T14:08:47.112315605Z",
-                "updated_at":"2026-02-07T18:27:37.993254387Z"
-            },
-            "06b2f175-3833-4df3-b834-f8a042ff4736":{
-                "id":"06b2f175-3833-4df3-b834-f8a042ff4736",
-                "name":"Kathy",
-                "phone":"09150505086",
-                "email":"quinnjennifer@gmail.com",
-                "tag":"others",
-                "deleted":false,
-                "created_at":"2025-12-08T14:08:47.112315605Z",
-                "updated_at":"2026-02-07T18:36:14.497210882Z"
-            }
-        }
-        "#;
-
         // construct a small contacts map with serde-serializable data matching your types.
-        let contacts: HashMap<Uuid, Contact> = serde_json::from_str(&contacts_json).unwrap();
+        let contacts: HashMap<Uuid, Contact> = serde_json::from_str(&CONTACTS_JSON).unwrap();
 
         // Return 500 for PUT, then 200 for POST with small body.
         let put_mock = mock("PUT", "/resource-id").with_status(500).create();
