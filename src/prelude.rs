@@ -4,6 +4,6 @@ pub use crate::domain::{
     manager::{self, ContactManager},
 };
 pub use crate::errors::AppError;
-pub use crate::storage::{self, ContactStore, memory, stores};
+pub use crate::storage::{self, ContactStore, file, memory, remote::RemoteStorage};
 pub use std::collections::HashMap;
 pub use uuid;
