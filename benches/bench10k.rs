@@ -275,7 +275,7 @@ fn bench_save_store_json(c: &mut Criterion) {
 
                 (storage, base)
             },
-            |(storage, base)| {
+            |(mut storage, base)| {
                 // Measured: call Store::save (timed)
                 let _ = storage.save();
 
@@ -307,7 +307,7 @@ fn bench_read_store_json(c: &mut Criterion) {
                 }
 
                 // Build and save the store so there's something to load
-                let storage = make_store_with_n(10_000);
+                let mut storage = make_store_with_n(10_000);
                 storage.save().expect("setup save failed");
 
                 // restore cwd so setup leaves global state clean; measured closure will chdir into base
@@ -353,7 +353,7 @@ fn bench_save_store_txt(c: &mut Criterion) {
 
                 (storage, base)
             },
-            |(storage, base)| {
+            |(mut storage, base)| {
                 let _ = storage.save();
 
                 // Restore original cwd (robustly) BEFORE removing temp dir
@@ -381,7 +381,7 @@ fn bench_read_store_txt(c: &mut Criterion) {
                     std::env::set_var("STORAGE_CHOICE", "txt");
                 }
 
-                let storage = make_store_with_n(10_000);
+                let mut storage = make_store_with_n(10_000);
                 storage.save().expect("setup save failed");
 
                 std::env::set_current_dir(&original_cwd).expect("restore cwd after setup");
