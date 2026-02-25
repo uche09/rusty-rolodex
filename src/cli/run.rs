@@ -1,16 +1,16 @@
 use crate::{
-    domain::{contact, manager::Index},
+    domain::contact,
     prelude::{
-        AppError, ContactStore,
-        command::{Cli, Commands, SearchKey, SortKey},
+        AppError, ContactStore, RemoteStorage,
+        command::{Cli, Commands, ImportExportOption, SearchKey, SortKey},
         contact::{Contact, EMAIL_REQ_MESSAGE, NAME_REQ_MESSAGE, PHONE_REQ_MESSAGE},
-        manager::{ContactManager, IndexUpdateType, LastWriteWinsPolicy, SyncPolicy},
-        stores::{JsonStorage, TxtStorage},
+        file::{CsvStorage, JsonStorage},
+        manager::{ContactManager, IndexUpdateType},
     },
-    storage::StorageMediums,
+    storage::{StorageMediums, remote::is_valid_url},
 };
 use clap::Parser;
-use std::{env, path::PathBuf, process::exit};
+use std::{env, path::Path, process::exit};
 
 pub fn run_app() -> Result<(), AppError> {
     let cli = Cli::parse();
@@ -278,55 +278,75 @@ pub fn run_app() -> Result<(), AppError> {
             Ok(())
         }
 
-        // Import contacts into storage from .csv file
-        Commands::Import { src } => {
-            let mut file_path: String = "".to_string();
+        // Import contacts into storage from a storage
+        Commands::Import { from, src } => {
+            let mut source: String = String::new();
 
             if let Some(path) = src {
-                file_path = path;
+                source = path;
             }
+            println!("Importing");
 
-            if file_path.is_empty() {
-                manager.import_contacts_from_csv(None)?;
+            println!("Source: {}", source);
+            let storage: Box<dyn ContactStore> =
+                parse_import_export_storage_type(from, &source, false)?;
 
-                println!("Successfully imported contacts.");
-                return Ok(());
-            }
-
-            manager.import_contacts_from_csv(Some(&file_path))?;
-            manager.save()?;
-
-            println!("Successfully imported contacts from {:?}.", file_path);
+            manager.import_contacts_from_storage(storage)?;
+            println!("Imported");
+            println!("Contacts imported successfully from {:?}.", source);
             Ok(())
         }
 
-        Commands::Export { des } => {
-            let mut file_path: String = "".to_string();
+        // contacts into storage to a storage
+        Commands::Export { to, des } => {
+            let mut source: String = String::new();
 
             if let Some(path) = des {
-                file_path = path;
+                source = path;
             }
+            println!("Exporting");
 
-            if file_path.is_empty() {
-                manager.export_contacts_to_csv(None)?;
+            let storage = parse_import_export_storage_type(to, &source, true)?;
 
-                println!("Successfully exported contacts.");
-                return Ok(());
-            }
-
-            manager.export_contacts_to_csv(Some(&file_path))?;
-
-            println!("Successfully exported contacts to {:?}.", file_path);
+            manager.export_contacts_to_storage(storage)?;
+            println!("Exported");
+            println!("Contacts exported successfully to {:?}.", source);
             Ok(())
         }
+    }
+}
 
-        Commands::Sync { src } => {
-            let path = PathBuf::from(&src);
-            if !path.exists() {
-                return Err(AppError::NotFound("Data source".to_string()));
+fn parse_list_order<T: std::cmp::Ord>(reverse: bool, a: T, b: T) -> std::cmp::Ordering {
+    let cmp = a.cmp(&b);
+    if reverse { cmp.reverse() } else { cmp }
+}
+
+fn parse_import_export_storage_type(
+    storage_option: ImportExportOption,
+    source: &str,
+    is_export: bool,
+) -> Result<Box<dyn ContactStore>, AppError> {
+    match storage_option {
+        ImportExportOption::F => {
+            let path_obj = Path::new(source);
+
+            if !is_export {
+                // For imports we require the file to exist
+                if !path_obj.exists() {
+                    return Err(AppError::NotFound("Data source".to_string()));
+                }
+            } else {
+                // For exports, allow creating the file — validate parent directory exists
+                if let Some(parent) = path_obj.parent() {
+                    if !parent.exists() {
+                        return Err(AppError::NotFound("Destination directory".to_string()));
+                    }
+                } else {
+                    return Err(AppError::Validation("Invalid destination path".to_string()));
+                }
             }
 
-            let file_extension = path.extension();
+            let file_extension = path_obj.extension();
             if file_extension.is_none() {
                 return Err(AppError::Validation("Can't decode file type".to_string()));
             }
@@ -337,46 +357,29 @@ pub fn run_app() -> Result<(), AppError> {
                 return Err(AppError::Validation("Can't decode file type".to_string()));
             }
 
-            let path = extension_str.unwrap().to_string();
-            let src_medium: StorageMediums = path.as_str().try_into()?;
+            let ext = extension_str.unwrap().to_string();
+            let src_medium: StorageMediums = ext.as_str().try_into()?;
 
-            let storage: Box<dyn ContactStore> = match src_medium {
-                StorageMediums::Json => Box::new(JsonStorage {
+            match src_medium {
+                StorageMediums::Json => Ok(Box::new(JsonStorage {
                     medium: "json".to_string(),
-                    path,
-                }),
-                StorageMediums::Txt => Box::new(TxtStorage {
-                    medium: "txt".to_string(),
-                    path,
-                }),
-            };
+                    path: source.to_string(),
+                })),
+                StorageMediums::Csv => Ok(Box::new(CsvStorage::new(source)?)),
 
-            let mut base = manager.mem.clone();
-            let sync_status = manager.sync_from_storage(
-                &mut base,
-                storage,
-                SyncPolicy::LastWriteWinsPolicy(LastWriteWinsPolicy),
-            );
-
-            if sync_status.is_err() {
-                manager.save()?; // rollback to previous state on error
-
-                return Err(sync_status.err().unwrap());
-            } else {
-                manager.mem = base;
-                manager.index = Index::new(&manager)?
+                _ => Err(AppError::Validation("Storage not supported".to_string())),
             }
+        }
 
-            println!("Contacts synchronized successfully");
+        ImportExportOption::R => {
+            let remote_storage = Box::new(RemoteStorage::new()?);
 
-            manager.save()?;
-
-            Ok(())
+            if is_valid_url(source) {
+                remote_storage.update_active_url_from_str(source);
+            } else {
+                remote_storage.format_get_req_from_base_url()?;
+            }
+            Ok(remote_storage)
         }
     }
-}
-
-fn parse_list_order<T: std::cmp::Ord>(reverse: bool, a: T, b: T) -> std::cmp::Ordering {
-    let cmp = a.cmp(&b);
-    if reverse { cmp.reverse() } else { cmp }
 }

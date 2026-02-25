@@ -271,7 +271,7 @@ fn bench_save_store_json(c: &mut Criterion) {
                 }
 
                 // Build store in setup (excluded from measured timing)
-                let mut storage = make_store_with_n(100_000);
+                let storage = make_store_with_n(100_000);
 
                 (storage, base)
             },
@@ -349,7 +349,7 @@ fn bench_save_store_txt(c: &mut Criterion) {
                     std::env::set_var("STORAGE_CHOICE", "txt");
                 }
 
-                let mut storage = make_store_with_n(100_000);
+                let storage = make_store_with_n(100_000);
 
                 (storage, base)
             },

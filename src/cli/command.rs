@@ -103,25 +103,32 @@ pub enum Commands {
         domain: Option<String>,
     },
 
-    /// Import contacts from .csv file
+    /// Import contacts from a storage source
     Import {
-        /// File path to the source .csv file
+        /// Source storage is:
+        /// f = From file
+        /// r = From remote storage
+        #[arg(short, long)]
+        from: ImportExportOption,
+
+        /// File path or remote URL to the source storage
+        /// **Only** Optional if **remote url** has been configured in envionment
         #[arg(short, long)]
         src: Option<String>,
     },
 
-    /// Export contacts to a .csv file
+    /// Export contacts to a storage destination
     Export {
-        /// File path to the destination location for export file
+        /// Destination storage is:
+        /// f = To file
+        /// r = To remote storage
+        #[arg(short, long)]
+        to: ImportExportOption,
+
+        /// File path or remote URL to the destination storage
+        /// **Only** Optional if **remote url** has been confiqured in envionment
         #[arg(short, long)]
         des: Option<String>,
-    },
-
-    /// Synchronize data from an external source file
-    Sync {
-        /// Path to data source
-        #[arg(short, long)]
-        src: String,
     },
 }
 
@@ -136,6 +143,18 @@ pub enum SortKey {
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
 pub enum SearchKey {
+    /// Name
     N,
+
+    /// Domain
     D,
+}
+
+#[derive(Copy, Clone, Debug, ValueEnum)]
+pub enum ImportExportOption {
+    /// File Storage
+    F,
+
+    /// Remote Storage
+    R,
 }
