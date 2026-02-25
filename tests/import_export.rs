@@ -34,11 +34,13 @@ fn export_import() -> Result<(), Box<dyn std::error::Error>> {
     Command::cargo_bin(env!("CARGO_PKG_NAME"))?
         .env(storage_env.0, storage_env.1)
         .arg("export")
+        .arg("--to")
+        .arg("f")
         .arg("--des")
         .arg(&out_path_str)
         .assert()
         .success()
-        .stdout(contains("Successfully exported"));
+        .stdout(contains("exported successfully"));
 
     // Ensure the exported file exists and has content
     assert!(Path::new(&out_path_str).exists());
@@ -55,15 +57,23 @@ fn export_import() -> Result<(), Box<dyn std::error::Error>> {
         .success()
         .stdout(contains("Contact deleted successfully"));
 
+    // Complete wipe off soft-delete to avoid delete conflict during sync
+    let json_path = Path::new("./.instance/contacts.json");
+    if json_path.exists() {
+        let _ = fs::remove_file(json_path);
+    }
+
     // Import from the exported CSV (importing back should succeed)
     Command::cargo_bin(env!("CARGO_PKG_NAME"))?
         .env(storage_env.0, storage_env.1)
         .arg("import")
+        .arg("--from")
+        .arg("f")
         .arg("--src")
         .arg(&out_path_str)
         .assert()
         .success()
-        .stdout(contains("Successfully imported"));
+        .stdout(contains("imported successfully"));
 
     Command::cargo_bin(env!("CARGO_PKG_NAME"))?
         .env(storage_env.0, storage_env.1)
