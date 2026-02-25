@@ -1,7 +1,8 @@
 use chrono::{DateTime, Utc};
 
 use crate::prelude::{AppError, Contact, HashMap, uuid::Uuid};
-use std::fs::File;
+use std::env;
+use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::str::FromStr;
 
@@ -178,6 +179,46 @@ pub fn deserialize_contacts_from_txt_buffer(
     }
 
     Ok(contacts)
+}
+
+// Interaction with .env
+pub fn get_env_value_by_key(key: &str) -> Result<String, AppError> {
+    env::var(key).map_err(|_| AppError::NotFound(format!("env key ({key}) or value")))
+}
+
+/// This function sets a new or updates an  existing env value directly to .env file
+/// so that new configuration like resource ID or url remain persistent.
+pub fn set_env_value_in_file(key: &str, value: &str) -> Result<(), AppError> {
+    let env_path = ".env";
+
+    let content = fs::read_to_string(env_path).unwrap_or(env_path.to_string());
+
+    let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+
+    let prefix = format!("{}=", key);
+    let new_line = format!("{}={}", key, value);
+
+    // Replace if key exists, otherwise push new line
+    let mut found = false;
+    for line in lines.iter_mut() {
+        if line.starts_with(&prefix) {
+            *line = new_line.clone();
+            found = true;
+            break;
+        }
+    }
+
+    if !found {
+        lines.push(new_line);
+    }
+
+    // Write back to .env
+    fs::write(env_path, lines.join("\n") + "\n")?;
+
+    // Add to running process
+    unsafe { env::set_var(key, value) }
+
+    Ok(())
 }
 
 #[cfg(test)]

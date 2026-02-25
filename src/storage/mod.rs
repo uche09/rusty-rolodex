@@ -1,11 +1,16 @@
+pub mod file;
 pub mod memory;
-pub mod stores;
+pub mod remote;
 
+use crate::helper;
 use crate::prelude::{AppError, Contact, HashMap, uuid::Uuid};
 use dotenv::dotenv;
 use std::fs::{self, OpenOptions};
 use std::io::{BufReader, Read, Write};
-use std::path::Path;
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 pub trait ContactStore {
     fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError>;
@@ -17,8 +22,10 @@ pub trait ContactStore {
 
 #[derive(Debug)]
 pub enum StorageMediums {
+    Csv,
     Txt,
     Json,
+    Remote,
 }
 
 impl StorageMediums {
@@ -30,8 +37,18 @@ impl StorageMediums {
         matches!(self, StorageMediums::Txt)
     }
 
+    pub fn is_remote(&self) -> bool {
+        matches!(self, StorageMediums::Remote)
+    }
+
     pub fn is_which(&self) -> &str {
-        if self.is_json() { "json" } else { "txt" }
+        if self.is_json() {
+            "json"
+        } else if self.is_txt() {
+            "txt"
+        } else {
+            "remote"
+        }
     }
 }
 
@@ -39,8 +56,10 @@ impl TryFrom<&str> for StorageMediums {
     type Error = AppError;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
+            "csv" => Ok(StorageMediums::Csv),
             "json" => Ok(StorageMediums::Json),
             "txt" => Ok(StorageMediums::Txt),
+            "remote" => Ok(StorageMediums::Remote),
             _ => Err(AppError::Validation(
                 "Not a recognized storage medium".to_string(),
             )),
@@ -48,7 +67,7 @@ impl TryFrom<&str> for StorageMediums {
     }
 }
 
-pub fn parse_storage_type(
+pub fn parse_storage_type_env_config(
     storage_medium: Option<StorageMediums>,
 ) -> Result<Box<dyn ContactStore>, AppError> {
     let medium: StorageMediums;
@@ -57,13 +76,15 @@ pub fn parse_storage_type(
     } else {
         dotenv().ok();
 
-        let choice = std::env::var("STORAGE_CHOICE").unwrap_or("json".to_string());
+        let choice = helper::get_env_value_by_key("STORAGE_CHOICE").unwrap_or("json".to_string());
         medium = choice.as_str().try_into()?;
     }
 
     match medium {
-        StorageMediums::Json => Ok(Box::new(stores::JsonStorage::new()?)),
-        StorageMediums::Txt => Ok(Box::new(stores::TxtStorage::new()?)),
+        StorageMediums::Json => Ok(Box::new(file::JsonStorage::new()?)),
+        StorageMediums::Csv => Ok(Box::new(file::CsvStorage::new("")?)),
+        StorageMediums::Txt => Ok(Box::new(file::TxtStorage::new()?)),
+        StorageMediums::Remote => Ok(Box::new(remote::RemoteStorage::new()?)),
     }
 }
 

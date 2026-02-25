@@ -1,13 +1,15 @@
+use crate::helper;
+
 use super::*;
 
-use chrono::Utc;
+use chrono::{Duration, Utc};
+use file::{JsonStorage, TxtStorage};
 use rust_fuzzy_search::fuzzy_compare;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
     thread,
 };
-use stores::{CsvStorage, JsonStorage, TxtStorage};
 
 const MAX_WORKER_THREADS: usize = 5;
 
@@ -161,13 +163,13 @@ impl LastWriteWinsPolicy {
     }
 
     pub fn is_duplicate(&self, contacts: &HashMap<Uuid, Contact>, remote: &Contact) -> bool {
-        contacts.values().any(|c| c == remote) 
+        contacts.values().any(|c| c == remote)
     }
 }
 
 impl ContactManager {
     pub fn new() -> Result<Self, AppError> {
-        let storage = storage::parse_storage_type(None)?;
+        let storage = storage::parse_storage_type_env_config(None)?;
 
         let mut manager = Self {
             mem: HashMap::new(),
@@ -241,6 +243,32 @@ impl ContactManager {
             None => Err(AppError::NotFound("Contact".to_string())),
         }
     }
+    /// Permanently remove contacts that were soft-deleted more than `days` days ago.
+    /// Returns the number of contacts removed.
+    pub fn purge_soft_deleted_older_than(&mut self, days: i64) {
+        let now = Utc::now().date_naive();
+        let cutoff_date = now - Duration::days(days);
+
+        // Collect ids to remove to avoid mutating the map while iterating
+        let to_remove: Vec<Uuid> = self
+            .mem
+            .iter()
+            .filter_map(|(&id, contact)| {
+                let contact_date = contact.updated_at.date_naive();
+                if contact.deleted && contact_date <= cutoff_date {
+                    Some(id)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Remove contacts
+        for id in &to_remove {
+            self.mem.remove(id);
+        }
+    }
+
     pub fn migrate_from_storage(&mut self, storage: &dyn ContactStore) -> Result<(), AppError> {
         let contacts = storage.load()?;
 
@@ -258,19 +286,63 @@ impl ContactManager {
         Ok(())
     }
 
-    pub fn save(&self) -> Result<(), AppError> {
+    pub fn save(&mut self) -> Result<(), AppError> {
+        // Purge soft-deleted contacts older than configured days before persisting.
+        // Default: 1 days.
+        let purge_days: i64 = helper::get_env_value_by_key("PURGE_DAYS")
+            .ok()
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(1);
+
+        self.purge_soft_deleted_older_than(purge_days);
+
         self.storage.save(&self.mem)
     }
 
-    pub fn import_contacts_from_csv(&mut self, path: Option<&str>) -> Result<(), AppError> {
-        self.migrate_from_storage(&CsvStorage::new(path, None)?)?;
+    pub fn import_contacts_from_storage(
+        &mut self,
+        storage: Box<dyn ContactStore>,
+    ) -> Result<(), AppError> {
+        let mut base = self.mem.clone();
+
+        let sync_status = self.sync_from_storage(
+            &mut base,
+            storage,
+            SyncPolicy::LastWriteWinsPolicy(LastWriteWinsPolicy),
+        );
+
+        if sync_status.is_err() {
+            self.save()?; // rollback to previous state on error
+
+            return Err(sync_status.err().unwrap());
+        } else {
+            self.mem = base;
+            self.index = Index::new(self)?
+        }
+
+        let mut saved: Result<(), AppError> = Err(AppError::Synchronization(
+            "Error saving synced data".to_string(),
+        ));
+
+        for _ in 0..3 {
+            saved = self.save();
+            if saved.is_ok() {
+                break;
+            }
+        }
+        if saved.is_err() {
+            return Err(AppError::Synchronization(
+                "Error saving synced data".to_string(),
+            ));
+        }
         Ok(())
     }
 
-    pub fn export_contacts_to_csv(&self, path: Option<&str>) -> Result<(), AppError> {
-        let storage = CsvStorage::new(None, path)?;
-        storage.save(&self.mem)?;
-        Ok(())
+    pub fn export_contacts_to_storage(
+        &self,
+        storage: Box<dyn ContactStore>,
+    ) -> Result<(), AppError> {
+        storage.save(&self.mem)
     }
 
     pub fn sync_from_storage(

@@ -5,10 +5,10 @@ use std::sync::PoisonError;
 pub enum AppError {
     CsvError(csv::Error),
     DateTime(chrono::ParseError),
+    FailedRequest(reqwest::Error),
     Io(std::io::Error),
     JsonPerser(serde_json::Error),
     NotFound(String),
-    ParseInt(std::num::ParseIntError),
     Poison(String),
     RegexError(regex::Error),
     Synchronization(String),
@@ -38,12 +38,6 @@ impl From<serde_json::Error> for AppError {
     }
 }
 
-impl From<std::num::ParseIntError> for AppError {
-    fn from(err: std::num::ParseIntError) -> Self {
-        AppError::ParseInt(err)
-    }
-}
-
 impl<T> From<PoisonError<T>> for AppError {
     fn from(err: PoisonError<T>) -> Self {
         AppError::Poison(err.to_string())
@@ -56,6 +50,12 @@ impl From<regex::Error> for AppError {
     }
 }
 
+impl From<reqwest::Error> for AppError {
+    fn from(err: reqwest::Error) -> Self {
+        AppError::FailedRequest(err)
+    }
+}
+
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -65,6 +65,9 @@ impl fmt::Display for AppError {
             AppError::DateTime(e) => {
                 write!(f, "Invalid Datetime format: {}", e)
             }
+            AppError::FailedRequest(e) => {
+                write!(f, "HTTP request failed: '{}'", e)
+            }
             AppError::Io(e) => {
                 write!(f, "I/O error while accessing a file or resource: {}", e)
             }
@@ -73,9 +76,6 @@ impl fmt::Display for AppError {
             }
             AppError::NotFound(item) => {
                 write!(f, "{} Not found", item)
-            }
-            AppError::ParseInt(e) => {
-                write!(f, "Invalid number format: {}", e)
             }
             AppError::Poison(e) => {
                 write!(f, "Mutex poisoned: {}", e)
@@ -99,14 +99,6 @@ mod tests {
     use crate::domain::contact::Contact;
 
     use super::*;
-
-    #[test]
-    fn confirm_parse_int_error_message() {
-        let wrong_string = "abc".parse::<i32>().unwrap_err();
-        let err = AppError::ParseInt(wrong_string);
-
-        assert!(format!("{}", err).contains("Invalid number format: "));
-    }
 
     #[test]
     fn confirm_validation_error() -> Result<(), AppError> {
