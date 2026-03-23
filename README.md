@@ -43,7 +43,8 @@ Key achievement: **Validated at scale**, benchmarked with 100k contacts, sub-270
 
 ## Core Technical Features
 
-**TL;DR:** Multi-backend storage (JSON/CSV/TXT/HTTP), indexed O(1) search, Last-Write-Wins sync, type-safe validation, clap CLI.
+<details>
+<summary><strong>TL;DR:</strong> Multi-backend storage (JSON/CSV/TXT/HTTP), indexed O(1) search, Last-Write-Wins sync, type-safe validation, clap CLI.</summary>
 
 ### 1. **Multi-Backend Storage System**
 
@@ -122,11 +123,14 @@ Built with `clap` derive macros for compile-time argument validation:
 - `ValueEnum` for type-safe sort keys and search modes
 - Environment variable configuration: `STORAGE_TYPE`, `STORAGE_PATH`, `API_URL`
 
+</details>
+
 ---
 
 ## Backend Engineering Proof Points
 
-**TL;DR:** 6 integration test suites, benchmarked at 100k scale, zero unsafe code, GitHub Actions CI, soft deletes, backward compatibility.
+<details>
+<summary><strong>TL;DR:</strong> 6 integration test suites, benchmarked at 100k scale, zero unsafe code, GitHub Actions CI, soft deletes, backward compatibility.</summary>
 
 ### Testing Strategy
 
@@ -222,11 +226,14 @@ impl<T> From<PoisonError<T>> for AppError {
 ```
 Allows safe recovery from mutex poisoning without unwrap.
 
+</details>
+
 ---
 
 ## Advanced Rust Concepts Demonstrated
 
-**TL;DR:** Ownership/borrowing (zero-copy), traits (4 storage backends), error handling (?-chains), concurrency (scoped threads, Arc, Mutex), interior mutability, design patterns.
+<details>
+<summary><strong>TL;DR:</strong> Ownership/borrowing (zero-copy), traits (4 storage backends), error handling (?-chains), concurrency (scoped threads, Arc, Mutex), interior mutability, design patterns.</summary>
 
 ### 1. **Ownership & Borrowing**
 
@@ -356,6 +363,8 @@ pub id: Uuid,
 Ensures backward compatibility when new fields are added.
 
 **Derive Macros:** `#[derive(Serialize, Deserialize)]` combined with attribute customization reduces boilerplate while enabling sophisticated serialization logic.
+
+</details>
 
 ---
 
