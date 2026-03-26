@@ -16,12 +16,13 @@ impl MockStorage {
     }
 }
 
+#[async_trait::async_trait(?Send)]
 impl ContactStore for MockStorage {
-    fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
+    async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
         Ok(self.contacts.clone())
     }
 
-    fn save(&self, _contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
+    async fn save(&self, _contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
         // sync_from_storage() never calls save(), so this is a no-op for testing
         Ok(())
     }
@@ -48,8 +49,8 @@ fn make_manager() -> Result<ContactManager, AppError> {
 // Phone: changed email
 // Merge policy: last-write-wins
 
-#[test]
-fn sync_same_contact_different_fields_modified() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_same_contact_different_fields_modified() -> Result<(), AppError> {
     // NOTE: With only contact-level updated_at, we cannot do field-by-field merging.
     // This test demonstrates contact-level last-write-wins:
     // whichever contact was updated last wins ALL fields.
@@ -91,11 +92,13 @@ fn sync_same_contact_different_fields_modified() -> Result<(), AppError> {
     // Sync: clone remote.mem into MockStorage
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
-    let sync_status = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(remote_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let sync_status = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(remote_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
     assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
     local_manager.mem = base;
     local_manager.index = manager::Index::new(&local_manager)?;
@@ -116,8 +119,8 @@ fn sync_same_contact_different_fields_modified() -> Result<(), AppError> {
     Ok(())
 }
 
-#[test]
-fn sync_same_contact_same_field_last_write_wins() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_same_contact_same_field_last_write_wins() -> Result<(), AppError> {
     // Scenario: Both devices edited the phone field
     // Policy: Last-write-wins based on updated_at timestamp
     let contact_id = Uuid::new_v4();
@@ -157,11 +160,13 @@ fn sync_same_contact_same_field_last_write_wins() -> Result<(), AppError> {
     // Sync: clone remote.mem into MockStorage
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
-    let sync_status = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(remote_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let sync_status = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(remote_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
     assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
     local_manager.mem = base;
     local_manager.index = manager::Index::new(&local_manager)?;
@@ -179,8 +184,8 @@ fn sync_same_contact_same_field_last_write_wins() -> Result<(), AppError> {
 //
 // Offline additions must sync without creating duplicates
 
-#[test]
-fn sync_remote_contains_new_contacts() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_remote_contains_new_contacts() -> Result<(), AppError> {
     let mut local_manager = make_manager()?;
 
     let contact1 = Contact::new(
@@ -224,11 +229,13 @@ fn sync_remote_contains_new_contacts() -> Result<(), AppError> {
     assert_eq!(local_manager.mem.len(), 1);
 
     let mut base = local_manager.mem.clone();
-    let sync_status = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(remote_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let sync_status = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(remote_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
     assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
     local_manager.mem = base;
     local_manager.index = manager::Index::new(&local_manager)?;
@@ -242,8 +249,8 @@ fn sync_remote_contains_new_contacts() -> Result<(), AppError> {
     Ok(())
 }
 
-#[test]
-fn sync_offline_additions_no_duplicates() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_offline_additions_no_duplicates() -> Result<(), AppError> {
     // Scenario: Both offline, both add same contact independently
 
     let same_contact_local = Contact::new(
@@ -269,11 +276,13 @@ fn sync_offline_additions_no_duplicates() -> Result<(), AppError> {
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
 
     let mut base = local_manager.mem.clone();
-    let sync_status = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(remote_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let sync_status = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(remote_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
     assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
     local_manager.mem = base;
     local_manager.index = manager::Index::new(&local_manager)?;
@@ -292,8 +301,8 @@ fn sync_offline_additions_no_duplicates() -> Result<(), AppError> {
 //
 // Deleted locally but edited remotely — delete wins
 
-#[test]
-fn sync_local_delete_remote_edit_delete_wins() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_local_delete_remote_edit_delete_wins() -> Result<(), AppError> {
     let contact_id = Uuid::new_v4();
     let base_time = Utc::now();
 
@@ -330,11 +339,13 @@ fn sync_local_delete_remote_edit_delete_wins() -> Result<(), AppError> {
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
-    let sync_status = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(remote_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let sync_status = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(remote_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
     assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
     local_manager.mem = base;
     local_manager.index = manager::Index::new(&local_manager)?;
@@ -349,8 +360,8 @@ fn sync_local_delete_remote_edit_delete_wins() -> Result<(), AppError> {
     Ok(())
 }
 
-#[test]
-fn sync_remote_delete_local_edit_remote_delete_wins() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_remote_delete_local_edit_remote_delete_wins() -> Result<(), AppError> {
     let contact_id = Uuid::new_v4();
     let base_time = Utc::now();
 
@@ -385,11 +396,13 @@ fn sync_remote_delete_local_edit_remote_delete_wins() -> Result<(), AppError> {
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
-    let sync_status = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(remote_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let sync_status = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(remote_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
     assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
     local_manager.mem = base;
     local_manager.index = manager::Index::new(&local_manager)?;
@@ -407,8 +420,8 @@ fn sync_remote_delete_local_edit_remote_delete_wins() -> Result<(), AppError> {
 //
 // This scenario tests rollback behavior on failure
 
-#[test]
-fn sync_state_unchanged_on_error() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_state_unchanged_on_error() -> Result<(), AppError> {
     let contact_id = Uuid::new_v4();
     let base_time = Utc::now();
 
@@ -445,11 +458,13 @@ fn sync_state_unchanged_on_error() -> Result<(), AppError> {
 
     // Sync should fail
     let mut base = local_manager.mem.clone();
-    let result = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(remote_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let result = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(remote_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
     assert!(result.is_err(), "Sync should fail on timestamp conflict");
 
     // Verify local state unchanged (rollback semantics)
@@ -466,8 +481,8 @@ fn sync_state_unchanged_on_error() -> Result<(), AppError> {
 //
 // Clock drift or corruption - policy must produce deterministic results
 
-#[test]
-fn sync_same_timestamps_uses_local() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_same_timestamps_uses_local() -> Result<(), AppError> {
     let contact_id = Uuid::new_v4();
     let base_time = Utc::now();
 
@@ -501,11 +516,13 @@ fn sync_same_timestamps_uses_local() -> Result<(), AppError> {
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
-    let sync_status = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(remote_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let sync_status = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(remote_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
     assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
     local_manager.mem = base;
     local_manager.index = manager::Index::new(&local_manager)?;
@@ -519,8 +536,8 @@ fn sync_same_timestamps_uses_local() -> Result<(), AppError> {
     Ok(())
 }
 
-#[test]
-fn sync_created_at_mismatch_detected_as_conflict() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_created_at_mismatch_detected_as_conflict() -> Result<(), AppError> {
     let contact_id = Uuid::new_v4();
     let base_time = Utc::now();
 
@@ -548,11 +565,13 @@ fn sync_created_at_mismatch_detected_as_conflict() -> Result<(), AppError> {
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
 
     let mut base = local_manager.mem.clone();
-    let result = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(remote_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let result = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(remote_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
 
     assert!(
         result.is_err(),
@@ -573,8 +592,8 @@ fn sync_created_at_mismatch_detected_as_conflict() -> Result<(), AppError> {
 //
 // Similar contacts with partial overlap
 
-#[test]
-fn sync_ignores_duplicate_by_name_and_phone() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_ignores_duplicate_by_name_and_phone() -> Result<(), AppError> {
     let mut local_manager = make_manager()?;
 
     // Local has this contact
@@ -602,11 +621,13 @@ fn sync_ignores_duplicate_by_name_and_phone() -> Result<(), AppError> {
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
-    let sync_status = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(remote_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let sync_status = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(remote_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
     assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
     local_manager.mem = base;
     local_manager.index = manager::Index::new(&local_manager)?;
@@ -624,8 +645,8 @@ fn sync_ignores_duplicate_by_name_and_phone() -> Result<(), AppError> {
     Ok(())
 }
 
-#[test]
-fn sync_duplicate_detection_requires_name_and_phone_match() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_duplicate_detection_requires_name_and_phone_match() -> Result<(), AppError> {
     let mut local_manager = make_manager()?;
 
     let local_contact = Contact::new(
@@ -661,11 +682,13 @@ fn sync_duplicate_detection_requires_name_and_phone_match() -> Result<(), AppErr
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
-    let sync_status = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(remote_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let sync_status = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(remote_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
     assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
     local_manager.mem = base;
     local_manager.index = manager::Index::new(&local_manager)?;
@@ -682,8 +705,8 @@ fn sync_duplicate_detection_requires_name_and_phone_match() -> Result<(), AppErr
 
 // EDGE CASES
 
-#[test]
-fn sync_empty_remote_no_changes() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_empty_remote_no_changes() -> Result<(), AppError> {
     let mut local_manager = make_manager()?;
 
     let contact = Contact::new(
@@ -698,11 +721,13 @@ fn sync_empty_remote_no_changes() -> Result<(), AppError> {
     let empty_storage = MockStorage::new(HashMap::new());
 
     let mut base = local_manager.mem.clone();
-    let sync_status = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(empty_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let sync_status = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(empty_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
     assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
     local_manager.mem = base;
     local_manager.index = manager::Index::new(&local_manager)?;
@@ -714,8 +739,8 @@ fn sync_empty_remote_no_changes() -> Result<(), AppError> {
     Ok(())
 }
 
-#[test]
-fn sync_all_remote_contacts_deleted_locally() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_all_remote_contacts_deleted_locally() -> Result<(), AppError> {
     let contact_id = Uuid::new_v4();
     let base_time = Utc::now();
 
@@ -742,11 +767,13 @@ fn sync_all_remote_contacts_deleted_locally() -> Result<(), AppError> {
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
-    let sync_status = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(remote_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let sync_status = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(remote_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
     assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
     local_manager.mem = base;
     local_manager.index = manager::Index::new(&local_manager)?;
@@ -758,8 +785,8 @@ fn sync_all_remote_contacts_deleted_locally() -> Result<(), AppError> {
     Ok(())
 }
 
-#[test]
-fn sync_index_updated_after_merge() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_index_updated_after_merge() -> Result<(), AppError> {
     let contact_id = Uuid::new_v4();
     let base_time = Utc::now();
 
@@ -787,11 +814,13 @@ fn sync_index_updated_after_merge() -> Result<(), AppError> {
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
-    let sync_status = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(remote_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let sync_status = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(remote_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
     assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
     local_manager.mem = base;
     local_manager.index = manager::Index::new(&local_manager)?;
@@ -842,8 +871,8 @@ fn sync_index_updated_after_merge() -> Result<(), AppError> {
     Ok(())
 }
 
-#[test]
-fn sync_multiple_contacts_mixed_operations() -> Result<(), AppError> {
+#[tokio::test]
+async fn sync_multiple_contacts_mixed_operations() -> Result<(), AppError> {
     // Complex scenario: multiple contacts with add, update, delete, keep operations
     let base_time = Utc::now();
 
@@ -919,11 +948,13 @@ fn sync_multiple_contacts_mixed_operations() -> Result<(), AppError> {
 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
-    let sync_status = local_manager.sync_from_storage(
-        &mut base,
-        Box::new(remote_storage),
-        manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-    );
+    let sync_status = local_manager
+        .sync_from_storage(
+            &mut base,
+            Box::new(remote_storage),
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+        )
+        .await;
     assert!(sync_status.is_ok(), "sync failed: {:?}", sync_status.err());
     local_manager.mem = base;
     local_manager.index = manager::Index::new(&local_manager)?;

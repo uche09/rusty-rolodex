@@ -12,14 +12,14 @@ use crate::{
 use clap::Parser;
 use std::{env, path::Path, process::exit};
 
-pub fn run_app() -> Result<(), AppError> {
+pub async fn run_app() -> Result<(), AppError> {
     let cli = Cli::parse();
 
     unsafe {
         env::set_var("STORAGE_CHOICE", &cli.storage_choice);
     }
 
-    let mut manager = ContactManager::new()?;
+    let mut manager = ContactManager::new().await?;
 
     println!(
         "Current storage choice is: {}",
@@ -60,7 +60,7 @@ pub fn run_app() -> Result<(), AppError> {
 
             manager.add_contact(new_contact);
 
-            manager.save()?;
+            manager.save().await?;
 
             println!("Contact added successfully");
             Ok(())
@@ -179,7 +179,7 @@ pub fn run_app() -> Result<(), AppError> {
                 return Err(AppError::NotFound("Contact".to_string()));
             }
 
-            manager.save()?;
+            manager.save().await?;
             println!("Contact updated successfully");
             Ok(())
         }
@@ -208,7 +208,7 @@ pub fn run_app() -> Result<(), AppError> {
                                     && contact == &desired_contact
                                 {
                                     manager.delete_contact(id)?;
-                                    manager.save()?;
+                                    manager.save().await?;
                                     println!("Contact deleted successfully");
                                     exit(0);
                                 }
@@ -221,7 +221,7 @@ pub fn run_app() -> Result<(), AppError> {
                         manager.delete_contact(&ids[0])?;
                     }
 
-                    manager.save()?;
+                    manager.save().await?;
                     println!("Contact deleted successfully");
                     Ok(())
                 }
@@ -291,7 +291,7 @@ pub fn run_app() -> Result<(), AppError> {
             let storage: Box<dyn ContactStore> =
                 parse_import_export_storage_type(from, &source, false)?;
 
-            manager.import_contacts_from_storage(storage)?;
+            manager.import_contacts_from_storage(storage).await?;
             println!("Imported");
             println!("Contacts imported successfully from {:?}.", source);
             Ok(())
@@ -308,7 +308,7 @@ pub fn run_app() -> Result<(), AppError> {
 
             let storage = parse_import_export_storage_type(to, &source, true)?;
 
-            manager.export_contacts_to_storage(storage)?;
+            manager.export_contacts_to_storage(storage).await?;
             println!("Exported");
             println!("Contacts exported successfully to {:?}.", source);
             Ok(())

@@ -4,18 +4,19 @@ pub mod remote;
 
 use crate::helper;
 use crate::prelude::{AppError, Contact, HashMap, uuid::Uuid};
+use async_trait::async_trait;
 use dotenv::dotenv;
-use std::fs::{self, OpenOptions};
-use std::io::{BufReader, Read, Write};
+use std::fs;
 use std::{
     env,
     path::{Path, PathBuf},
 };
 
+#[async_trait(?Send)]
 pub trait ContactStore {
-    fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError>;
+    async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError>;
 
-    fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError>;
+    async fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError>;
 
     fn get_medium(&self) -> &str;
 }

@@ -12,6 +12,7 @@ pub enum AppError {
     Poison(String),
     RegexError(regex::Error),
     Synchronization(String),
+    TomlParser(toml::ser::Error),
     Validation(String),
 }
 
@@ -56,6 +57,12 @@ impl From<reqwest::Error> for AppError {
     }
 }
 
+impl From<toml::ser::Error> for AppError {
+    fn from(err: toml::ser::Error) -> Self {
+        AppError::TomlParser(err)
+    }
+}
+
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -85,6 +92,9 @@ impl fmt::Display for AppError {
             }
             AppError::Synchronization(msg) => {
                 write!(f, "Synchronization Error: {}", msg)
+            }
+            AppError::TomlParser(e) => {
+                write!(f, "Txt Serialization failed: {}", e)
             }
             AppError::Validation(msg) => {
                 write!(f, "Validation failed: {}", msg)

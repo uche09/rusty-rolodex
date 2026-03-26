@@ -11,7 +11,6 @@ pub struct RemoteStorage {
     pub medium: String,
     pub http_client: Client,
     resource_id: RefCell<Option<String>>,
-    
 }
 
 impl RemoteStorage {
@@ -163,18 +162,22 @@ impl ContactStore for RemoteStorage {
         let url = self.active_url.borrow().clone();
         let url = url.ok_or(AppError::NotFound("active url".to_string()))?;
 
-        let mut res = self.http_client
+        let mut res = self
+            .http_client
             .put(&url)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .body(serde_json::to_vec(contacts)?)
-            .send().await?;
+            .send()
+            .await?;
 
         if !res.status().is_success() {
-            res = self.http_client
+            res = self
+                .http_client
                 .post(&url)
                 .header(reqwest::header::CONTENT_TYPE, "application/json")
                 .body(serde_json::to_vec(contacts)?)
-                .send().await?;
+                .send()
+                .await?;
         }
 
         // Convert non-success status into a `reqwest::Error` which maps to `AppError::FailedRequest`
@@ -292,18 +295,22 @@ mod tests {
             let url = self.active_url.borrow().clone();
             let url = url.ok_or(AppError::NotFound("active url".to_string()))?;
 
-            let mut res = self.http_client
+            let mut res = self
+                .http_client
                 .put(&url)
                 .header(reqwest::header::CONTENT_TYPE, "application/json")
                 .body(serde_json::to_vec(contacts)?)
-                .send().await?;
+                .send()
+                .await?;
 
             if !res.status().is_success() {
-                res = self.http_client
+                res = self
+                    .http_client
                     .post(&url)
                     .header(reqwest::header::CONTENT_TYPE, "application/json")
                     .body(serde_json::to_vec(contacts)?)
-                    .send().await?;
+                    .send()
+                    .await?;
             }
 
             // Convert non-success status into a `reqwest::Error` which maps to `AppError::FailedRequest`

@@ -1,7 +1,21 @@
 use super::*;
 
 use csv::{Reader, Writer};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::{fs as tokio_fs, io::AsyncWriteExt};
+
+/// # TOML wrapper struct.
+///
+/// We are using TOML to Serialize/Deserialize into .txt file
+/// while retaining readable file format.
+///
+/// TOML require a **table at the root of a TOML document**
+/// for proper formating. The table is the `contacts` field.
+#[derive(Serialize, Deserialize)]
+struct TomlContacts {
+    contacts: HashMap<Uuid, Contact>,
+}
 
 pub struct JsonStorage {
     pub medium: String,
@@ -63,20 +77,10 @@ impl CsvStorage {
     }
 }
 
+#[async_trait(?Send)]
 impl ContactStore for JsonStorage {
-    fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
-        if !fs::exists(Path::new(&self.path))? {
-            return Ok(HashMap::new());
-        }
-        let mut file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .truncate(false)
-            .create(true)
-            .open(&self.path)?;
-
-        let mut data = String::new();
-        file.read_to_string(&mut data)?;
+    async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
+        let data = read_file(&self.path).await?;
 
         // serde_json will give an error if data is empty
         if data.is_empty() {
@@ -107,32 +111,16 @@ impl ContactStore for JsonStorage {
         }
     }
 
-    fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
-        let path = Path::new(&self.path);
-        if !path.exists() {
-            create_file_parent(&self.path)?;
-            // let _file = OpenOptions::new()
-            //     .write(true)
-            //     .create(true)
-            //     .truncate(true)
-            //     .open(path)?;
-        }
-
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(path)?;
-
+    async fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
         // user serde to serialize json data
         let json_contact = serde_json::to_string(&contacts)?;
-        file.write_all(json_contact.as_bytes())?;
+        write_file(&self.path, &json_contact).await?;
 
         let txt_path =
             env::var("TXT_STORAGE_PATH").unwrap_or("./.instance/contacts.txt".to_string());
         let txt_path = Path::new(&txt_path);
-        if fs::exists(txt_path)? {
-            fs::remove_file(txt_path)?;
+        if tokio_fs::try_exists(txt_path).await? {
+            tokio_fs::remove_file(txt_path).await?;
         }
 
         Ok(())
@@ -143,53 +131,37 @@ impl ContactStore for JsonStorage {
     }
 }
 
+#[async_trait(?Send)]
 impl ContactStore for TxtStorage {
-    fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
-        if !fs::exists(Path::new(&self.path))? {
-            return Ok(HashMap::new());
-        }
-        // Read text fom file
-        // Using OpenOptions to open file if already exist
-        // Or create one
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .truncate(false)
-            .create(true)
-            .open(&self.path)?;
+    async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
+        let data = read_file(&self.path).await?;
+        let toml_contacts: Result<TomlContacts, toml::de::Error> = toml::from_str(&data);
 
-        let reader = BufReader::new(file);
-        let contacts = helper::deserialize_contacts_from_txt_buffer(reader)?;
-        Ok(contacts)
+        if let Ok(toml_contacts) = toml_contacts {
+            Ok(toml_contacts.contacts)
+        } else {
+            Ok(helper::deserialize_contacts_from_txt_buffer(data)?)
+        }
     }
 
-    fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
-        let path = Path::new(&self.path);
-        if !path.exists() {
-            create_file_parent(&self.path)?;
-            // let _file = OpenOptions::new()
-            //     .write(true)
-            //     .create(true)
-            //     .truncate(true)
-            //     .open(path)?;
-        }
+    async fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
+        let toml_contacts = TomlContacts {
+            contacts: contacts.clone(),
+        };
+        let string_data = toml::to_string(&toml_contacts)?;
 
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(path)?;
+        // // use our helper to serialize data for txt file
+        // let data = helper::serialize_contacts(contacts);
 
-        // use our helper to serialize data for txt file
-        let data = helper::serialize_contacts(contacts);
-        file.write_all(data.as_bytes())?;
+        write_file(&self.path, &string_data).await?;
 
         let json_path =
             env::var("JSON_STORAGE_PATH").unwrap_or("./.instance/contacts.json".to_string());
         let json_path = Path::new(&json_path);
-        if fs::exists(json_path)? {
-            fs::remove_file(json_path)?;
+        if tokio_fs::try_exists(json_path).await? {
+            tokio_fs::remove_file(json_path).await?;
         }
+
         Ok(())
     }
 
@@ -198,12 +170,13 @@ impl ContactStore for TxtStorage {
     }
 }
 
+#[async_trait(?Send)]
 impl ContactStore for CsvStorage {
     fn get_medium(&self) -> &str {
         &self.medium
     }
 
-    fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
+    async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
         let file_path: PathBuf = PathBuf::from(&self.path);
 
         if !file_path.exists() {
@@ -214,7 +187,9 @@ impl ContactStore for CsvStorage {
             return Err(AppError::Validation("File not .csv".to_string()));
         }
 
-        let mut reader = Reader::from_path(&file_path)?;
+        let data = read_file(&self.path).await?;
+
+        let mut reader = Reader::from_reader(data.as_bytes());
 
         let mut contacts: HashMap<Uuid, Contact> = HashMap::new();
 
@@ -226,86 +201,47 @@ impl ContactStore for CsvStorage {
         Ok(contacts)
     }
 
-    fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
-        let file_path = PathBuf::from(&self.path);
-
-        if !file_path.exists() {
-            let _file = fs::OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open(&file_path)?;
-        }
-
-        let mut writer = Writer::from_path(&file_path)?;
+    async fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
+        let mut writer = Writer::from_writer(vec![]);
 
         for contact in contacts.values() {
             writer.serialize(contact)?;
         }
 
-        writer.flush()?;
+        let data = writer
+            .into_inner()
+            .map_err(|e| AppError::Io(e.into_error()))?;
+        let csv_string = str::from_utf8(&data).map_err(|e| AppError::Validation(e.to_string()))?;
+
+        write_file(&self.path, csv_string).await?;
 
         Ok(())
     }
 }
 
-pub fn load_txt_contacts(path: &str) -> Result<HashMap<Uuid, Contact>, AppError> {
-    if !fs::exists(Path::new(path))? {
-        return Ok(HashMap::new());
+async fn read_file(path: &str) -> Result<String, AppError> {
+    if !tokio_fs::try_exists(Path::new(path)).await? {
+        return Ok(String::new());
     }
-    // Read text fom file
-    // Using OpenOptions to open file if already exist
-    // Or create one
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .truncate(false)
-        .create(true)
-        .open(path)?;
-    let reader = BufReader::new(file);
-    let contacts = helper::deserialize_contacts_from_txt_buffer(reader)?;
-    Ok(contacts)
+    let data = tokio_fs::read_to_string(path).await?;
+
+    Ok(data)
 }
 
-pub fn load_json_contacts(path: &str) -> Result<HashMap<Uuid, Contact>, AppError> {
-    if !fs::exists(Path::new(path))? {
-        return Ok(HashMap::new());
+async fn write_file(path_str: &str, data: &str) -> Result<(), AppError> {
+    let path = Path::new(path_str);
+    if !path.exists() {
+        create_file_parent(path_str)?;
     }
-    let mut file = OpenOptions::new()
-        .read(true)
+
+    let mut file = tokio_fs::OpenOptions::new()
         .write(true)
-        .truncate(false)
         .create(true)
-        .open(path)?;
+        .truncate(true)
+        .open(path)
+        .await?;
 
-    let mut data = String::new();
-    file.read_to_string(&mut data)?;
-
-    // serde_json will give an error if data is empty
-    if data.is_empty() {
-        return Ok(HashMap::new());
-    }
-
-    let value: Value = serde_json::from_str(&data)?;
-
-    // New Format: Contacts are now stored in HashMap.
-    // Try if new format has been effected
-    if value.is_object() {
-        let contacts: HashMap<Uuid, Contact> = serde_json::from_value(value)?;
-        Ok(contacts)
-    } else if value.is_array() {
-        // Old Format: Contacts were stored in Vec
-        let contacts: Vec<Contact> = serde_json::from_value(value)?;
-
-        // Convert Vec to HashMap for new feature backward compatibility
-        let mapped_contacts = contacts
-            .into_iter()
-            .map(|cont| (cont.id, cont))
-            .collect::<HashMap<Uuid, Contact>>();
-        Ok(mapped_contacts)
-    } else {
-        Err(AppError::Validation(
-            "Invalid JSON structure: expected object or array".to_string(),
-        ))
-    }
+    file.write_all(data.as_bytes()).await?;
+    file.flush().await?;
+    Ok(())
 }

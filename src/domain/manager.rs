@@ -168,7 +168,7 @@ impl LastWriteWinsPolicy {
 }
 
 impl ContactManager {
-    pub fn new() -> Result<Self, AppError> {
+    pub async fn new() -> Result<Self, AppError> {
         let storage = storage::parse_storage_type_env_config(None)?;
 
         let mut manager = Self {
@@ -179,13 +179,13 @@ impl ContactManager {
                 domain: HashMap::new(),
             },
         };
-        manager.load()?;
+        manager.load().await?;
         manager.index = Index::new(&manager)?;
 
         if manager.storage.get_medium() == "txt" {
-            manager.migrate_from_storage(&JsonStorage::new()?)?;
+            manager.migrate_from_storage(&JsonStorage::new()?).await?;
         } else {
-            manager.migrate_from_storage(&TxtStorage::new()?)?;
+            manager.migrate_from_storage(&TxtStorage::new()?).await?;
         }
         Ok(manager)
     }
@@ -269,8 +269,11 @@ impl ContactManager {
         }
     }
 
-    pub fn migrate_from_storage(&mut self, storage: &dyn ContactStore) -> Result<(), AppError> {
-        let contacts = storage.load()?;
+    pub async fn migrate_from_storage(
+        &mut self,
+        storage: &dyn ContactStore,
+    ) -> Result<(), AppError> {
+        let contacts = storage.load().await?;
 
         for contact in contacts.values() {
             self.index
@@ -281,12 +284,12 @@ impl ContactManager {
         Ok(())
     }
 
-    pub fn load(&mut self) -> Result<(), AppError> {
-        self.mem = self.storage.load()?;
+    pub async fn load(&mut self) -> Result<(), AppError> {
+        self.mem = self.storage.load().await?;
         Ok(())
     }
 
-    pub fn save(&mut self) -> Result<(), AppError> {
+    pub async fn save(&mut self) -> Result<(), AppError> {
         // Purge soft-deleted contacts older than configured days before persisting.
         // Default: 1 days.
         let purge_days: i64 = helper::get_env_value_by_key("PURGE_DAYS")
@@ -296,23 +299,25 @@ impl ContactManager {
 
         self.purge_soft_deleted_older_than(purge_days);
 
-        self.storage.save(&self.mem)
+        self.storage.save(&self.mem).await
     }
 
-    pub fn import_contacts_from_storage(
+    pub async fn import_contacts_from_storage(
         &mut self,
         storage: Box<dyn ContactStore>,
     ) -> Result<(), AppError> {
         let mut base = self.mem.clone();
 
-        let sync_status = self.sync_from_storage(
-            &mut base,
-            storage,
-            SyncPolicy::LastWriteWinsPolicy(LastWriteWinsPolicy),
-        );
+        let sync_status = self
+            .sync_from_storage(
+                &mut base,
+                storage,
+                SyncPolicy::LastWriteWinsPolicy(LastWriteWinsPolicy),
+            )
+            .await;
 
         if sync_status.is_err() {
-            self.save()?; // rollback to previous state on error
+            self.save().await?; // rollback to previous state on error
 
             return Err(sync_status.err().unwrap());
         } else {
@@ -325,7 +330,7 @@ impl ContactManager {
         ));
 
         for _ in 0..3 {
-            saved = self.save();
+            saved = self.save().await;
             if saved.is_ok() {
                 break;
             }
@@ -338,20 +343,20 @@ impl ContactManager {
         Ok(())
     }
 
-    pub fn export_contacts_to_storage(
+    pub async fn export_contacts_to_storage(
         &self,
         storage: Box<dyn ContactStore>,
     ) -> Result<(), AppError> {
-        storage.save(&self.mem)
+        storage.save(&self.mem).await
     }
 
-    pub fn sync_from_storage(
+    pub async fn sync_from_storage(
         &self,
         base: &mut HashMap<Uuid, Contact>,
         storage: Box<dyn ContactStore>,
         policy: SyncPolicy,
     ) -> Result<(), AppError> {
-        let mut remote_contacts = storage.load()?;
+        let mut remote_contacts = storage.load().await?;
 
         let SyncPolicy::LastWriteWinsPolicy(policy) = policy;
 
@@ -671,8 +676,8 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn adds_persistent_contact_with_txt() -> Result<(), AppError> {
+    #[tokio::test]
+    async fn adds_persistent_contact_with_txt() -> Result<(), AppError> {
         let storage_backend = Box::new(TxtStorage::new()?);
         let mut storage = ContactManager {
             mem: HashMap::new(),
@@ -691,9 +696,9 @@ mod tests {
         );
 
         storage.add_contact(new_contact);
-        storage.save()?;
+        storage.save().await?;
         storage.mem.clear();
-        storage.load()?;
+        storage.load().await?;
         storage.index = Index::new(&storage)?;
 
         assert_eq!(
@@ -707,12 +712,12 @@ mod tests {
         );
 
         storage.mem.clear();
-        storage.save()?;
+        storage.save().await?;
         Ok(())
     }
 
-    #[test]
-    fn delete_persistent_contact_with_txt() -> Result<(), AppError> {
+    #[tokio::test]
+    async fn delete_persistent_contact_with_txt() -> Result<(), AppError> {
         let storage_backend = Box::new(TxtStorage::new()?);
         let mut storage = ContactManager {
             mem: HashMap::new(),
@@ -740,34 +745,34 @@ mod tests {
         storage.add_contact(contact1);
         storage.add_contact(contact2);
 
-        storage.save()?;
+        storage.save().await?;
         storage.mem.clear();
 
-        storage.load()?;
+        storage.load().await?;
         storage.index = Index::new(&storage)?;
 
         let index = storage
             .get_ids_by_name(&"Uche".to_string())
             .unwrap_or_default();
         storage.delete_contact(&index[0])?; // delete contact1 (Soft delete)
-        storage.save()?;
+        storage.save().await?;
 
         storage.mem.clear();
-        storage.load()?;
+        storage.load().await?;
         storage.index = Index::new(&storage)?;
 
         assert_eq!(storage.mem.len(), 2); // contact is soft deleted
         assert!(storage.mem.get(&index[0]).unwrap().deleted);
 
         storage.mem.clear();
-        storage.save()?;
+        storage.save().await?;
 
         Ok(())
     }
 
-    #[test]
-    fn json_store_is_persistent() -> Result<(), AppError> {
-        let mut storage = ContactManager::new()?;
+    #[tokio::test]
+    async fn json_store_is_persistent() -> Result<(), AppError> {
+        let mut storage = ContactManager::new().await?;
 
         let created = Utc::now();
         let id_1 = Uuid::new_v4();
@@ -798,10 +803,10 @@ mod tests {
         storage.add_contact(contact1);
         storage.add_contact(contact2);
 
-        storage.save()?;
+        storage.save().await?;
         storage.mem.clear();
 
-        storage.load()?;
+        storage.load().await?;
         storage.index = Index::new(&storage)?;
 
         assert_eq!(
@@ -825,10 +830,10 @@ mod tests {
         );
 
         storage.delete_contact(&id_1)?;
-        storage.save()?;
+        storage.save().await?;
 
         storage.mem.clear();
-        storage.load()?;
+        storage.load().await?;
         storage.index = Index::new(&storage)?;
 
         assert_eq!(storage.mem.len(), 2); // contact is soft deleted
@@ -836,13 +841,13 @@ mod tests {
         assert!(storage.mem.get(&id_1).unwrap().deleted);
 
         storage.mem.clear();
-        storage.save()?;
+        storage.save().await?;
 
         Ok(())
     }
 
-    #[test]
-    fn migrates_contact() -> Result<(), AppError> {
+    #[tokio::test]
+    async fn migrates_contact() -> Result<(), AppError> {
         let mut txt_store = ContactManager {
             mem: HashMap::new(),
             storage: Box::new(TxtStorage::new()?),
@@ -868,18 +873,18 @@ mod tests {
         );
 
         txt_store.add_contact(contact1);
-        txt_store.save()?;
+        txt_store.save().await?;
         txt_store.mem.clear();
 
-        let mut json_store = ContactManager::new()?;
+        let mut json_store = ContactManager::new().await?;
 
         // json_store.mem = json_store.load()?;
 
         json_store.add_contact(contact2);
-        json_store.save()?;
+        json_store.save().await?;
         json_store.mem.clear();
 
-        json_store.load()?;
+        json_store.load().await?;
         let contact_list = json_store.contact_list();
 
         assert!(contact_list.len() == 2);
@@ -899,17 +904,17 @@ mod tests {
         )));
 
         json_store.mem.clear();
-        json_store.save()?;
+        json_store.save().await?;
 
         txt_store.mem.clear();
-        txt_store.save()?;
+        txt_store.save().await?;
 
         Ok(())
     }
 
-    #[test]
-    fn index_updates_on_add_and_delete() -> Result<(), AppError> {
-        let mut store = ContactManager::new()?;
+    #[tokio::test]
+    async fn index_updates_on_add_and_delete() -> Result<(), AppError> {
+        let mut store = ContactManager::new().await?;
 
         let contact1 = Contact::new(
             "Uche".to_string(),
@@ -955,9 +960,9 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn index_updates_on_edit() -> Result<(), AppError> {
-        let mut store = ContactManager::new()?;
+    #[tokio::test]
+    async fn index_updates_on_edit() -> Result<(), AppError> {
+        let mut store = ContactManager::new().await?;
 
         let contact = Contact::new(
             "John Doe".to_string(),
@@ -1025,9 +1030,9 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn fuzzy_search_name_matches_on_partial() -> Result<(), AppError> {
-        let mut store = ContactManager::new()?;
+    #[tokio::test]
+    async fn fuzzy_search_name_matches_on_partial() -> Result<(), AppError> {
+        let mut store = ContactManager::new().await?;
 
         let contact = Contact::new(
             "Uche Johnson".to_string(),
@@ -1052,9 +1057,9 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn fuzzy_search_email_domain_returns_contact() -> Result<(), AppError> {
-        let mut store = ContactManager::new()?;
+    #[tokio::test]
+    async fn fuzzy_search_email_domain_returns_contact() -> Result<(), AppError> {
+        let mut store = ContactManager::new().await?;
 
         let contact = Contact::new(
             "Alice".to_string(),

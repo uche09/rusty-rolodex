@@ -2,8 +2,7 @@ use chrono::{DateTime, Utc};
 
 use crate::prelude::{AppError, Contact, HashMap, uuid::Uuid};
 use std::env;
-use std::fs::{self, File};
-use std::io::{BufRead, BufReader};
+use std::fs;
 use std::str::FromStr;
 
 pub fn serialize_contacts(contacts: &HashMap<Uuid, Contact>) -> String {
@@ -49,8 +48,9 @@ fn split_annotation(line: &str) -> (Option<&str>, &str) {
 }
 
 pub fn deserialize_contacts_from_txt_buffer(
-    buffer: BufReader<File>,
+    data: String,
 ) -> Result<HashMap<Uuid, Contact>, AppError> {
+    let data = data.split("\n");
     let mut contacts = HashMap::new();
     let mut test_contact = Contact {
         id: Uuid::new_v4(),
@@ -72,9 +72,8 @@ pub fn deserialize_contacts_from_txt_buffer(
     let mut created_at = Utc::now();
     let mut updated_at = Utc::now();
 
-    for line in buffer.lines() {
-        let line = line?;
-        let (key, value) = split_annotation(&line);
+    for line in data {
+        let (key, value) = split_annotation(line);
 
         if value == "{" {
             // Start of a new contact format
@@ -272,14 +271,14 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn check_deserialization_from_txt() -> Result<(), AppError> {
+    #[tokio::test]
+    async fn check_deserialization_from_txt() -> Result<(), AppError> {
         // Testing should be ran explicitly on a single thread to avoid race condition from multiply test threads
         unsafe {
             env::set_var("STORAGE_CHOICE", "txt");
         }
 
-        let mut storage = ContactManager::new()?;
+        let mut storage = ContactManager::new().await?;
 
         let contact1 = Contact::new(
             "Uche".to_string(),
@@ -301,9 +300,9 @@ mod tests {
         storage.mem.insert(contact1.id.clone(), contact1);
         storage.mem.insert(contact2.id.clone(), contact2);
 
-        storage.save()?;
+        storage.save().await?;
         storage.mem.clear();
-        storage.load()?;
+        storage.load().await?;
 
         assert_eq!(
             storage.mem.get(&id_1).unwrap(),
@@ -326,7 +325,7 @@ mod tests {
         );
 
         storage.mem.clear();
-        storage.save()?;
+        storage.save().await?;
         Ok(())
     }
 }
