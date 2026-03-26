@@ -1,15 +1,17 @@
 use crate::helper;
 use std::cell::RefCell;
 
-use super::{AppError, Contact, ContactStore, HashMap, Uuid};
-use reqwest::blocking;
+use super::{AppError, Contact, ContactStore, HashMap, Uuid, async_trait};
+use reqwest::Client;
 use url::Url;
 
 pub struct RemoteStorage {
-    pub medium: String,
-    pub base_url: Option<String>,
-    resource_id: RefCell<Option<String>>,
     pub active_url: RefCell<Option<String>>,
+    pub base_url: Option<String>,
+    pub medium: String,
+    pub http_client: Client,
+    resource_id: RefCell<Option<String>>,
+    
 }
 
 impl RemoteStorage {
@@ -19,6 +21,7 @@ impl RemoteStorage {
             base_url: helper::get_env_value_by_key("REMOTE_STORAGE_URL").ok(),
             resource_id: RefCell::new(helper::get_env_value_by_key("RESOURCE_ID").ok()),
             active_url: RefCell::new(None),
+            http_client: Client::new(),
         })
     }
 
@@ -137,47 +140,47 @@ impl RemoteStorage {
     }
 }
 
+#[async_trait(?Send)]
 impl ContactStore for RemoteStorage {
     fn get_medium(&self) -> &str {
         &self.medium
     }
 
-    fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
+    async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
         let active_uri = self.active_url.borrow().clone();
         let active_uri = active_uri.ok_or(AppError::NotFound("active url".to_string()))?;
 
         let url = active_uri;
-        let response = blocking::get(url)?;
+        let response = self.http_client.get(url).send().await?;
 
         let response = response.error_for_status()?;
-        let res_str = response.text()?;
+        let res_str = response.text().await?;
         let contacts: HashMap<Uuid, Contact> = serde_json::from_str(&res_str)?;
         Ok(contacts)
     }
 
-    fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
+    async fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
         let url = self.active_url.borrow().clone();
         let url = url.ok_or(AppError::NotFound("active url".to_string()))?;
 
-        let blocking_client = blocking::Client::new();
-        let mut res = blocking_client
+        let mut res = self.http_client
             .put(&url)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .body(serde_json::to_vec(contacts)?)
-            .send()?;
+            .send().await?;
 
         if !res.status().is_success() {
-            res = blocking_client
+            res = self.http_client
                 .post(&url)
                 .header(reqwest::header::CONTENT_TYPE, "application/json")
                 .body(serde_json::to_vec(contacts)?)
-                .send()?;
+                .send().await?;
         }
 
         // Convert non-success status into a `reqwest::Error` which maps to `AppError::FailedRequest`
         let res = res.error_for_status()?;
 
-        let res_map: HashMap<String, String> = serde_json::from_str(&res.text()?)?;
+        let res_map: HashMap<String, String> = serde_json::from_str(&res.text().await?)?;
         self.extract_resource_id_from_successful_post_req(res_map.get("uri"));
         Ok(())
     }
@@ -235,6 +238,7 @@ mod tests {
         pub base_url: Option<String>,
         resource_id: RefCell<Option<String>>,
         pub active_url: RefCell<Option<String>>,
+        pub http_client: reqwest::Client,
     }
 
     impl MockRemoteStorage {
@@ -265,53 +269,53 @@ mod tests {
         }
     }
 
+    #[async_trait(?Send)]
     impl ContactStore for MockRemoteStorage {
         fn get_medium(&self) -> &str {
             &self.medium
         }
 
-        fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
+        async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
             let active_uri = self.active_url.borrow().clone();
             let active_uri = active_uri.ok_or(AppError::NotFound("active url".to_string()))?;
 
             let url = active_uri;
-            let response = blocking::get(url)?;
+            let response = self.http_client.get(url).send().await?;
 
             let response = response.error_for_status()?;
-            let res_str = response.text()?;
+            let res_str = response.text().await?;
             let contacts: HashMap<Uuid, Contact> = serde_json::from_str(&res_str)?;
             Ok(contacts)
         }
 
-        fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
+        async fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
             let url = self.active_url.borrow().clone();
             let url = url.ok_or(AppError::NotFound("active url".to_string()))?;
 
-            let blocking_client = blocking::Client::new();
-            let mut res = blocking_client
+            let mut res = self.http_client
                 .put(&url)
                 .header(reqwest::header::CONTENT_TYPE, "application/json")
                 .body(serde_json::to_vec(contacts)?)
-                .send()?;
+                .send().await?;
 
             if !res.status().is_success() {
-                res = blocking_client
+                res = self.http_client
                     .post(&url)
                     .header(reqwest::header::CONTENT_TYPE, "application/json")
                     .body(serde_json::to_vec(contacts)?)
-                    .send()?;
+                    .send().await?;
             }
 
             // Convert non-success status into a `reqwest::Error` which maps to `AppError::FailedRequest`
             let res = res.error_for_status()?;
 
-            let _res_map: HashMap<String, String> = serde_json::from_str(&res.text()?)?;
+            let _res_map: HashMap<String, String> = serde_json::from_str(&res.text().await?)?;
             Ok(())
         }
     }
 
-    #[test]
-    fn load_fetches_contacts_from_remote() {
+    #[tokio::test]
+    async fn load_fetches_contacts_from_remote() {
         // Setup mock for GET /resource-id
         let _m = mock("GET", "/resource-id")
             .with_status(200)
@@ -325,18 +329,19 @@ mod tests {
             base_url: Some(server_url()), // server_url() is like "http://127.0.0.1:XXXXX"
             resource_id: std::cell::RefCell::new(Some("resource-id".to_string())),
             active_url: std::cell::RefCell::new(None),
+            http_client: Client::new(),
         };
 
         // Make sure active_url is set to the mock endpoint
         storage.format_get_req_from_base_url().unwrap();
-        let contacts = storage.load().unwrap();
+        let contacts = storage.load().await.unwrap();
 
         assert_eq!(contacts.len(), 3);
         assert!(contacts.values().any(|c| c.name == "Adamu"));
     }
 
-    #[test]
-    fn save_prefers_put_then_post_when_put_fails() {
+    #[tokio::test]
+    async fn save_prefers_put_then_post_when_put_fails() {
         // construct a small contacts map with serde-serializable data matching your types.
         let contacts: HashMap<Uuid, Contact> = serde_json::from_str(&CONTACTS_JSON).unwrap();
 
@@ -354,12 +359,13 @@ mod tests {
             base_url: Some(server_url()),
             resource_id: std::cell::RefCell::new(Some("resource-id".to_string())),
             active_url: std::cell::RefCell::new(None),
+            http_client: Client::new(),
         };
 
         storage.format_put_req_from_base_url().unwrap();
 
         // Call save; code will attempt PUT, then POST on non-success, then parse response.
-        let res = storage.save(&contacts);
+        let res = storage.save(&contacts).await;
         assert!(res.is_ok());
 
         put_mock.assert();
