@@ -1,4 +1,6 @@
-use rusty_rolodex::prelude::{AppError, run_app};
+mod cli_component;
+
+use cli_component::{AppError, run_app};
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {

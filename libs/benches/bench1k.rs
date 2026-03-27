@@ -1,10 +1,13 @@
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
-use rusty_rolodex::domain::contact::phone_number_matches;
+use libs::domain::contact::phone_number_matches;
 use std::hint::black_box;
 
+use libs::domain::{
+    Contact, contact,
+    manager::{ContactManager, IndexUpdateType}
+};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use rusty_rolodex::prelude::{Contact, ContactManager, contact, manager::IndexUpdateType};
 use std::fs;
 use std::path::PathBuf;
 use uuid::Uuid as BenchUuid;
@@ -85,9 +88,9 @@ async fn make_store_with_n(n: usize) -> ContactManager {
 
 fn bech_add(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    c.bench_function("Adding 20k contact (in-memory single add)", |b| {
+    c.bench_function("Adding 1k contact (in-memory single add)", |b| {
         b.iter_batched(
-            || rt.block_on(make_store_with_n(20_000)),
+            || rt.block_on(make_store_with_n(1_000)),
             |mut storage| {
                 let new_contact = Contact::new(
                     "Zoe".to_string(),
@@ -105,8 +108,8 @@ fn bech_add(c: &mut Criterion) {
 
 fn bench_list(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    c.bench_function("listing 20k contact (collect + sort + filter)", |b| {
-        let storage = rt.block_on(make_store_with_n(20_000));
+    c.bench_function("listing 1k contact (collect + sort + filter)", |b| {
+        let storage = rt.block_on(make_store_with_n(1_000));
         b.iter(|| {
             let mut filtered_contacts: Vec<&Contact> = storage
                 .mem
@@ -129,8 +132,8 @@ fn bench_list(c: &mut Criterion) {
 
 fn bench_search(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    c.bench_function("Searching 20k contact (single fuzzy search)", |b| {
-        let storage = rt.block_on(make_store_with_n(20_000));
+    c.bench_function("Searching 1k contact (single fuzzy search)", |b| {
+        let storage = rt.block_on(make_store_with_n(1_000));
         b.iter(|| {
             let result = storage.fuzzy_search_name("zoe").expect("search failed");
             black_box(result);
@@ -140,10 +143,10 @@ fn bench_search(c: &mut Criterion) {
 
 fn bench_edit(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    c.bench_function("Editing 20k contact (single edit)", |b| {
+    c.bench_function("Editing 1k contact (single edit)", |b| {
         b.iter_batched(
             || {
-                let mut storage = rt.block_on(make_store_with_n(20_000));
+                let mut storage = rt.block_on(make_store_with_n(1_000));
 
                 let new_contact = Contact::new(
                     "Zoe".to_string(),
@@ -185,10 +188,10 @@ fn bench_edit(c: &mut Criterion) {
 
 fn bench_delete(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    c.bench_function("Deleting 20k contact (single delete)", |b| {
+    c.bench_function("Deleting 1k contact (single delete)", |b| {
         b.iter_batched(
             || {
-                let mut storage = rt.block_on(make_store_with_n(20_000));
+                let mut storage = rt.block_on(make_store_with_n(1_000));
 
                 let new_contact = Contact::new(
                     "Zoe".to_string(),
@@ -220,9 +223,9 @@ fn bench_delete(c: &mut Criterion) {
 
 fn bench_increment_index(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    c.bench_function("Increment index for 20k store", |b| {
+    c.bench_function("Increment index for 1k store", |b| {
         b.iter_batched(
-            || rt.block_on(make_store_with_n(20_000)),
+            || rt.block_on(make_store_with_n(1_000)),
             |mut storage| {
                 let new_contact = Contact::new(
                     "NewUser".to_string(),
@@ -242,9 +245,9 @@ fn bench_increment_index(c: &mut Criterion) {
 
 fn bench_decrement_index(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    c.bench_function("Decrement index for 20k store", |b| {
+    c.bench_function("Decrement index for 1k store", |b| {
         b.iter_batched(
-            || rt.block_on(make_store_with_n(20_000)),
+            || rt.block_on(make_store_with_n(1_000)),
             |mut storage| {
                 // Take the first contact from the store to decrement
                 if let Some((_, contact)) = storage.mem.iter().next() {
@@ -263,7 +266,7 @@ fn bench_decrement_index(c: &mut Criterion) {
 // IO
 fn bench_save_store_json(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    c.bench_function("save_20k_json_contacts", |b| {
+    c.bench_function("save_1k_json_contacts", |b| {
         b.iter_batched(
             || {
                 // Setup: create temp dir and enter it
@@ -279,7 +282,7 @@ fn bench_save_store_json(c: &mut Criterion) {
                 }
 
                 // Build store in setup (excluded from measured timing)
-                let storage = rt.block_on(make_store_with_n(20_000));
+                let storage = rt.block_on(make_store_with_n(1_000));
 
                 (storage, base)
             },
@@ -301,7 +304,7 @@ fn bench_save_store_json(c: &mut Criterion) {
 
 fn bench_read_store_json(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    c.bench_function("read_20k_json_contacts", |b| {
+    c.bench_function("read_1k_json_contacts", |b| {
         b.iter_batched(
             || {
                 // Setup: create temp dir and enter it
@@ -316,7 +319,7 @@ fn bench_read_store_json(c: &mut Criterion) {
                 }
 
                 // Build and save the store so there's something to load
-                let mut storage = rt.block_on(make_store_with_n(20_000));
+                let mut storage = rt.block_on(make_store_with_n(1_000));
                 rt.block_on(storage.save()).expect("setup save failed");
 
                 // restore cwd so setup leaves global state clean; measured closure will chdir into base
@@ -349,7 +352,7 @@ fn bench_read_store_json(c: &mut Criterion) {
 
 fn bench_save_store_txt(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    c.bench_function("save_20k_txt_contacts", |b| {
+    c.bench_function("save_1k_txt_contacts", |b| {
         b.iter_batched(
             || {
                 let base = std::env::temp_dir()
@@ -361,7 +364,7 @@ fn bench_save_store_txt(c: &mut Criterion) {
                     std::env::set_var("STORAGE_CHOICE", "txt");
                 }
 
-                let storage = rt.block_on(make_store_with_n(20_000));
+                let storage = rt.block_on(make_store_with_n(1_000));
 
                 (storage, base)
             },
@@ -381,7 +384,7 @@ fn bench_save_store_txt(c: &mut Criterion) {
 
 fn bench_read_store_txt(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    c.bench_function("read_20k_txt_contacts", |b| {
+    c.bench_function("read_1k_txt_contacts", |b| {
         b.iter_batched(
             || {
                 let base = std::env::temp_dir()
@@ -394,7 +397,7 @@ fn bench_read_store_txt(c: &mut Criterion) {
                     std::env::set_var("STORAGE_CHOICE", "txt");
                 }
 
-                let mut storage = rt.block_on(make_store_with_n(20_000));
+                let mut storage = rt.block_on(make_store_with_n(1_000));
                 rt.block_on(storage.save()).expect("setup save failed");
 
                 std::env::set_current_dir(&original_cwd).expect("restore cwd after setup");

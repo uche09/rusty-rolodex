@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 // Import the necessary types from rusty_rolodex
-use rusty_rolodex::prelude::*;
+use libs::prelude::*;
 
 /// Mock storage for testing synchronization scenarios
 struct MockStorage {

@@ -2,15 +2,18 @@ pub mod file;
 pub mod memory;
 pub mod remote;
 
-use crate::helper;
-use crate::prelude::{AppError, Contact, HashMap, uuid::Uuid};
 use async_trait::async_trait;
+pub use std::collections::HashMap;
+use crate::domain::Contact;
 use dotenv::dotenv;
+use crate::errors::AppError;
+use crate::helper;
 use std::fs;
 use std::{
     env,
     path::{Path, PathBuf},
 };
+use uuid::Uuid;
 
 #[async_trait(?Send)]
 pub trait ContactStore {
