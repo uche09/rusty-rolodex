@@ -13,31 +13,35 @@ Key achievement: **Validated at scale**, benchmarked with 100k contacts, sub-270
 
 ## System Architecture
 
-**TL;DR:** Clean three-tier architecture (CLI -> Domain -> Storage) with pluggable backends (JSON, CSV, TXT, HTTP) via trait-based abstraction.
+**TL;DR:** Workspace with two member crates: `libs` (domain logic + storage) and `cli` (command-line interface). Clean three-tier architecture (CLI -> Domain -> Storage) with pluggable backends (JSON, CSV, TXT, HTTP) via trait-based abstraction.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        CLI Interface                        │
-│              (clap arg parsing, command routing)            │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────────────────┐
-│                   Domain Layer                              │
-│  (Contact entity, ContactManager, validation, sync logic)  │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-┌────────────────────────▼──────────────────────────────────────┐
-│              Storage Abstraction (Trait)                      │
-│                   ContactStore trait                          │
-└────────────┬──────────────┬──────────────┬────────────────────┘
-             │              │              │
-      ┌──────▼──┐    ┌─────▼─────┐  ┌────▼──────┐    ┌──────────┐
-      │   JSON  │    │    CSV    │  │    TXT    │    │  Remote  │
-      │ Storage │    │  Storage  │  │  Storage  │    │ (HTTP)   │
-      └─────────┘    └───────────┘  └───────────┘    └──────────┘
+┌────────────────────────── Workspace ─────────────────────────┐
+│                                                              │
+│    ┌─────────────────────────────────┐  ┌──────────────────┐ │
+│    │    libs/ (Library Crate)        │  │  cli/ (CLI Crate)│ │
+│    │                                 │  │                  │ │
+│    │  ┌────────────────────────────┐ │  │  ┌─────────────┐ │ │
+│    │  │  Storage Layer             │ │  │  │CLI Interface│ │ │
+│    │  │  (JSON/CSV/TXT/HTTP)       │ │  │  │(clap, cmds) │ │ │
+│    │  └────────────────────────────┘ │  │  └──────┬──────┘ │ │
+│    │           ▲                     │  │         │        │ │
+│    │           │                     │  │         │        │ │
+│    │  ┌────────┴───────────────────┐ │  │  ┌──────▼──────┐ │ │
+│    │  │  Domain Layer              │ │  │  │ContactMgr   │ │ │
+│    │  │  (Manager, validation,     │ ◄──┼──┤(exported)   │ │ │
+│    │  │   sync, indexing)          │ │  │  └─────────────┘ │ │
+│    │  └────────────────────────────┘ │  │                  │ │
+│    │                                 │  │                  │ │
+│    └─────────────────────────────────┘  └──────────────────┘ │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-**Design Philosophy:** Strategy pattern for pluggable storage backends enables runtime flexibility without coupling CLI to storage implementation. All backends satisfy the `ContactStore` trait, allowing seamless format migration and extensibility.
+**Design Philosophy:** Workspace separation enables:
+- **libs** crate: Core business logic (domain models, storage backends, sync policy) as a reusable library
+- **cli** crate: Command-line interface with `clap` binding to managers/stores from **libs**
+- Strategy pattern for pluggable storage backends enables runtime flexibility without coupling CLI to storage implementation. All backends satisfy the `ContactStore` trait, allowing seamless format migration and extensibility.
 
 ---
 
@@ -58,14 +62,14 @@ Trait-based abstraction supporting four storage backends:
 | **Remote** | HTTP API via `reqwest` blocking client | Cloud sync, distributed workflows via jsonstorage.net |
 
 **Key Implementation Details:**
-- `ContactStore` trait with three core methods: `load()`, `save()`, `get_medium()`
-- Format migration: auto-detects old `Vec` format and migrates to new `HashMap` structure
-- Remote backend uses `RefCell<Option<String>>` for interior mutability (mutable state without `&mut self`)
+- `ContactStore` trait (in `libs/src/storage/mod.rs`) with three core methods: `load()`, `save()`, `get_medium()`
+- Format migration: auto-detects old `Vec` format and migrates to new `HashMap` structure (libs/src/storage/file.rs)
+- Remote backend uses `RefCell<Option<String>>` for interior mutability (libs/src/storage/remote.rs)
 - Fallback logic: Remote storage attempts PUT first, falls back to POST on initial upload, then uses resource ID for updates
 
 ### 2. **Advanced Search & Indexing**
 
-Two-tier indexing strategy achieving O(1) lookup performance:
+Two-tier indexing strategy achieving O(1) lookup performance (see `libs/src/domain/indexing.rs`):
 
 **Name Index:** `HashMap<String, HashSet<Uuid>>`
 - Splits contact names by whitespace; each word indexed separately
@@ -82,7 +86,7 @@ Two-tier indexing strategy achieving O(1) lookup performance:
 
 ### 3. **Sync & Conflict Resolution**
 
-**Last-Write-Wins (LWW) Policy:** Custom conflict resolution strategy in `domain/manager.rs`
+**Last-Write-Wins (LWW) Policy:** Custom conflict resolution strategy in `libs/src/domain/manager.rs`
 - Field-level merge: resolved per field (name, phone, email, tag) based on timestamp
 - Soft delete handling: deleted flag propagates to remote storage
 - Prevents conflicts from missing `created_at` verification by comparing `updated_at` timestamps
@@ -134,15 +138,15 @@ Built with `clap` derive macros for compile-time argument validation:
 
 ### Testing Strategy
 
-**Integration Tests (6 suites):**
-- [add.rs](./tests/add.rs) : Happy path, duplicate detection, validation error handling
-- [list.rs](./tests/list.rs) : Sorting (name, email, created date, updated date), tag filtering
-- [delete.rs](./tests/delete.rs) : Soft delete behavior, identifier matching, recovery
-- [edit_search.rs](./tests/edit_search.rs) : Field updates, partial name matching, case sensitivity
-- [import_export.rs](./tests/import_export.rs) : CSV round-trip, format migration, data integrity
-- [sync.rs](./tests/sync.rs) : Last-write-wins conflict resolution, field-level merging, remote integration
+**Integration Tests (6 suites, in `cli/tests/`):**
+- [add.rs](./cli/tests/add.rs) : Happy path, duplicate detection, validation error handling
+- [list.rs](./cli/tests/list.rs) : Sorting (name, email, created date, updated date), tag filtering
+- [delete.rs](./cli/tests/delete.rs) : Soft delete behavior, identifier matching, recovery
+- [edit_search.rs](./cli/tests/edit_search.rs) : Field updates, partial name matching, case sensitivity
+- [import_export.rs](./cli/tests/import_export.rs) : CSV round-trip, format migration, data integrity
+- [sync.rs](./cli/tests/sync.rs) : Last-write-wins conflict resolution, field-level merging, remote integration
 
-**Unit Tests:** Embedded in modules (contact validation, error display, index building, sync logic)
+**Unit Tests:** Embedded in libs modules (contact validation, error display, index building, sync logic)
 
 **Test Framework:** `assert_cmd` + `predicates` for end-to-end CLI testing; direct `ContactManager` instantiation for unit tests
 
@@ -160,9 +164,9 @@ Built with `clap` derive macros for compile-time argument validation:
 | **Save (JSON)** | 2.06ms | 270ms | O(n) | Serialization bottleneck; largest cost |
 | **Index Build** | 0.21ms | 48ms | O(n) | Multi-threaded with adaptive worker count |
 
-**Performance Analysis:** See [perf-notes.md](./docs/perf-notes.md) for detailed methodology and findings.
+**Performance Analysis:** See [perf-notes.md](./libs/docs/perf-notes.md) for detailed methodology and findings.
 
-**Thread Work Distribution Heuristic** (see [manager.rs#L637](./src/domain/manager.rs#L637)):
+**Thread Work Distribution Heuristic** (see [manager.rs#L637](./libs/src/domain/manager.rs#L637)):
 ```rust
 fn determine_num_of_workers_thread_for_a_work_size(work_length: usize) -> usize {
     match work_length {
@@ -207,7 +211,7 @@ jobs:
 - Enables recovery until purge window expires
 - Reduces HashMap shrinking cost during active sessions
 
-**Backward Compatibility:** Auto-migration from old `Vec` format to new `HashMap` structure via [file.rs](./src/storage/file.rs#L100)
+**Backward Compatibility:** Auto-migration from old `Vec` format to new `HashMap` structure via [file.rs](./libs/src/storage/file.rs#L100)
 - Detects format version on deserialization
 - Transforms old contacts to new UUID-based structure
 - Zero data loss; seamless upgrade path
@@ -249,7 +253,7 @@ Eliminates clone overhead while maintaining lifetime safety.
 
 ### 2. **Traits & Generics**
 
-**ContactStore Trait** (see [storage/mod.rs](./src/storage/mod.rs)):
+**ContactStore Trait** (see [storage/mod.rs](./libs/src/storage/mod.rs)):
 ```rust
 pub trait ContactStore {
     fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError>;
@@ -272,7 +276,7 @@ Allows any type wrapped in PoisonError to convert automatically.
 - `?` operator chains simplify error propagation without bloat
 - Zero panics in normal code paths; all errors surface as Results
 
-**Comprehensive AppError Enum** (see [errors.rs](./src/errors.rs)):
+**Comprehensive AppError Enum** (see [errors.rs](./libs/src/errors.rs)):
 ```rust
 pub enum AppError {
     CsvError(csv::Error),
@@ -291,7 +295,7 @@ Display trait provides user-friendly messages vs. internal error details.
 
 ### 4. **Concurrency**
 
-**Scoped Threads (Rust 1.63+)** (see [manager.rs#L427](./src/domain/manager.rs#L427)):
+**Scoped Threads (Rust 1.63+)** (see [manager.rs#L427](./libs/src/domain/manager.rs#L427)):
 ```rust
 std::thread::scope(|s| {
     for chunk in work_chunks {
@@ -316,7 +320,7 @@ Arc<Mutex<HashMap<..>>>.lock()? -> Result catches poisoned locks
 
 ### 5. **Interior Mutability**
 
-**RefCell for Mutable State Without `&mut`** (see [storage/remote.rs](./src/storage/remote.rs)):
+**RefCell for Mutable State Without `&mut`** (see [storage/remote.rs](./libs/src/storage/remote.rs)):
 ```rust
 pub struct RemoteStorage {
     active_url: RefCell<Option<String>>,
@@ -346,7 +350,7 @@ Allows strategy swapping without modifying manager code.
 
 **Factory Pattern:** `parse_storage_type_env_config()` creates storage instances from environment config
 
-### 7. **Serde Customization**
+### 7. **Serde Customization** (see `libs/src/domain/contact.rs`):
 
 **Custom Deserialization with Version Migration:**
 ```rust
@@ -394,7 +398,28 @@ Ensures backward compatibility when new fields are added.
 
 ## Module Organization
 
-Three-tier architecture: **CLI layer** (clap parsing) -> **Domain layer** (business logic, CRUD, sync, indexing) -> **Storage layer** (trait-based file/memory/remote backends). Clean separation of concerns with unified error handling.
+**Workspace Structure:** Two member crates with clean separation of concerns:
+
+### `libs/` Crate
+Core business logic exposed as a reusable library:
+- `src/domain/` — Contact entity, ContactManager (CRUD, search, indexing, sync), validation
+- `src/storage/` — ContactStore trait + four implementations (JSON, CSV, TXT, Remote HTTP)
+- `src/errors.rs` — Unified error handling (AppError enum with From conversions)
+- `src/prelude.rs` — Public API exports for downstream crates
+- `benches/` — Criterion benchmarks across 1k–100k contact scales
+- `docs/` — Architecture deep-dives, usage guides, performance analysis
+
+### `cli/` Crate
+Command-line interface consuming the `libs` crate:
+- `src/main.rs` — Entry point, clap argument parsing, command routing
+- `src/cli_component/` — Command implementations calling into libs managers
+- `examples/` — Shell script examples demonstrating CLI workflows
+- `tests/` — Integration test suites (add.rs, delete.rs, edit_search.rs, import_export.rs, list.rs, sync.rs)
+
+**Three-Tier Architecture** (implemented within libs crate):
+1. **Storage Layer** (storage/) — Trait-based backends for JSON, CSV, TXT, HTTP
+2. **Domain Layer** (domain/) — ContactManager, Contact entity, validation, indexing, sync logic
+3. **CLI Layer** (cli/) — clap-based argument parsing and command dispatch
 
 ---
 
@@ -451,7 +476,7 @@ cargo run -- --help
 cargo run -- add --help
 ```
 
-See [USAGE.md](./docs/USAGE.md) for detailed command documentation. Also check [WALKTHROUGH.md](./docs/WALKTHROUGH.md) for architecture deep-dive and [perf-notes.md](./docs/perf-notes.md) for benchmarking analysis.
+See [USAGE.md](./libs/docs/USAGE.md) for detailed command documentation. Also check [WALKTHROUGH.md](./libs/docs/WALKTHROUGH.md) for architecture deep-dive and [perf-notes.md](./libs/docs/perf-notes.md) for benchmarking analysis. Example shell scripts are provided in [cli/examples/](./cli/examples/).
 
 ---
 
@@ -461,6 +486,10 @@ See [USAGE.md](./docs/USAGE.md) for detailed command documentation. Also check [
 - Rust 1.78+ ([install here](https://www.rust-lang.org/tools/install))
 - Cargo (comes with Rust)
 
+The project is organized as a **Cargo workspace** with two member crates:
+- `libs/` — Core business logic library (domain, storage, sync, indexing)
+- `cli/` — Command-line interface consuming libs
+
 ### Build & Run
 
 ```bash
@@ -468,19 +497,22 @@ See [USAGE.md](./docs/USAGE.md) for detailed command documentation. Also check [
 git clone https://github.com/uche09/rusty-rolodex.git
 cd rusty-rolodex
 
-# Build and run with default in-memory storage
+# Build and run the CLI (from workspace root, runs cli/ crate)
 cargo run -- add --name "John Doe" --phone +1234567890
 
-# Run tests
-cargo test
+# Build cli release binary specifically
+cargo build --release -p cli
 
-# Run benchmarks (Criterion)
-cargo bench
+# Run tests 
+cargo test                              # All tests (cli integration + libs unit/integration)
+cargo test -p libs                      # Libs tests only
+cargo test -p cli                       # CLI integration tests only
+cargo test --lib -p libs                # Libs unit tests only
 
-# Build release binary
-cargo build --release
+# Run benchmarks (Criterion - libs only)
+cargo bench -p libs
 
-# Use environment variables to configure storage
+# Use environment variables to configure storage (applies to CLI)
 export STORAGE_TYPE=json  # Options: json, csv, txt, remote
 export STORAGE_PATH=./data/contacts.json
 cargo run -- list
@@ -502,20 +534,25 @@ API_URL         # Base URL for remote storage (default: https://jsonblob.com/api
 
 **Time Complexity:** Add O(n), Search O(1)+scoring, List O(n log n), Save O(n). **Space Complexity:** Indexes use ~3× original data size.
 
-See [perf-notes.md](./docs/perf-notes.md) for benchmark analysis at 1k–100k scales.
+See [perf-notes.md](./libs/docs/perf-notes.md) for benchmark analysis at 1k–100k scales.
 
-**Synchronization:** Last-Write-Wins policy with field-level merge and soft deletes (recovery window: 1 day). See [manager.rs#L120](./src/domain/manager.rs#L120).
+**Synchronization:** Last-Write-Wins policy with field-level merge and soft deletes (recovery window: 1 day). See [manager.rs#L120](./libs/src/domain/manager.rs#L120).
 
-**Custom Backends:** Implement `ContactStore` trait with `load()`, `save()`, `get_medium()`. See [Remote storage](./src/storage/remote.rs) for HTTP example (~150 lines).
+**Custom Backends:** To add a custom storage backend, implement the `ContactStore` trait (from `libs` crate) with `load()`, `save()`, `get_medium()`. See [Remote storage implementation](./libs/src/storage/remote.rs) for HTTP example (~150 lines). Then register in CLI via [cli component](./cli/src/cli_component/).
 
 ---
 
 ## Testing & Code Quality
 
 **Test Coverage:**
-- Unit tests in each module (contact validation, error handling, sync logic)
-- 6 integration test suites covering happy paths, edge cases, error scenarios
-- CLI testing via `assert_cmd` + `predicates`
+- **libs** crate: Unit tests embedded in each module (contact validation, error handling, sync logic, storage backends)
+- **cli** crate: 6 integration test suites covering happy paths, edge cases, error scenarios via `assert_cmd` + `predicates`
+  - add.rs — Duplicate detection, validation error handling
+  - delete.rs — Soft delete behavior, identifier matching
+  - edit_search.rs — Field updates, partial name matching, fuzzy search
+  - import_export.rs — CSV round-trip, format migration
+  - list.rs — Sorting (name, email, dates), tag filtering
+  - sync.rs — Last-write-wins conflict resolution, remote integration
 
 **Code Quality Tools:**
 - `cargo clippy` enforces idiomatic Rust patterns
@@ -524,10 +561,12 @@ See [perf-notes.md](./docs/perf-notes.md) for benchmark analysis at 1k–100k sc
 
 **Running Tests:**
 ```bash
-cargo test                          # Run all tests
-cargo test --lib                    # Unit tests only
-cargo test --test add               # Specific integration test
-cargo test -- --nocapture           # Print output during tests
+cargo test                                # Run all tests (workspace)
+cargo test -p libs                        # Libs unit + integration tests
+cargo test -p cli                         # CLI integration tests only
+cargo test --lib -p libs                  # Libs unit tests only
+cargo test -p cli --test add              # Specific integration test
+cargo test -- --nocapture                 # Print output during tests
 ```
 
 ---
