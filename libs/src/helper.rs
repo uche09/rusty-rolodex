@@ -188,9 +188,11 @@ pub fn get_env_value_by_key(key: &str) -> Result<String, AppError> {
 /// This function sets a new or updates an  existing env value directly to .env file
 /// so that new configuration like resource ID or url remain persistent.
 pub fn set_env_value_in_file(key: &str, value: &str) -> Result<(), AppError> {
-    let env_path = ".env";
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let workspace_root = std::path::Path::new(manifest_dir).parent().unwrap();
+    let env_path = workspace_root.join(".env");
 
-    let content = fs::read_to_string(env_path).unwrap_or(env_path.to_string());
+    let content = fs::read_to_string(&env_path)?;
 
     let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
 

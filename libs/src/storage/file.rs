@@ -24,9 +24,13 @@ pub struct JsonStorage {
 
 impl JsonStorage {
     pub fn new() -> Result<Self, AppError> {
+        let mut default_dir = resolve_storage_dir();
+        default_dir.push_str("contacts.json");
+        helper::set_env_value_in_file("JSON_STORAGE_PATH", &default_dir)?;
+
         Ok(Self {
             medium: "json".to_string(),
-            path: env::var("JSON_STORAGE_PATH").unwrap_or("./.instance/contacts.json".to_string()),
+            path: env::var("JSON_STORAGE_PATH").unwrap_or(default_dir),
         })
     }
 }
@@ -38,9 +42,13 @@ pub struct TxtStorage {
 
 impl TxtStorage {
     pub fn new() -> Result<Self, AppError> {
+        let mut default_dir = resolve_storage_dir();
+        default_dir.push_str("contacts.txt");
+        helper::set_env_value_in_file("TXT_STORAGE_PATH", &default_dir)?;
+
         Ok(Self {
             medium: "txt".to_string(),
-            path: env::var("TXT_STORAGE_PATH").unwrap_or("./.instance/contacts.txt".to_string()),
+            path: env::var("TXT_STORAGE_PATH").unwrap_or(default_dir),
         })
     }
 }
@@ -71,7 +79,10 @@ impl CsvStorage {
             path: if !(path.is_empty()) {
                 path.to_string()
             } else {
-                ("./csv/contacts.csv").to_string()
+                let mut default_dir = resolve_storage_dir();
+                default_dir.push_str("csv/contacts.csv");
+
+                default_dir
             },
         })
     }
@@ -116,8 +127,11 @@ impl ContactStore for JsonStorage {
         let json_contact = serde_json::to_string(&contacts)?;
         write_file(&self.path, &json_contact).await?;
 
-        let txt_path =
-            env::var("TXT_STORAGE_PATH").unwrap_or("./.instance/contacts.txt".to_string());
+        let txt_path = env::var("TXT_STORAGE_PATH").unwrap_or_else(|_| {
+            let mut path = resolve_storage_dir();
+            path.push_str("contacts.txt");
+            path
+        });
         let txt_path = Path::new(&txt_path);
         if tokio_fs::try_exists(txt_path).await? {
             tokio_fs::remove_file(txt_path).await?;
@@ -155,8 +169,11 @@ impl ContactStore for TxtStorage {
 
         write_file(&self.path, &string_data).await?;
 
-        let json_path =
-            env::var("JSON_STORAGE_PATH").unwrap_or("./.instance/contacts.json".to_string());
+        let json_path = env::var("JSON_STORAGE_PATH").unwrap_or_else(|_| {
+            let mut path = resolve_storage_dir();
+            path.push_str("contacts.json");
+            path
+        });
         let json_path = Path::new(&json_path);
         if tokio_fs::try_exists(json_path).await? {
             tokio_fs::remove_file(json_path).await?;
@@ -244,4 +261,13 @@ async fn write_file(path_str: &str, data: &str) -> Result<(), AppError> {
     file.write_all(data.as_bytes()).await?;
     file.flush().await?;
     Ok(())
+}
+
+pub fn resolve_storage_dir() -> String {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let workspace_root = std::path::Path::new(manifest_dir).parent().unwrap();
+    workspace_root
+        .join(".instance/")
+        .to_string_lossy()
+        .to_string()
 }
