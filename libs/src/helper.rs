@@ -192,7 +192,7 @@ pub fn set_env_value_in_file(key: &str, value: &str) -> Result<(), AppError> {
     let workspace_root = std::path::Path::new(manifest_dir).parent().unwrap();
     let env_path = workspace_root.join(".env");
 
-    let content = fs::read_to_string(&env_path)?;
+    let content = fs::read_to_string(&env_path).unwrap_or(String::new());
 
     let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
 
