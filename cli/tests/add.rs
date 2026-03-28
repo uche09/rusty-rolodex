@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use libs::prelude::resolve_storage_dir;
 use predicates::prelude::*;
 use std::fs;
 
@@ -8,9 +9,11 @@ fn listing_format(i: i32, name: &str, phone: &str, email: &str, tag: &str) -> St
 
 #[test]
 fn add_contact() {
-    let _ = fs::remove_file("./.instance/contacts.json");
+    let mut json_path = resolve_storage_dir();
+    json_path.push_str("contacts.json");
+    let _ = fs::remove_file(json_path);
     // Add a contact
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -28,7 +31,7 @@ fn add_contact() {
         .stdout(predicate::str::contains("Contact added successfully"));
 
     // Confirm newly added contact exist
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["list"])
         .assert()
@@ -42,7 +45,7 @@ fn add_contact() {
         )));
 
     // Attempt to Add duplicate contacts
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -63,7 +66,7 @@ fn add_contact() {
         ));
 
     // Clear memory
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["delete", "--name", "Alice"])
         .assert()
@@ -74,7 +77,7 @@ fn add_contact() {
 #[test]
 fn invalid_inputs() {
     // INVALID COMMAND
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "and",
@@ -92,7 +95,7 @@ fn invalid_inputs() {
         .stderr(predicate::str::contains("unrecognized subcommand 'and'"));
 
     // INVALID NAME
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -114,7 +117,7 @@ fn invalid_inputs() {
                         Name must not exceed 50 characters\")\n",
         ));
 
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -139,7 +142,7 @@ fn invalid_inputs() {
         ));
 
     // INVALID PHONE NUMBER
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -160,7 +163,7 @@ fn invalid_inputs() {
         ));
 
     // INVALID EMAIL
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -180,7 +183,7 @@ fn invalid_inputs() {
                 Must not exceed 254 characters\")\n",
         ));
 
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",

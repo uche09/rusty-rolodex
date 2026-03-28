@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use libs::prelude::resolve_storage_dir;
 use predicates::str::contains;
 use std::{fs, path::Path};
 use tempfile::tempdir;
@@ -11,6 +12,13 @@ fn listing_format(i: i32, name: &str, phone: &str, email: &str, tag: &str) -> St
 fn export_import() -> Result<(), Box<dyn std::error::Error>> {
     // Use json storage for the test run to avoid touching txt files
     let storage_env = ("STORAGE_CHOICE", "json");
+
+    // Clean up storage from previous test runs
+    let mut json_path = resolve_storage_dir();
+    json_path.push_str("contacts.json");
+    if Path::new(&json_path).exists() {
+        let _ = fs::remove_file(&json_path);
+    }
 
     // Add a contact
     Command::cargo_bin(env!("CARGO_PKG_NAME"))?
@@ -58,9 +66,10 @@ fn export_import() -> Result<(), Box<dyn std::error::Error>> {
         .stdout(contains("Contact deleted successfully"));
 
     // Complete wipe off soft-delete to avoid delete conflict during sync
-    let json_path = Path::new("./.instance/contacts.json");
-    if json_path.exists() {
-        let _ = fs::remove_file(json_path);
+    let mut json_path = resolve_storage_dir();
+    json_path.push_str("contacts.json");
+    if Path::new(&json_path).exists() {
+        let _ = fs::remove_file(&json_path);
     }
 
     // Import from the exported CSV (importing back should succeed)
@@ -89,9 +98,10 @@ fn export_import() -> Result<(), Box<dyn std::error::Error>> {
         )));
 
     // Cleanup: remove storage file created in .instance (json)
-    let json_path = Path::new("./.instance/contacts.json");
-    if json_path.exists() {
-        let _ = fs::remove_file(json_path);
+    let mut json_path = resolve_storage_dir();
+    json_path.push_str("contacts.json");
+    if Path::new(&json_path).exists() {
+        let _ = fs::remove_file(&json_path);
     }
 
     Ok(())

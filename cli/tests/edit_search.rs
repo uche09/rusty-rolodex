@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use libs::prelude::resolve_storage_dir;
 use predicates::str::contains;
 use std::{fs, path::Path};
 
@@ -60,8 +61,9 @@ fn edit_search() -> Result<(), Box<dyn std::error::Error>> {
         .stdout(contains("Contact deleted successfully"));
 
     // Cleanup: remove storage file created in .instance (json)
-    let json_path = Path::new("./.instance/contacts.json");
-    if json_path.exists() {
+    let mut json_path = resolve_storage_dir();
+    json_path.push_str("contacts.json");
+    if Path::new(&json_path).exists() {
         let _ = fs::remove_file(json_path);
     }
 

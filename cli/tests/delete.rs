@@ -1,13 +1,16 @@
 use assert_cmd::Command;
+use libs::prelude::resolve_storage_dir;
 use predicates::prelude::*;
 use std::fs;
 
 #[test]
 fn deleting_contacts() {
-    let _ = fs::remove_file("./.instance/contacts.json");
+    let mut json_path = resolve_storage_dir();
+    json_path.push_str("contacts.json");
+    let _ = fs::remove_file(json_path);
 
     // Attempt to delete non existing contact
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["delete", "--name", "Alice"])
         .assert()
@@ -15,7 +18,7 @@ fn deleting_contacts() {
         .stderr(predicate::str::contains("Contact Not found"));
 
     // Add a contacts 1
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -33,7 +36,7 @@ fn deleting_contacts() {
         .stdout(predicate::str::contains("Contact added successfully"));
 
     // Add a contacts 2
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -51,7 +54,7 @@ fn deleting_contacts() {
         .stdout(predicate::str::contains("Contact added successfully"));
 
     // Add a contacts 3
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -69,7 +72,7 @@ fn deleting_contacts() {
         .stdout(predicate::str::contains("Contact added successfully"));
 
     // Add a contacts 4
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -87,7 +90,7 @@ fn deleting_contacts() {
         .stdout(predicate::str::contains("Contact added successfully"));
 
     // Add a contacts 5
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -105,7 +108,7 @@ fn deleting_contacts() {
         .stdout(predicate::str::contains("Contact added successfully"));
 
     // Add a contacts 6
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -123,7 +126,7 @@ fn deleting_contacts() {
         .stdout(predicate::str::contains("Contact added successfully"));
 
     // LISTING ADDED CONTACT
-    let normal_list_output = Command::cargo_bin("rusty-rolodex")
+    let normal_list_output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["list"])
         .assert()
@@ -141,7 +144,7 @@ fn deleting_contacts() {
     assert!(normal_list.len() == 7);
 
     // Delete 1 out of 6
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["delete", "--name", "Patricia"])
         .assert()
@@ -149,7 +152,7 @@ fn deleting_contacts() {
         .stdout(predicate::str::contains("Contact deleted successfully"));
 
     // Delete 2 out of 6
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["delete", "--name", "Diane"])
         .assert()
@@ -157,7 +160,7 @@ fn deleting_contacts() {
         .stdout(predicate::str::contains("Contact deleted successfully"));
 
     // LISTING REMAINING CONTACTS
-    let normal_list_output = Command::cargo_bin("rusty-rolodex")
+    let normal_list_output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["list"])
         .assert()
@@ -175,14 +178,14 @@ fn deleting_contacts() {
     assert!(normal_list.len() == 5);
 
     // Verify that deleted contact no longer exist
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["delete", "--name", "Patricia"])
         .assert()
         .success()
         .stderr(predicate::str::contains("Contact Not found"));
 
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["delete", "--name", "Diane"])
         .assert()
@@ -190,7 +193,7 @@ fn deleting_contacts() {
         .stderr(predicate::str::contains("Contact Not found"));
 
     // ATTEMPT TO DELETE CONTACT WITH IDENTICAL NAME "John" ADDED EARLIER
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["delete", "--name", "John"])
         .assert()
@@ -200,7 +203,7 @@ fn deleting_contacts() {
         ));
 
     // Delete 3 out of 6
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["delete", "--name", "John", "--phone", "+2348031234567"])
         .assert()
@@ -208,7 +211,7 @@ fn deleting_contacts() {
         .stdout(predicate::str::contains("Contact deleted successfully"));
 
     // LISTING REMAINING CONTACTS
-    let normal_list_output = Command::cargo_bin("rusty-rolodex")
+    let normal_list_output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["list"])
         .assert()
@@ -225,5 +228,7 @@ fn deleting_contacts() {
     // Total lines = total_contact + 1
     assert!(normal_list.len() == 4);
 
-    let _ = fs::remove_file("./.instance/contacts.json");
+    let mut json_path = resolve_storage_dir();
+    json_path.push_str("contacts.json");
+    let _ = fs::remove_file(json_path);
 }

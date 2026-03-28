@@ -1,11 +1,12 @@
 use assert_cmd::Command;
+use libs::prelude::resolve_storage_dir;
 use predicates::prelude::*;
 use std::fs;
 
 #[test]
 fn listing_contacts() {
     // Add a contacts 1
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -23,7 +24,7 @@ fn listing_contacts() {
         .stdout(predicate::str::contains("Contact added successfully"));
 
     // Add a contacts 2
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -41,7 +42,7 @@ fn listing_contacts() {
         .stdout(predicate::str::contains("Contact added successfully"));
 
     // Add a contacts 3
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -59,7 +60,7 @@ fn listing_contacts() {
         .stdout(predicate::str::contains("Contact added successfully"));
 
     // Add a contacts 4
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -77,7 +78,7 @@ fn listing_contacts() {
         .stdout(predicate::str::contains("Contact added successfully"));
 
     // Add a contacts 5
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -95,7 +96,7 @@ fn listing_contacts() {
         .stdout(predicate::str::contains("Contact added successfully"));
 
     // Add a contacts 6
-    Command::cargo_bin("rusty-rolodex")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "add",
@@ -113,7 +114,7 @@ fn listing_contacts() {
         .stdout(predicate::str::contains("Contact added successfully"));
 
     // LISTING ADDED CONTACT
-    let normal_list_output = Command::cargo_bin("rusty-rolodex")
+    let normal_list_output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["list"])
         .assert()
@@ -122,7 +123,7 @@ fn listing_contacts() {
         .stdout
         .clone();
 
-    let tagged_list_output = Command::cargo_bin("rusty-rolodex")
+    let tagged_list_output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["list", "--tag", "FRIENDS"])
         .assert()
@@ -131,7 +132,7 @@ fn listing_contacts() {
         .stdout
         .clone();
 
-    let sorted_list_output = Command::cargo_bin("rusty-rolodex")
+    let sorted_list_output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["list", "--sort", "name"])
         .assert()
@@ -158,5 +159,7 @@ fn listing_contacts() {
     assert!(normal_list.len() == sorted_list.len());
     assert!(sorted_list[1].contains("Alice") && sorted_list[2].contains("Diane"));
 
-    let _ = fs::remove_file("./.instance/contacts.json");
+    let mut json_path = resolve_storage_dir();
+    json_path.push_str("contacts.json");
+    let _ = fs::remove_file(json_path);
 }
