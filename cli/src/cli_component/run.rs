@@ -1,25 +1,17 @@
+use crate::cli_component::command::{Cli, Commands, ImportExportOption, SearchKey, SortKey};
 use chrono::Utc;
-use crate::cli_component::command::{
-    Cli, Commands, ImportExportOption, 
-    SearchKey, SortKey
-};
-use libs::prelude::{
-    AppError,
-    ContactStore,
-    contact::{
-        Contact, EMAIL_REQ_MESSAGE,
-        NAME_REQ_MESSAGE, PHONE_REQ_MESSAGE,
-    },
-    CsvStorage, JsonStorage,
-    manager::{ContactManager, IndexUpdateType},
-    RemoteStorage,
-    remote::is_valid_url,
-    StorageMediums,
-};
 use clap::Parser;
+use dotenv::dotenv;
+use libs::prelude::{
+    AppError, ContactStore, CsvStorage, JsonStorage, RemoteStorage, StorageMediums,
+    contact::{Contact, EMAIL_REQ_MESSAGE, NAME_REQ_MESSAGE, PHONE_REQ_MESSAGE},
+    manager::{ContactManager, IndexUpdateType},
+    remote::is_valid_url,
+};
 use std::{env, path::Path, process::exit};
 
 pub async fn run_app() -> Result<(), AppError> {
+    dotenv().ok();
     let cli = Cli::parse();
 
     unsafe {
