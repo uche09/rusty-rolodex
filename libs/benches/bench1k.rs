@@ -4,7 +4,7 @@ use std::hint::black_box;
 
 use libs::domain::{
     Contact, contact,
-    manager::{ContactManager, IndexUpdateType}
+    manager::{ContactManager, IndexUpdateType},
 };
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
