@@ -2,12 +2,11 @@ pub mod file;
 pub mod memory;
 pub mod remote;
 
-use async_trait::async_trait;
-pub use std::collections::HashMap;
 use crate::domain::Contact;
-use dotenv::dotenv;
 use crate::errors::AppError;
 use crate::helper;
+use async_trait::async_trait;
+pub use std::collections::HashMap;
 use std::fs;
 use std::{
     env,
@@ -78,8 +77,6 @@ pub fn parse_storage_type_env_config(
     if let Some(storage_medium) = storage_medium {
         medium = storage_medium;
     } else {
-        dotenv().ok();
-
         let choice = helper::get_env_value_by_key("STORAGE_CHOICE").unwrap_or("json".to_string());
         medium = choice.as_str().try_into()?;
     }
