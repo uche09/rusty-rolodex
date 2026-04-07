@@ -12,7 +12,7 @@ fn deleting_contacts() {
     // Attempt to delete non existing contact
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["delete", "--name", "Alice"])
+        .args(["delete", "--name", "Alice"])
         .assert()
         .success()
         .stderr(predicate::str::contains("Contact Not found"));
@@ -20,7 +20,7 @@ fn deleting_contacts() {
     // Add a contacts 1
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Patricia",
@@ -38,7 +38,7 @@ fn deleting_contacts() {
     // Add a contacts 2
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Diane",
@@ -56,7 +56,7 @@ fn deleting_contacts() {
     // Add a contacts 3
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "John",
@@ -74,7 +74,7 @@ fn deleting_contacts() {
     // Add a contacts 4
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Wayne",
@@ -92,7 +92,7 @@ fn deleting_contacts() {
     // Add a contacts 5
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Thomas",
@@ -110,7 +110,7 @@ fn deleting_contacts() {
     // Add a contacts 6
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "John",
@@ -128,7 +128,7 @@ fn deleting_contacts() {
     // LISTING ADDED CONTACT
     let normal_list_output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["list"])
+        .args(["list"])
         .assert()
         .success()
         .get_output()
@@ -146,7 +146,7 @@ fn deleting_contacts() {
     // Delete 1 out of 6
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["delete", "--name", "Patricia"])
+        .args(["delete", "--name", "Patricia"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Contact deleted successfully"));
@@ -154,7 +154,7 @@ fn deleting_contacts() {
     // Delete 2 out of 6
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["delete", "--name", "Diane"])
+        .args(["delete", "--name", "Diane"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Contact deleted successfully"));
@@ -162,7 +162,7 @@ fn deleting_contacts() {
     // LISTING REMAINING CONTACTS
     let normal_list_output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["list"])
+        .args(["list"])
         .assert()
         .success()
         .get_output()
@@ -180,14 +180,14 @@ fn deleting_contacts() {
     // Verify that deleted contact no longer exist
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["delete", "--name", "Patricia"])
+        .args(["delete", "--name", "Patricia"])
         .assert()
         .success()
         .stderr(predicate::str::contains("Contact Not found"));
 
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["delete", "--name", "Diane"])
+        .args(["delete", "--name", "Diane"])
         .assert()
         .success()
         .stderr(predicate::str::contains("Contact Not found"));
@@ -195,7 +195,7 @@ fn deleting_contacts() {
     // ATTEMPT TO DELETE CONTACT WITH IDENTICAL NAME "John" ADDED EARLIER
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["delete", "--name", "John"])
+        .args(["delete", "--name", "John"])
         .assert()
         .success()
         .stdout(predicate::str::contains(
@@ -205,7 +205,7 @@ fn deleting_contacts() {
     // Delete 3 out of 6
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["delete", "--name", "John", "--phone", "+2348031234567"])
+        .args(["delete", "--name", "John", "--phone", "+2348031234567"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Contact deleted successfully"));
@@ -213,7 +213,7 @@ fn deleting_contacts() {
     // LISTING REMAINING CONTACTS
     let normal_list_output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["list"])
+        .args(["list"])
         .assert()
         .success()
         .get_output()

@@ -192,7 +192,7 @@ pub fn set_env_value_in_file(key: &str, value: &str) -> Result<(), AppError> {
     let workspace_root = std::path::Path::new(manifest_dir).parent().unwrap();
     let env_path = workspace_root.join(".env");
 
-    let content = fs::read_to_string(&env_path).unwrap_or(String::new());
+    let content = fs::read_to_string(&env_path).unwrap_or_default();
 
     let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
 
@@ -223,7 +223,6 @@ pub fn set_env_value_in_file(key: &str, value: &str) -> Result<(), AppError> {
 }
 
 #[cfg(test)]
-
 mod tests {
     use crate::prelude::ContactManager;
 
@@ -236,14 +235,14 @@ mod tests {
         let id = Uuid::new_v4();
 
         let contact = Contact {
-            id: id.clone(),
+            id,
             name: "Uche".to_string(),
             phone: "012345678901".to_string(),
             email: "ucheuche@gmail.com".to_string(),
             tag: "".to_string(),
             deleted: false,
-            created_at: dt_now.clone(),
-            updated_at: dt_now.clone(),
+            created_at: dt_now,
+            updated_at: dt_now,
         };
 
         let mut contacts = HashMap::new();
@@ -265,8 +264,8 @@ mod tests {
                 updated_at: {}\n\
             }}\n",
                 id.clone(),
-                dt_now.to_string(),
-                dt_now.to_string()
+                dt_now,
+                dt_now
             )
         );
 
@@ -296,11 +295,11 @@ mod tests {
             "".to_string(),
         );
 
-        let id_1 = contact1.id.clone();
-        let id_2 = contact2.id.clone();
+        let id_1 = contact1.id;
+        let id_2 = contact2.id;
 
-        storage.mem.insert(contact1.id.clone(), contact1);
-        storage.mem.insert(contact2.id.clone(), contact2);
+        storage.mem.insert(contact1.id, contact1);
+        storage.mem.insert(contact2.id, contact2);
 
         storage.save().await?;
         storage.mem.clear();

@@ -15,7 +15,7 @@ fn add_contact() {
     // Add a contact
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Alice",
@@ -33,7 +33,7 @@ fn add_contact() {
     // Confirm newly added contact exist
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["list"])
+        .args(["list"])
         .assert()
         .success()
         .stdout(predicate::str::contains(listing_format(
@@ -47,7 +47,7 @@ fn add_contact() {
     // Attempt to Add duplicate contacts
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Alice",
@@ -68,7 +68,7 @@ fn add_contact() {
     // Clear memory
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["delete", "--name", "Alice"])
+        .args(["delete", "--name", "Alice"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Contact deleted successfully"));
@@ -79,7 +79,7 @@ fn invalid_inputs() {
     // INVALID COMMAND
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "and",
             "--name",
             "Alice",
@@ -97,7 +97,7 @@ fn invalid_inputs() {
     // INVALID NAME
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "123",
@@ -119,7 +119,7 @@ fn invalid_inputs() {
 
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "A very very very very very very very very very \
@@ -144,7 +144,7 @@ fn invalid_inputs() {
     // INVALID PHONE NUMBER
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Alice",
@@ -165,7 +165,7 @@ fn invalid_inputs() {
     // INVALID EMAIL
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Alice",
@@ -185,7 +185,7 @@ fn invalid_inputs() {
 
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Alice",
