@@ -1,4 +1,5 @@
 pub mod file;
+mod lock;
 pub mod memory;
 pub mod remote;
 
