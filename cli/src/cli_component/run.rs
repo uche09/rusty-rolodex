@@ -371,12 +371,16 @@ fn parse_import_export_storage_type(
         }
 
         ImportExportOption::R => {
+            let rt = tokio::runtime::Runtime::new()?;
             let remote_storage = Box::new(RemoteStorage::new()?);
 
             if is_valid_url(source) {
-                remote_storage.update_active_url_from_str(source);
+                rt.block_on(remote_storage.update_active_url_from_str(source));
             } else {
-                remote_storage.format_get_req_from_base_url()?;
+                
+                rt.block_on(
+                    remote_storage.format_get_req_from_base_url()
+                )?;
             }
             Ok(remote_storage)
         }

@@ -1,16 +1,16 @@
 use crate::helper;
-use std::cell::RefCell;
 
 use super::{AppError, Contact, ContactStore, HashMap, Uuid, async_trait};
 use reqwest::Client;
+use tokio::sync::RwLock;
 use url::Url;
 
 pub struct RemoteStorage {
-    pub active_url: RefCell<Option<String>>,
+    pub active_url: RwLock<Option<String>>,
     pub base_url: Option<String>,
     pub medium: String,
     pub http_client: Client,
-    resource_id: RefCell<Option<String>>,
+    resource_id: RwLock<Option<String>>,
 }
 
 impl RemoteStorage {
@@ -18,8 +18,8 @@ impl RemoteStorage {
         Ok(Self {
             medium: "remote".to_string(),
             base_url: helper::get_env_value_by_key("REMOTE_STORAGE_URL").ok(),
-            resource_id: RefCell::new(helper::get_env_value_by_key("RESOURCE_ID").ok()),
-            active_url: RefCell::new(None),
+            resource_id: RwLock::new(helper::get_env_value_by_key("RESOURCE_ID").ok()),
+            active_url: RwLock::new(None),
             http_client: Client::new(),
         })
     }
@@ -30,8 +30,11 @@ impl RemoteStorage {
     ///
     /// Use `Self.update_active_url_from_str()` method as an alternative to explicitly
     /// parse a url as string if .env is not set.
-    pub fn format_get_req_from_base_url(&self) -> Result<(), AppError> {
-        let mut resource_id = self.resource_id.borrow_mut();
+    pub async  fn format_get_req_from_base_url(&self) -> Result<(), AppError> {
+        let mut resource_id = {
+            let read_lock = self.resource_id.read().await;
+            read_lock.clone()
+        };
 
         if resource_id.is_none() {
             // if resource_id is not set, try read from .env
@@ -40,11 +43,15 @@ impl RemoteStorage {
                 Ok,
             )?; // Propagate error to exit Fn if resource_id is not set in .env
 
-            *resource_id = Some(id_from_env);
+            resource_id = Some(id_from_env);
+            {
+                let mut write_lock = self.resource_id.write().await;
+                *write_lock = resource_id.clone();
+            }
         }
 
         if let Some(base_url) = &self.base_url {
-            *self.active_url.borrow_mut() =
+            *self.active_url.write().await =
                 Some(format!("{}/{}", base_url, resource_id.as_ref().unwrap()));
 
             Ok(())
@@ -60,9 +67,9 @@ impl RemoteStorage {
     ///
     /// Use `Self.update_active_url_from_str()` method as an alternative to explicitly
     /// parse a url as string if .env is not set.
-    pub fn format_post_req_from_base_url(&self) -> Result<(), AppError> {
+    pub async  fn format_post_req_from_base_url(&self) -> Result<(), AppError> {
         if let Some(base_url) = &self.base_url {
-            *self.active_url.borrow_mut() = Some(format!(
+            *self.active_url.write().await = Some(format!(
                 "{}?apiKey={}",
                 base_url,
                 helper::get_env_value_by_key("REMOTE_API_KEY")?
@@ -80,8 +87,10 @@ impl RemoteStorage {
     ///
     /// Use `Self.update_active_url_from_str()` method as an alternative to explicitly
     /// parse a url as string if .env is not set.
-    pub fn format_put_req_from_base_url(&self) -> Result<(), AppError> {
-        let mut resource_id = self.resource_id.borrow_mut();
+    pub async fn format_put_req_from_base_url(&self) -> Result<(), AppError> {
+        let mut resource_id = {
+            self.resource_id.read().await.clone()
+        };
 
         if resource_id.is_none() {
             // if resource_id is not set, try read from .env
@@ -92,13 +101,16 @@ impl RemoteStorage {
 
             // If resource id not found then just use post format to upload fresh data (not update existing)
             if id_from_env.is_err() {
-                return self.format_post_req_from_base_url();
+                return self.format_post_req_from_base_url().await;
             }
-            *resource_id = Some(id_from_env.unwrap());
+            resource_id = Some(id_from_env.unwrap());
+            {
+                *self.resource_id.write().await = resource_id.clone();
+            }
         }
 
         if let Some(base_url) = &self.base_url {
-            *self.active_url.borrow_mut() = Some(format!(
+            *self.active_url.write().await = Some(format!(
                 "{}/{}?apiKey={}",
                 base_url,
                 resource_id.as_ref().unwrap(),
@@ -114,7 +126,7 @@ impl RemoteStorage {
     /// This function extracts the resource id from the `uri` arguement based on the
     /// url pattern documented in https://app.jsonstorage.net, which was used during
     /// the development of this project
-    pub fn extract_resource_id_from_successful_post_req(&self, uri: Option<&String>) {
+    pub async fn extract_resource_id_from_successful_post_req(&self, uri: Option<&String>) {
         if uri.is_none() {
             return;
         }
@@ -125,7 +137,7 @@ impl RemoteStorage {
 
         let _ = helper::set_env_value_in_file("RESOURCE_ID", &resource_id);
 
-        *self.resource_id.borrow_mut() = Some(resource_id);
+        *self.resource_id.write().await = Some(resource_id);
     }
 
     /// This method updates the `active_url` field directly from string arguement.
@@ -134,8 +146,8 @@ impl RemoteStorage {
     /// ## Caution!
     /// This method **does not validate/verify url.** Validate url before
     /// parsing to method.
-    pub fn update_active_url_from_str(&self, uri: &str) {
-        *self.active_url.borrow_mut() = Some(uri.to_string());
+    pub async fn update_active_url_from_str(&self, uri: &str) {
+        *self.active_url.write().await = Some(uri.to_string());
     }
 }
 
@@ -146,7 +158,7 @@ impl ContactStore for RemoteStorage {
     }
 
     async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
-        let active_uri = self.active_url.borrow().clone();
+        let active_uri = self.active_url.read().await.clone();
         let active_uri = active_uri.ok_or(AppError::NotFound("active url".to_string()))?;
 
         let url = active_uri;
@@ -159,7 +171,7 @@ impl ContactStore for RemoteStorage {
     }
 
     async fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
-        let url = self.active_url.borrow().clone();
+        let url = self.active_url.read().await.clone();
         let url = url.ok_or(AppError::NotFound("active url".to_string()))?;
 
         let mut res = self
@@ -184,7 +196,7 @@ impl ContactStore for RemoteStorage {
         let res = res.error_for_status()?;
 
         let res_map: HashMap<String, String> = serde_json::from_str(&res.text().await?)?;
-        self.extract_resource_id_from_successful_post_req(res_map.get("uri"));
+        self.extract_resource_id_from_successful_post_req(res_map.get("uri")).await;
         Ok(())
     }
 }
@@ -196,6 +208,7 @@ pub fn is_valid_url(url: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::sync::RwLockWriteGuard;
     use mockito::{mock, server_url};
 
     // JSON mapping of uuid -> Contact
@@ -239,17 +252,17 @@ mod tests {
     struct MockRemoteStorage {
         pub medium: String,
         pub base_url: Option<String>,
-        resource_id: RefCell<Option<String>>,
-        pub active_url: RefCell<Option<String>>,
+        resource_id: RwLock<Option<String>>,
+        pub active_url: RwLock<Option<String>>,
         pub http_client: reqwest::Client,
     }
 
     impl MockRemoteStorage {
-        fn format_get_req_from_base_url(&self) -> Result<(), AppError> {
-            let resource_id = self.resource_id.borrow_mut();
+        async fn format_get_req_from_base_url(&self) -> Result<(), AppError> {
+            let resource_id = self.resource_id.write().await;
 
             if let Some(base_url) = &self.base_url {
-                *self.active_url.borrow_mut() =
+                *self.active_url.write().await =
                     Some(format!("{}/{}", base_url, resource_id.as_ref().unwrap()));
 
                 Ok(())
@@ -258,11 +271,11 @@ mod tests {
             }
         }
 
-        fn format_put_req_from_base_url(&self) -> Result<(), AppError> {
-            let resource_id: std::cell::RefMut<'_, Option<String>> = self.resource_id.borrow_mut();
+        async fn format_put_req_from_base_url(&self) -> Result<(), AppError> {
+            let resource_id: RwLockWriteGuard<'_, Option<String>> = self.resource_id.write().await;
 
             if let Some(base_url) = &self.base_url {
-                *self.active_url.borrow_mut() =
+                *self.active_url.write().await =
                     Some(format!("{}/{}", base_url, resource_id.as_ref().unwrap(),));
 
                 Ok(())
@@ -279,7 +292,7 @@ mod tests {
         }
 
         async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
-            let active_uri = self.active_url.borrow().clone();
+            let active_uri = self.active_url.read().await.clone();
             let active_uri = active_uri.ok_or(AppError::NotFound("active url".to_string()))?;
 
             let url = active_uri;
@@ -292,7 +305,7 @@ mod tests {
         }
 
         async fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
-            let url = self.active_url.borrow().clone();
+            let url = self.active_url.read().await.clone();
             let url = url.ok_or(AppError::NotFound("active url".to_string()))?;
 
             let mut res = self
@@ -334,13 +347,13 @@ mod tests {
         let storage = MockRemoteStorage {
             medium: "remote".to_string(),
             base_url: Some(server_url()), // server_url() is like "http://127.0.0.1:XXXXX"
-            resource_id: std::cell::RefCell::new(Some("resource-id".to_string())),
-            active_url: std::cell::RefCell::new(None),
+            resource_id: RwLock::new(Some("resource-id".to_string())),
+            active_url: RwLock::new(None),
             http_client: Client::new(),
         };
 
         // Make sure active_url is set to the mock endpoint
-        storage.format_get_req_from_base_url().unwrap();
+        storage.format_get_req_from_base_url().await.unwrap();
         let contacts = storage.load().await.unwrap();
 
         assert_eq!(contacts.len(), 3);
@@ -364,12 +377,12 @@ mod tests {
         let storage = MockRemoteStorage {
             medium: "remote".to_string(),
             base_url: Some(server_url()),
-            resource_id: std::cell::RefCell::new(Some("resource-id".to_string())),
-            active_url: std::cell::RefCell::new(None),
+            resource_id: RwLock::new(Some("resource-id".to_string())),
+            active_url: RwLock::new(None),
             http_client: Client::new(),
         };
 
-        storage.format_put_req_from_base_url().unwrap();
+        storage.format_put_req_from_base_url().await.unwrap();
 
         // Call save; code will attempt PUT, then POST on non-success, then parse response.
         let res = storage.save(&contacts).await;
