@@ -1,7 +1,8 @@
 use core::fmt;
 use std::sync::PoisonError;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum AppError {
     CsvError(csv::Error),
     DateTime(chrono::ParseError),
