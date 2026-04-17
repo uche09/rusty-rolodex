@@ -89,7 +89,7 @@ impl CsvStorage {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl ContactStore for JsonStorage {
     async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
         let data = {
@@ -166,7 +166,7 @@ impl ContactStore for JsonStorage {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl ContactStore for TxtStorage {
     async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
         let data = {
@@ -229,7 +229,7 @@ impl ContactStore for TxtStorage {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl ContactStore for CsvStorage {
     fn get_medium(&self) -> &str {
         &self.medium

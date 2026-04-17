@@ -151,7 +151,7 @@ impl RemoteStorage {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl ContactStore for RemoteStorage {
     fn get_medium(&self) -> &str {
         &self.medium
@@ -285,7 +285,7 @@ mod tests {
         }
     }
 
-    #[async_trait(?Send)]
+    #[async_trait]
     impl ContactStore for MockRemoteStorage {
         fn get_medium(&self) -> &str {
             &self.medium

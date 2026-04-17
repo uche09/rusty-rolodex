@@ -15,7 +15,7 @@ use std::{
 };
 use uuid::Uuid;
 
-#[async_trait(?Send)]
+#[async_trait]
 pub trait ContactStore: Send + Sync {
     async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError>;
 

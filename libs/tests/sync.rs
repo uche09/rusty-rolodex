@@ -16,7 +16,7 @@ impl MockStorage {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl ContactStore for MockStorage {
     async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
         Ok(self.contacts.clone())
