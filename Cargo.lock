@@ -112,6 +112,7 @@ dependencies = [
  "axum-test",
  "dotenv",
  "libs",
+ "regex",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -1479,12 +1480,12 @@ dependencies = [
  "rust-fuzzy-search",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "toml",
  "url",
  "uuid",
- "validator",
 ]
 
 [[package]]
