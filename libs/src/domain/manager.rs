@@ -309,9 +309,9 @@ impl ContactManager {
         let mut base = self.mem.clone();
 
         let sync_status = self
-            .sync_from_storage(
+            .sync_from_contacts_map(
                 &mut base,
-                storage,
+                storage.load().await?,
                 SyncPolicy::LastWriteWinsPolicy(LastWriteWinsPolicy),
             )
             .await;
@@ -350,13 +350,13 @@ impl ContactManager {
         storage.save(&self.mem).await
     }
 
-    pub async fn sync_from_storage(
+    pub async fn sync_from_contacts_map(
         &self,
         base: &mut HashMap<Uuid, Contact>,
-        storage: Box<dyn ContactStore>,
+        remote_contacts: HashMap<Uuid, Contact>,
         policy: SyncPolicy,
     ) -> Result<(), AppError> {
-        let mut remote_contacts = storage.load().await?;
+        let mut remote_contacts = remote_contacts;
 
         let SyncPolicy::LastWriteWinsPolicy(policy) = policy;
 
