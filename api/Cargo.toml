@@ -8,6 +8,7 @@ anyhow = "1"
 axum = { version = "0.8", features = ["macros"] }
 dotenv = "0.15"
 libs = {path = "../libs" }
+regex = "1"
 serde = {version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
