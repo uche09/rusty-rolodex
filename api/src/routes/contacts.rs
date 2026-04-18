@@ -21,7 +21,7 @@ pub fn create_router(state: ApiState) -> Router {
 #[axum::debug_handler]
 async fn list_contacts(State(state): State<ApiState>) -> Result<impl IntoResponse, ApiError> {
     let contact_list: Vec<Contact> = {
-        let manager = state.manager.blocking_read();
+        let manager = state.manager.read().await;
         manager.mem.values().cloned().collect()
     };
 
@@ -49,14 +49,18 @@ async fn add_contact(
     let new_contact = Contact::new(payload.name, payload.phone, email, tag);
 
     {
-        let mut manager = state.manager.blocking_write();
-        let base = manager.mem.clone();
-        sync_updates_from_storage_data(
-            base,
-            &mut manager,
-            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-        )
-        .await?;
+        let mut manager = state.manager.write().await;
+        let mut base = manager.mem.clone();
+
+        // This function synchronizes latest data from its own storage incase other process (e.g cli)
+        // has updated the storage
+        manager
+            .sync_from_contacts_map(
+                &mut base,
+                manager.storage.load().await?,
+                manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+            )
+            .await?;
 
         if new_contact.already_exist(&manager.contact_list()) {
             return Err(ApiError::BadRequest("Contact already exist".to_string()));
@@ -77,15 +81,18 @@ async fn edit_contact(
     payload.validate()?;
 
     let updated_contact = Json({
-        let mut manager = state.manager.blocking_write();
-        let base = manager.mem.clone();
+        let mut manager = state.manager.write().await;
+        let mut base = manager.mem.clone();
 
-        sync_updates_from_storage_data(
-            base,
-            &mut manager,
-            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-        )
-        .await?;
+        // This function synchronizes latest data from its own storage incase other process (e.g cli)
+        // has updated the storage
+        manager
+            .sync_from_contacts_map(
+                &mut base,
+                manager.storage.load().await?,
+                manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+            )
+            .await?;
 
         manager
             .edit_contact(&id, payload.name, payload.phone, payload.email, payload.tag)
@@ -103,13 +110,17 @@ async fn delete_contact(
     State(state): State<ApiState>,
 ) -> Result<impl IntoResponse, ApiError> {
     let deleted_contact = Json({
-        let mut manager = state.manager.blocking_write();
-        sync_updates_from_storage_data(
-            manager.mem.clone(),
-            &mut manager,
-            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-        )
-        .await?;
+        let mut manager = state.manager.write().await;
+
+        // This function synchronizes latest data from its own storage incase other process (e.g cli)
+        // has updated the storage
+        manager
+            .sync_from_contacts_map(
+                &mut manager.mem.clone(),
+                manager.storage.load().await?,
+                manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
+            )
+            .await?;
 
         let target_contact = manager.mem.get(&id).ok_or(ApiError::NotFound)?.clone();
         manager.delete_contact(&id).ok();
