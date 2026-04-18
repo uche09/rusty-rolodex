@@ -231,6 +231,55 @@ impl ContactManager {
         self.mem.insert(contact.id, contact);
     }
 
+    pub fn edit_contact(
+        &mut self,
+        id: &Uuid,
+        name: Option<String>,
+        phone: Option<String>,
+        email: Option<String>,
+        tag: Option<String>,
+    ) -> Result<(), AppError> {
+        match self.mem.get_mut(id) {
+            Some(target_contact) => {
+                if let Some(name) = name {
+                    // Update index with contact new data
+                    self.index
+                        .updated_name_index(target_contact, &IndexUpdateType::Remove);
+                    target_contact.name = name;
+                    self.index
+                        .updated_name_index(target_contact, &IndexUpdateType::Add);
+                }
+                if let Some(phone) = phone {
+                    target_contact.phone = phone;
+                }
+                if let Some(email) = email {
+                    let new_domain: Vec<&str> = email.split('@').collect();
+                    let current_domain: Vec<&str> = target_contact.email.split("@").collect();
+
+                    if current_domain[current_domain.len() - 1] != new_domain[new_domain.len() - 1]
+                    {
+                        self.index
+                            .update_domain_index(target_contact, &IndexUpdateType::Remove);
+
+                        target_contact.email = email;
+
+                        self.index
+                            .update_domain_index(target_contact, &IndexUpdateType::Add);
+                    } else {
+                        target_contact.email = email;
+                    }
+                }
+                if let Some(tag) = tag {
+                    target_contact.tag = tag;
+                }
+
+                target_contact.updated_at = Utc::now();
+                Ok(())
+            }
+            None => Err(AppError::NotFound("contact".to_string())),
+        }
+    }
+
     pub fn delete_contact(&mut self, id: &Uuid) -> Result<(), AppError> {
         match self.mem.get_mut(id) {
             Some(deleted_contact) => {
