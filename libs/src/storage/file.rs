@@ -307,7 +307,9 @@ async fn write_file(path_str: &str, data: &str) -> Result<(), AppError> {
 
 pub fn resolve_storage_dir() -> String {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let workspace_root = std::path::Path::new(manifest_dir).parent().unwrap();
+    let workspace_root = std::path::Path::new(manifest_dir)
+        .parent()
+        .unwrap_or(std::path::Path::new(manifest_dir));
     workspace_root
         .join(".instance/")
         .to_string_lossy()
