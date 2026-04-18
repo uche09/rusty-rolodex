@@ -66,8 +66,6 @@ impl Drop for FileLock {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::FileLock;
@@ -85,7 +83,7 @@ mod tests {
         ))
     }
 
-    //  Lock path derivation 
+    //  Lock path derivation
 
     #[test]
     fn lock_path_appends_lock_extension() {
@@ -93,7 +91,7 @@ mod tests {
         assert_eq!(path, std::path::PathBuf::from("contacts.json.lock"));
     }
 
-    // Exclusive lock: contention 
+    // Exclusive lock: contention
 
     #[test]
     fn exclusive_lock_blocks_second_exclusive() {
@@ -142,7 +140,7 @@ mod tests {
         );
     }
 
-    // Shared lock: coexistence 
+    // Shared lock: coexistence
 
     #[test]
     fn multiple_shared_locks_can_coexist() {
@@ -177,7 +175,7 @@ mod tests {
         );
     }
 
-    // RAII: drop releases the lock 
+    // RAII: drop releases the lock
 
     #[test]
     fn dropping_exclusive_lock_releases_it() {
@@ -193,7 +191,10 @@ mod tests {
 
         // A fresh exclusive lock should now succeed.
         let result = FileLock::exclusive(path_str);
-        assert!(result.is_ok(), "exclusive lock should succeed after the previous one is dropped");
+        assert!(
+            result.is_ok(),
+            "exclusive lock should succeed after the previous one is dropped"
+        );
     }
 
     #[test]
@@ -206,7 +207,10 @@ mod tests {
 
         {
             let _lock = FileLock::exclusive(path_str).unwrap();
-            assert!(lock_path.exists(), "lock file should exist while lock is held");
+            assert!(
+                lock_path.exists(),
+                "lock file should exist while lock is held"
+            );
         }
 
         assert!(

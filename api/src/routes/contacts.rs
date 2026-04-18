@@ -5,7 +5,8 @@ use crate::{
 };
 use axum::{
     extract::{Path, State},
-    http::StatusCode, routing::patch,
+    http::StatusCode,
+    routing::patch,
 };
 use libs::domain::manager;
 use validator::Validate;
@@ -86,10 +87,9 @@ async fn edit_contact(
         )
         .await?;
 
-        manager.edit_contact(
-            &id, payload.name, payload.phone, 
-            payload.email, payload.tag
-        ).map_err(|_| ApiError::NotFound)?;
+        manager
+            .edit_contact(&id, payload.name, payload.phone, payload.email, payload.tag)
+            .map_err(|_| ApiError::NotFound)?;
 
         manager.save().await?;
         manager.mem.get(&id).unwrap().clone()
@@ -104,8 +104,10 @@ async fn delete_contact(
 ) -> Result<impl IntoResponse, ApiError> {
     let deleted_contact = Json({
         let mut manager = state.manager.blocking_write();
-        sync_updates_from_storage_data(manager.mem.clone(), 
-            &mut manager, manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy)
+        sync_updates_from_storage_data(
+            manager.mem.clone(),
+            &mut manager,
+            manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await?;
 

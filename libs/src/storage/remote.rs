@@ -30,7 +30,7 @@ impl RemoteStorage {
     ///
     /// Use `Self.update_active_url_from_str()` method as an alternative to explicitly
     /// parse a url as string if .env is not set.
-    pub async  fn format_get_req_from_base_url(&self) -> Result<(), AppError> {
+    pub async fn format_get_req_from_base_url(&self) -> Result<(), AppError> {
         let mut resource_id = {
             let read_lock = self.resource_id.read().await;
             read_lock.clone()
@@ -67,7 +67,7 @@ impl RemoteStorage {
     ///
     /// Use `Self.update_active_url_from_str()` method as an alternative to explicitly
     /// parse a url as string if .env is not set.
-    pub async  fn format_post_req_from_base_url(&self) -> Result<(), AppError> {
+    pub async fn format_post_req_from_base_url(&self) -> Result<(), AppError> {
         if let Some(base_url) = &self.base_url {
             *self.active_url.write().await = Some(format!(
                 "{}?apiKey={}",
@@ -88,9 +88,7 @@ impl RemoteStorage {
     /// Use `Self.update_active_url_from_str()` method as an alternative to explicitly
     /// parse a url as string if .env is not set.
     pub async fn format_put_req_from_base_url(&self) -> Result<(), AppError> {
-        let mut resource_id = {
-            self.resource_id.read().await.clone()
-        };
+        let mut resource_id = { self.resource_id.read().await.clone() };
 
         if resource_id.is_none() {
             // if resource_id is not set, try read from .env
@@ -196,7 +194,8 @@ impl ContactStore for RemoteStorage {
         let res = res.error_for_status()?;
 
         let res_map: HashMap<String, String> = serde_json::from_str(&res.text().await?)?;
-        self.extract_resource_id_from_successful_post_req(res_map.get("uri")).await;
+        self.extract_resource_id_from_successful_post_req(res_map.get("uri"))
+            .await;
         Ok(())
     }
 }
@@ -208,8 +207,8 @@ pub fn is_valid_url(url: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::sync::RwLockWriteGuard;
     use mockito::{mock, server_url};
+    use tokio::sync::RwLockWriteGuard;
 
     // JSON mapping of uuid -> Contact
     const CONTACTS_JSON: &str = r#"

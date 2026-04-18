@@ -8,12 +8,8 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> anyhow::Result<Self> {
         dotenv::dotenv().ok();
-        Ok(
-            Self { 
-                port: env::var("API_PORT")
-                    .unwrap_or("3000".into())
-                    .parse()?,
-            }
-        )
+        Ok(Self {
+            port: env::var("API_PORT").unwrap_or("3000".into()).parse()?,
+        })
     }
 }
