@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1"
-axum = { version = "0.8", features = ["macros"] }
+axum = { version = "0.7.9", features = ["macros"] }
 dotenv = "0.15"
 libs = {path = "../libs" }
 regex = "1"
@@ -22,3 +22,4 @@ validator = { version = "0.19", features = ["derive"] }
 [dev-dependencies]
 axum-test = "15"
 tokio = { version = "1", features = ["full", "test-util"] }
+tempfile = "3"
