@@ -13,8 +13,12 @@ fn export_import() -> Result<(), Box<dyn std::error::Error>> {
     // Use json storage for the test run to avoid touching txt files
     let storage_env = ("STORAGE_CHOICE", "json");
 
+    // Ensure storage directory exists
+    let storage_dir = resolve_storage_dir();
+    let _ = fs::create_dir_all(&storage_dir);
+
     // Clean up storage from previous test runs
-    let mut json_path = resolve_storage_dir();
+    let mut json_path = storage_dir.clone();
     json_path.push_str("contacts.json");
     if Path::new(&json_path).exists() {
         let _ = fs::remove_file(&json_path);

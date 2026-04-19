@@ -1,11 +1,10 @@
 use crate::cli_component::command::{Cli, Commands, ImportExportOption, SearchKey, SortKey};
-use chrono::Utc;
 use clap::Parser;
 use dotenv::dotenv;
 use libs::prelude::{
     AppError, ContactStore, CsvStorage, JsonStorage, RemoteStorage, StorageMediums,
     contact::{Contact, EMAIL_REQ_MESSAGE, NAME_REQ_MESSAGE, PHONE_REQ_MESSAGE},
-    manager::{ContactManager, IndexUpdateType},
+    manager::ContactManager,
     remote::is_valid_url,
 };
 use std::{env, path::Path, process::exit};
@@ -72,14 +71,8 @@ pub async fn run_app() -> Result<(), AppError> {
             if let Some(tag) = tag {
                 contact_list = manager
                     .mem
-                    .iter()
-                    .filter_map(|(_, cont)| {
-                        if cont.tag.to_lowercase() == tag.to_lowercase() && !cont.deleted {
-                            Some(cont)
-                        } else {
-                            None
-                        }
-                    })
+                    .values()
+                    .filter(|cont| cont.tag.to_lowercase() == tag.to_lowercase() && !cont.deleted)
                     .collect();
             } else {
                 contact_list = manager.contact_list();
@@ -133,54 +126,18 @@ pub async fn run_app() -> Result<(), AppError> {
                 .iter()
                 .find(|c| manager.mem.get(c) == Some(&desired_contact));
 
-            let found_contact = matching_id.and_then(|id| manager.mem.get_mut(id));
-
-            if let Some(contact) = found_contact {
-                if let Some(name) = new_name {
-                    manager
-                        .index
-                        .updated_name_index(contact, &IndexUpdateType::Remove);
-
-                    contact.name = name;
-
-                    manager
-                        .index
-                        .updated_name_index(contact, &IndexUpdateType::Add);
+            match matching_id.and_then(|id| {
+                manager
+                    .edit_contact(id, new_name, new_phone, new_email, new_tag)
+                    .ok()
+            }) {
+                Some(_) => {
+                    manager.save().await?;
+                    println!("Contact updated successfully");
+                    Ok(())
                 }
-                if let Some(phone) = new_phone {
-                    contact.phone = phone;
-                }
-                if let Some(email) = new_email {
-                    let new_domain: Vec<&str> = email.split('@').collect();
-                    let current_domain: Vec<&str> = contact.email.split("@").collect();
-
-                    if current_domain[current_domain.len() - 1] != new_domain[new_domain.len() - 1]
-                    {
-                        manager
-                            .index
-                            .update_domain_index(contact, &IndexUpdateType::Remove);
-
-                        contact.email = email;
-
-                        manager
-                            .index
-                            .update_domain_index(contact, &IndexUpdateType::Add);
-                    } else {
-                        contact.email = email;
-                    }
-                }
-                if let Some(tag) = new_tag {
-                    contact.tag = tag;
-                }
-
-                contact.updated_at = Utc::now();
-            } else {
-                return Err(AppError::NotFound("Contact".to_string()));
+                None => Err(AppError::NotFound("contact".to_string())),
             }
-
-            manager.save().await?;
-            println!("Contact updated successfully");
-            Ok(())
         }
 
         // Delete Contact
@@ -371,12 +328,13 @@ fn parse_import_export_storage_type(
         }
 
         ImportExportOption::R => {
+            let rt = tokio::runtime::Runtime::new()?;
             let remote_storage = Box::new(RemoteStorage::new()?);
 
             if is_valid_url(source) {
-                remote_storage.update_active_url_from_str(source);
+                rt.block_on(remote_storage.update_active_url_from_str(source));
             } else {
-                remote_storage.format_get_req_from_base_url()?;
+                rt.block_on(remote_storage.format_get_req_from_base_url())?;
             }
             Ok(remote_storage)
         }

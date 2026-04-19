@@ -1,9 +1,10 @@
 use super::*;
 
 use csv::{Reader, Writer};
+use lock::FileLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::{fs as tokio_fs, io::AsyncWriteExt};
+use tokio::{fs as tokio_fs, io::AsyncWriteExt, task};
 
 /// # TOML wrapper struct.
 ///
@@ -88,10 +89,20 @@ impl CsvStorage {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl ContactStore for JsonStorage {
     async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
-        let data = read_file(&self.path).await?;
+        let data = {
+            let storage_path = self.path.clone();
+
+            // Locking storage file for shared access coodination
+            let _shared_lock = task::spawn_blocking(move || FileLock::shared(&storage_path))
+                .await
+                .map_err(|e| AppError::Poison(format!("FileLock task panicked: {}", e)))??;
+
+            read_file(&self.path).await?
+            // Drop FileLock instance ASAP to free lock
+        };
 
         // serde_json will give an error if data is empty
         if data.is_empty() {
@@ -123,9 +134,19 @@ impl ContactStore for JsonStorage {
     }
 
     async fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
-        // user serde to serialize json data
-        let json_contact = serde_json::to_string(&contacts)?;
-        write_file(&self.path, &json_contact).await?;
+        {
+            // user serde to serialize json data
+            let json_contact = serde_json::to_string(&contacts)?;
+            let storage_path = self.path.clone();
+
+            // Locking storage file for exclusive access coodination
+            let _xlock = task::spawn_blocking(move || FileLock::exclusive(&storage_path))
+                .await
+                .map_err(|e| AppError::Poison(format!("FileLock task panicked: {}", e)))??;
+
+            write_file(&self.path, &json_contact).await?;
+            // Drop FileLock instance ASAP to free lock
+        }
 
         let txt_path = env::var("TXT_STORAGE_PATH").unwrap_or_else(|_| {
             let mut path = resolve_storage_dir();
@@ -145,10 +166,21 @@ impl ContactStore for JsonStorage {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl ContactStore for TxtStorage {
     async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
-        let data = read_file(&self.path).await?;
+        let data = {
+            let storage_path = self.path.clone();
+
+            // Locking storage file for shared access coodination
+            let _shared_lock = task::spawn_blocking(move || FileLock::shared(&storage_path))
+                .await
+                .map_err(|e| AppError::Poison(format!("FileLock task panicked: {}", e)))??;
+
+            read_file(&self.path).await?
+            // Drop FileLock instance ASAP to free lock
+        };
+
         let toml_contacts: Result<TomlContacts, toml::de::Error> = toml::from_str(&data);
 
         if let Ok(toml_contacts) = toml_contacts {
@@ -159,15 +191,25 @@ impl ContactStore for TxtStorage {
     }
 
     async fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError> {
-        let toml_contacts = TomlContacts {
-            contacts: contacts.clone(),
-        };
-        let string_data = toml::to_string(&toml_contacts)?;
+        {
+            let toml_contacts = TomlContacts {
+                contacts: contacts.clone(),
+            };
+            let string_data = toml::to_string(&toml_contacts)?;
 
-        // // use our helper to serialize data for txt file
-        // let data = helper::serialize_contacts(contacts);
+            // // use our helper to serialize data for txt file
+            // let data = helper::serialize_contacts(contacts);
 
-        write_file(&self.path, &string_data).await?;
+            let storage_path = self.path.clone();
+
+            // Locking storage file for exclusive access coodination
+            let _xlock = task::spawn_blocking(move || FileLock::exclusive(&storage_path))
+                .await
+                .map_err(|e| AppError::Poison(format!("FileLock task panicked: {}", e)))??;
+
+            write_file(&self.path, &string_data).await?;
+            // Drop FileLock instance ASAP to free lock
+        }
 
         let json_path = env::var("JSON_STORAGE_PATH").unwrap_or_else(|_| {
             let mut path = resolve_storage_dir();
@@ -187,7 +229,7 @@ impl ContactStore for TxtStorage {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl ContactStore for CsvStorage {
     fn get_medium(&self) -> &str {
         &self.medium
@@ -265,7 +307,9 @@ async fn write_file(path_str: &str, data: &str) -> Result<(), AppError> {
 
 pub fn resolve_storage_dir() -> String {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let workspace_root = std::path::Path::new(manifest_dir).parent().unwrap();
+    let workspace_root = std::path::Path::new(manifest_dir)
+        .parent()
+        .unwrap_or(std::path::Path::new(manifest_dir));
     workspace_root
         .join(".instance/")
         .to_string_lossy()

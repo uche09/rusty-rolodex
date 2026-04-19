@@ -16,7 +16,7 @@ impl MockStorage {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl ContactStore for MockStorage {
     async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError> {
         Ok(self.contacts.clone())
@@ -93,9 +93,9 @@ async fn sync_same_contact_different_fields_modified() -> Result<(), AppError> {
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
     let sync_status = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(remote_storage),
+            remote_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;
@@ -161,9 +161,9 @@ async fn sync_same_contact_same_field_last_write_wins() -> Result<(), AppError> 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
     let sync_status = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(remote_storage),
+            remote_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;
@@ -230,9 +230,9 @@ async fn sync_remote_contains_new_contacts() -> Result<(), AppError> {
 
     let mut base = local_manager.mem.clone();
     let sync_status = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(remote_storage),
+            remote_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;
@@ -277,9 +277,9 @@ async fn sync_offline_additions_no_duplicates() -> Result<(), AppError> {
 
     let mut base = local_manager.mem.clone();
     let sync_status = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(remote_storage),
+            remote_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;
@@ -340,9 +340,9 @@ async fn sync_local_delete_remote_edit_delete_wins() -> Result<(), AppError> {
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
     let sync_status = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(remote_storage),
+            remote_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;
@@ -397,9 +397,9 @@ async fn sync_remote_delete_local_edit_remote_delete_wins() -> Result<(), AppErr
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
     let sync_status = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(remote_storage),
+            remote_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;
@@ -459,9 +459,9 @@ async fn sync_state_unchanged_on_error() -> Result<(), AppError> {
     // Sync should fail
     let mut base = local_manager.mem.clone();
     let result = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(remote_storage),
+            remote_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;
@@ -517,9 +517,9 @@ async fn sync_same_timestamps_uses_local() -> Result<(), AppError> {
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
     let sync_status = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(remote_storage),
+            remote_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;
@@ -566,9 +566,9 @@ async fn sync_created_at_mismatch_detected_as_conflict() -> Result<(), AppError>
 
     let mut base = local_manager.mem.clone();
     let result = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(remote_storage),
+            remote_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;
@@ -622,9 +622,9 @@ async fn sync_ignores_duplicate_by_name_and_phone() -> Result<(), AppError> {
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
     let sync_status = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(remote_storage),
+            remote_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;
@@ -683,9 +683,9 @@ async fn sync_duplicate_detection_requires_name_and_phone_match() -> Result<(), 
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
     let sync_status = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(remote_storage),
+            remote_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;
@@ -722,9 +722,9 @@ async fn sync_empty_remote_no_changes() -> Result<(), AppError> {
 
     let mut base = local_manager.mem.clone();
     let sync_status = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(empty_storage),
+            empty_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;
@@ -768,9 +768,9 @@ async fn sync_all_remote_contacts_deleted_locally() -> Result<(), AppError> {
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
     let sync_status = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(remote_storage),
+            remote_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;
@@ -815,9 +815,9 @@ async fn sync_index_updated_after_merge() -> Result<(), AppError> {
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
     let sync_status = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(remote_storage),
+            remote_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;
@@ -949,9 +949,9 @@ async fn sync_multiple_contacts_mixed_operations() -> Result<(), AppError> {
     let remote_storage = MockStorage::new(remote_manager.mem.clone());
     let mut base = local_manager.mem.clone();
     let sync_status = local_manager
-        .sync_from_storage(
+        .sync_from_contacts_map(
             &mut base,
-            Box::new(remote_storage),
+            remote_storage.load().await?,
             manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
         )
         .await;

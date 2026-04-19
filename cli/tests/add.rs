@@ -9,13 +9,15 @@ fn listing_format(i: i32, name: &str, phone: &str, email: &str, tag: &str) -> St
 
 #[test]
 fn add_contact() {
-    let mut json_path = resolve_storage_dir();
+    let storage_dir = resolve_storage_dir();
+    let _ = fs::create_dir_all(&storage_dir);
+    let mut json_path = storage_dir.clone();
     json_path.push_str("contacts.json");
     let _ = fs::remove_file(json_path);
     // Add a contact
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Alice",
@@ -33,7 +35,7 @@ fn add_contact() {
     // Confirm newly added contact exist
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["list"])
+        .args(["list"])
         .assert()
         .success()
         .stdout(predicate::str::contains(listing_format(
@@ -47,7 +49,7 @@ fn add_contact() {
     // Attempt to Add duplicate contacts
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Alice",
@@ -68,7 +70,7 @@ fn add_contact() {
     // Clear memory
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["delete", "--name", "Alice"])
+        .args(["delete", "--name", "Alice"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Contact deleted successfully"));
@@ -76,10 +78,12 @@ fn add_contact() {
 
 #[test]
 fn invalid_inputs() {
+    let storage_dir = resolve_storage_dir();
+    let _ = fs::create_dir_all(&storage_dir);
     // INVALID COMMAND
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "and",
             "--name",
             "Alice",
@@ -97,7 +101,7 @@ fn invalid_inputs() {
     // INVALID NAME
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "123",
@@ -119,7 +123,7 @@ fn invalid_inputs() {
 
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "A very very very very very very very very very \
@@ -144,7 +148,7 @@ fn invalid_inputs() {
     // INVALID PHONE NUMBER
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Alice",
@@ -165,7 +169,7 @@ fn invalid_inputs() {
     // INVALID EMAIL
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Alice",
@@ -185,7 +189,7 @@ fn invalid_inputs() {
 
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Alice",

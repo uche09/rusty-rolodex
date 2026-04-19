@@ -5,10 +5,12 @@ use std::fs;
 
 #[test]
 fn listing_contacts() {
+    let storage_dir = resolve_storage_dir();
+    let _ = fs::create_dir_all(&storage_dir);
     // Add a contacts 1
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Patricia",
@@ -26,7 +28,7 @@ fn listing_contacts() {
     // Add a contacts 2
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Diane",
@@ -44,7 +46,7 @@ fn listing_contacts() {
     // Add a contacts 3
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "John",
@@ -62,7 +64,7 @@ fn listing_contacts() {
     // Add a contacts 4
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Wayne",
@@ -80,7 +82,7 @@ fn listing_contacts() {
     // Add a contacts 5
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Thomas",
@@ -98,7 +100,7 @@ fn listing_contacts() {
     // Add a contacts 6
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&[
+        .args([
             "add",
             "--name",
             "Alice",
@@ -116,7 +118,7 @@ fn listing_contacts() {
     // LISTING ADDED CONTACT
     let normal_list_output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["list"])
+        .args(["list"])
         .assert()
         .success()
         .get_output()
@@ -125,7 +127,7 @@ fn listing_contacts() {
 
     let tagged_list_output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["list", "--tag", "FRIENDS"])
+        .args(["list", "--tag", "FRIENDS"])
         .assert()
         .success()
         .get_output()
@@ -134,7 +136,7 @@ fn listing_contacts() {
 
     let sorted_list_output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
-        .args(&["list", "--sort", "name"])
+        .args(["list", "--sort", "name"])
         .assert()
         .success()
         .get_output()

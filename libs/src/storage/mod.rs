@@ -1,4 +1,5 @@
 pub mod file;
+mod lock;
 pub mod memory;
 pub mod remote;
 
@@ -14,8 +15,8 @@ use std::{
 };
 use uuid::Uuid;
 
-#[async_trait(?Send)]
-pub trait ContactStore {
+#[async_trait]
+pub trait ContactStore: Send + Sync {
     async fn load(&self) -> Result<HashMap<Uuid, Contact>, AppError>;
 
     async fn save(&self, contacts: &HashMap<Uuid, Contact>) -> Result<(), AppError>;

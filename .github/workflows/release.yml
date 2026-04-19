@@ -1,36 +1,44 @@
 name: Release for Ubuntu
 
 on:
-    push:
-        tags:
-            - "v*"
+  push:
+    tags:
+      - "v*"
 
 permissions:
-  contents: write            
-            
+  contents: write
+
 jobs:
-    build:
-        runs-on: ubuntu-latest
-        
-        steps:
-            - uses: actions/checkout@v3
-            - uses: actions-rs/toolchain@v1
-              with:
-                toolchain: stable
+  build:
+    runs-on: ubuntu-latest
 
-            - name: Compile code for Ubuntu
-              run : cargo build --release
-            
-            - name: Package binary
-              run: |
-                cd target/release
-                tar czf ../../rusty-rolodex-${{ github.ref_name }}-ubuntu-x86_64.tar.gz rusty-rolodex
-                cd ../../
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
 
-            - name: Upload to GitHub Release
-              uses: softprops/action-gh-release@v2
-              with:
-                files: ./rusty-rolodex-${{ github.ref_name }}-ubuntu-x86_64.tar.gz
-              
-              env:
-                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compile code for Ubuntu
+        run: cargo build --release
+
+      - name: Package CLI binary
+        run: |
+          cd target/release
+          tar czf ../../rusty-rolodex-${{ github.ref_name }}-cli-ubuntu-x86_64.tar.gz cli
+          cd ../../
+
+      - name: Package API binary
+        run: |
+          cd target/release
+          tar czf ../../rusty-rolodex-${{ github.ref_name }}-api-ubuntu-x86_64.tar.gz api
+          cd ../../
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ./rusty-rolodex-${{ github.ref_name }}-cli-ubuntu-x86_64.tar.gz
+            ./rusty-rolodex-${{ github.ref_name }}-api-ubuntu-x86_64.tar.gz
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
