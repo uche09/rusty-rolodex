@@ -71,14 +71,8 @@ pub async fn run_app() -> Result<(), AppError> {
             if let Some(tag) = tag {
                 contact_list = manager
                     .mem
-                    .iter()
-                    .filter_map(|(_, cont)| {
-                        if cont.tag.to_lowercase() == tag.to_lowercase() && !cont.deleted {
-                            Some(cont)
-                        } else {
-                            None
-                        }
-                    })
+                    .values()
+                    .filter(|cont| cont.tag.to_lowercase() == tag.to_lowercase() && !cont.deleted)
                     .collect();
             } else {
                 contact_list = manager.contact_list();
