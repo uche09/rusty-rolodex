@@ -189,7 +189,9 @@ pub fn get_env_value_by_key(key: &str) -> Result<String, AppError> {
 /// so that new configuration like resource ID or url remain persistent.
 pub fn set_env_value_in_file(key: &str, value: &str) -> Result<(), AppError> {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let workspace_root = std::path::Path::new(manifest_dir).parent().unwrap();
+    let workspace_root = std::path::Path::new(manifest_dir)
+        .parent()
+        .unwrap_or(std::path::Path::new(manifest_dir));
     let env_path = workspace_root.join(".env");
 
     let content = fs::read_to_string(&env_path).unwrap_or_default();
