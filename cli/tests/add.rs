@@ -9,7 +9,9 @@ fn listing_format(i: i32, name: &str, phone: &str, email: &str, tag: &str) -> St
 
 #[test]
 fn add_contact() {
-    let mut json_path = resolve_storage_dir();
+    let storage_dir = resolve_storage_dir();
+    let _ = fs::create_dir_all(&storage_dir);
+    let mut json_path = storage_dir.clone();
     json_path.push_str("contacts.json");
     let _ = fs::remove_file(json_path);
     // Add a contact
@@ -76,6 +78,8 @@ fn add_contact() {
 
 #[test]
 fn invalid_inputs() {
+    let storage_dir = resolve_storage_dir();
+    let _ = fs::create_dir_all(&storage_dir);
     // INVALID COMMAND
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()

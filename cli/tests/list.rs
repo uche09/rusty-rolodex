@@ -5,6 +5,8 @@ use std::fs;
 
 #[test]
 fn listing_contacts() {
+    let storage_dir = resolve_storage_dir();
+    let _ = fs::create_dir_all(&storage_dir);
     // Add a contacts 1
     Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()

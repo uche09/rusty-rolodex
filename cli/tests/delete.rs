@@ -5,7 +5,9 @@ use std::fs;
 
 #[test]
 fn deleting_contacts() {
-    let mut json_path = resolve_storage_dir();
+    let storage_dir = resolve_storage_dir();
+    let _ = fs::create_dir_all(&storage_dir);
+    let mut json_path = storage_dir.clone();
     json_path.push_str("contacts.json");
     let _ = fs::remove_file(json_path);
 

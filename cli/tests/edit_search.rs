@@ -7,6 +7,8 @@ use std::{fs, path::Path};
 fn edit_search() -> Result<(), Box<dyn std::error::Error>> {
     // Use json storage for the test run to avoid touching txt files
     let storage_env = ("STORAGE_CHOICE", "json");
+    let storage_dir = resolve_storage_dir();
+    let _ = fs::create_dir_all(&storage_dir);
 
     // Add a contact
     Command::cargo_bin(env!("CARGO_PKG_NAME"))?
