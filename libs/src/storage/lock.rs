@@ -7,7 +7,7 @@ use fs2::FileExt;
 pub struct FileLock {
     // we hold on the opened file, - dropping it releases the lock (RAII)
     _file: File,
-    lock_path: std::path::PathBuf,
+    // lock_path: std::path::PathBuf,
 }
 
 impl FileLock {
@@ -20,7 +20,7 @@ impl FileLock {
         lock_file.lock_exclusive()?;
         Ok(Self {
             _file: lock_file,
-            lock_path,
+            // lock_path,
         })
     }
 
@@ -34,7 +34,7 @@ impl FileLock {
         lock_file.lock_shared()?;
         Ok(Self {
             _file: lock_file,
-            lock_path,
+            // lock_path,
         })
     }
 
@@ -59,12 +59,12 @@ impl FileLock {
     }
 }
 
-impl Drop for FileLock {
-    fn drop(&mut self) {
-        // Try to remove the lock file when FileLock is dropped
-        let _ = std::fs::remove_file(&self.lock_path);
-    }
-}
+// impl Drop for FileLock {
+//     fn drop(&mut self) {
+//         // Try to remove the lock file when FileLock is dropped
+//         let _ = std::fs::remove_file(&self.lock_path);
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -197,25 +197,25 @@ mod tests {
         );
     }
 
-    #[test]
-    fn dropping_lock_removes_lock_file() {
-        let dir = tempdir().unwrap();
-        let storage_path = dir.path().join("contacts.json");
-        let path_str = storage_path.to_str().unwrap();
+    // #[test]
+    // fn dropping_lock_removes_lock_file() {
+    //     let dir = tempdir().unwrap();
+    //     let storage_path = dir.path().join("contacts.json");
+    //     let path_str = storage_path.to_str().unwrap();
 
-        let lock_path = expected_lock_path(path_str);
+    //     let lock_path = expected_lock_path(path_str);
 
-        {
-            let _lock = FileLock::exclusive(path_str).unwrap();
-            assert!(
-                lock_path.exists(),
-                "lock file should exist while lock is held"
-            );
-        }
+    //     {
+    //         let _lock = FileLock::exclusive(path_str).unwrap();
+    //         assert!(
+    //             lock_path.exists(),
+    //             "lock file should exist while lock is held"
+    //         );
+    //     }
 
-        assert!(
-            !lock_path.exists(),
-            "lock file should be removed after lock is dropped"
-        );
-    }
+    //     assert!(
+    //         !lock_path.exists(),
+    //         "lock file should be removed after lock is dropped"
+    //     );
+    // }
 }
