@@ -1,7 +1,7 @@
 # Rusty Rolodex
 
 [![Rust Version](https://img.shields.io/badge/Rust-1.78+-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
-[![Push and Pull Request Test](https://github.com/uche09/rusty-rolodex/actions/workflows/ci.yml/badge.svg)](https://github.com/uche09/rusty-rolodex/actions/workflows/ci.yml)
+[![Push and Pull Request Test](https://github.com/uche09/rusty-rolodex/actions/workflows/ci.yml/badge.svg?event=pull_request)](https://github.com/uche09/rusty-rolodex/actions/workflows/ci.yml)
 
 ## Project Overview
 
