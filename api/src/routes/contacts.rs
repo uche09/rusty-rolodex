@@ -8,8 +8,7 @@ use axum::{
     http::StatusCode,
     routing::patch,
 };
-use libs::domain::manager;
-use tracing::{instrument, debug, info};
+use tracing::{debug, info, instrument};
 use validator::Validate;
 
 pub fn create_router(state: ApiState) -> Router {
@@ -76,17 +75,9 @@ async fn add_contact(
         debug!("acquired write Lock on manager state");
 
         debug!("synchronizing local data from storage");
-        let mut base = manager.mem.clone();
-
         // This function synchronizes latest data from its own storage incase other process (e.g cli)
         // has updated the storage
-        manager
-            .sync_from_contacts_map(
-                &mut base,
-                manager.storage.load().await?,
-                manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-            )
-            .await?;
+        manager.sync_from_own_storage().await?;
         debug!("synchronization complete");
 
         if new_contact.already_exist(&manager.contact_list()) {
@@ -124,17 +115,9 @@ async fn edit_contact(
         debug!("acquired write Lock on manager state");
 
         debug!("synchronizing local data from storage");
-        let mut base = manager.mem.clone();
-
         // This function synchronizes latest data from its own storage incase other process (e.g cli)
         // has updated the storage
-        manager
-            .sync_from_contacts_map(
-                &mut base,
-                manager.storage.load().await?,
-                manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-            )
-            .await?;
+        manager.sync_from_own_storage().await?;
         debug!("synchronization complete");
 
         let target = manager.mem.get(&id);
@@ -178,20 +161,18 @@ async fn delete_contact(
         debug!("synchronizing local data from storage");
         // This function synchronizes latest data from its own storage incase other process (e.g cli)
         // has updated the storage
-        manager
-            .sync_from_contacts_map(
-                &mut manager.mem.clone(),
-                manager.storage.load().await?,
-                manager::SyncPolicy::LastWriteWinsPolicy(manager::LastWriteWinsPolicy),
-            )
-            .await?;
+        manager.sync_from_own_storage().await?;
         debug!("synchronization complete");
 
-        let target_contact = manager.mem.get(&id).ok_or_else(|| {
-            info!(contact_id=%id, "contact not found");
-            ApiError::NotFound
-        })?.clone();
-        
+        let target_contact = manager
+            .mem
+            .get(&id)
+            .ok_or_else(|| {
+                info!(contact_id=%id, "contact not found");
+                ApiError::NotFound
+            })?
+            .clone();
+
         info!(target_contact = ?target_contact, "deleting target contact");
         manager.delete_contact(&id).ok();
         manager.save().await?;

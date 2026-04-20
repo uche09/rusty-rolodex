@@ -436,6 +436,17 @@ impl ContactManager {
         Ok(())
     }
 
+    pub async fn sync_from_own_storage(&mut self) -> Result<(), AppError> {
+        let mut base = self.mem.clone();
+        let remote_contacts = self.storage.load().await?;
+        self.sync_from_contacts_map(
+            &mut base,
+            remote_contacts,
+            SyncPolicy::LastWriteWinsPolicy(LastWriteWinsPolicy),
+        )
+        .await
+    }
+
     pub fn create_name_search_index(&self) -> Result<HashMap<String, HashSet<Uuid>>, AppError> {
         let index: Arc<Mutex<HashMap<String, HashSet<Uuid>>>> =
             Arc::new(Mutex::new(HashMap::new()));
