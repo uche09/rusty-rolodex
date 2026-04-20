@@ -14,7 +14,7 @@ static NAME_RGX: LazyLock<Regex> =
 // Every other character aside the "+" must be a digit.
 static PHONE_RGX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\+?\d{10,15}$").unwrap());
 
-#[derive(Deserialize, Validate)]
+#[derive(Deserialize, Validate, Debug)]
 pub struct NewContact {
     // Not more than 50 characters
     #[validate(
@@ -45,7 +45,7 @@ pub struct NewContact {
     pub tag: Option<String>,
 }
 
-#[derive(Deserialize, Validate)]
+#[derive(Deserialize, Validate, Debug)]
 pub struct EditContact {
     #[validate(
         regex(
