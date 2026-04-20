@@ -57,15 +57,8 @@ async fn add_contact(
     info!("creating new contact");
     payload.validate()?;
 
-    let mut email = String::new();
-    let mut tag = String::new();
-
-    if let Some(req_email) = payload.email {
-        email = req_email;
-    }
-    if let Some(req_tag) = payload.tag {
-        tag = req_tag;
-    }
+    let email = payload.email.unwrap_or_default();
+    let tag = payload.tag.unwrap_or_default();
 
     let new_contact = Contact::new(payload.name, payload.phone, email, tag);
 
@@ -131,7 +124,7 @@ async fn edit_contact(
             })?;
 
         manager.save().await?;
-        let contact = manager.mem.get(&id).unwrap().clone();
+        let contact = manager.mem.get(&id).ok_or(ApiError::NotFound)?.clone();
 
         debug!("write Lock Released");
         contact
