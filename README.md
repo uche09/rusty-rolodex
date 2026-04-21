@@ -79,36 +79,44 @@ This workspace uses a **three-level documentation strategy:**
 
 ## System Architecture
 
-**TL;DR:** Workspace with two member crates: `libs` (domain logic + storage) and `cli` (command-line interface). Clean three-tier architecture (CLI -> Domain -> Storage) with pluggable backends (JSON, CSV, TXT, HTTP) via trait-based abstraction.
+**TL;DR:** Workspace with three member crates: `libs` (domain logic + storage), `cli` (command-line interface), and `api` (REST HTTP server). Clean layered architecture with trait-based pluggable backends (JSON, CSV, TXT, HTTP) and service layer abstracting business logic.
 
 ```
-┌────────────────────────── Workspace ─────────────────────────┐
-│                                                              │
-│    ┌─────────────────────────────────┐  ┌──────────────────┐ │
-│    │    libs/ (Library Crate)        │  │  cli/ (CLI Crate)│ │
-│    │                                 │  │                  │ │
-│    │  ┌────────────────────────────┐ │  │  ┌─────────────┐ │ │
-│    │  │  Storage Layer             │ │  │  │CLI Interface│ │ │
-│    │  │  (JSON/CSV/TXT/HTTP)       │ │  │  │(clap, cmds) │ │ │
-│    │  └────────────────────────────┘ │  │  └──────┬──────┘ │ │
-│    │           ▲                     │  │         │        │ │
-│    │           │                     │  │         │        │ │
-│    │  ┌────────┴───────────────────┐ │  │  ┌──────▼──────┐ │ │
-│    │  │  Domain Layer              │ │  │  │ContactMgr   │ │ │
-│    │  │  (Manager, validation,     │ ◄──┼──┤(exported)   │ │ │
-│    │  │   sync, indexing)          │ │  │  └─────────────┘ │ │
-│    │  └────────────────────────────┘ │  │                  │ │
-│    │                                 │  │                  │ │
-│    └─────────────────────────────────┘  └──────────────────┘ │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────── Workspace ──────────────────────────────┐
+│                                                                    │
+│  ┌──────────────────────┐  ┌──────────────────┐  ┌─────────────┐  │
+│  │  libs/ (Library)     │  │  cli/ (CLI)      │  │  api/ (REST)│  │
+│  │                      │  │                  │  │             │  │
+│  │ ┌────────────────┐   │  │  ┌──────────────┐│  │ ┌────────┐ │  │
+│  │ │Storage Layer   │   │  │  │CLI Interface ││  │ │HTTP    │ │  │
+│  │ │(JSON/CSV/TXT/ │   │  │  │(clap, cmds)  ││  │ │Handlers│ │  │
+│  │ │HTTP)          │   │  │  └────────┬─────┘│  │ └───┬────┘ │  │
+│  │ └──────▲────────┘   │  │           │      │  │     │      │  │
+│  │        │            │  │      ┌────▼────┐ │  │  ┌──▼────┐ │  │
+│  │ ┌──────┴───────┐    │  │      │Service  │ │  │  │Service │ │  │
+│  │ │Domain Layer  │    │  │      │(Manager)│ │  │  │Layer   │ │  │
+│  │ │(Manager,     │◄───┼──┼──────┘(Arc<    │ │  │  │(business
+│  │ │validation,   │    │  │        RwLock>)│ │  │  │logic)  │ │  │
+│  │ │sync,         │    │  │                │ │  │  └────────┘ │  │
+│  │ │indexing)     │    │  │                │ │  │             │  │
+│  │ └──────────────┘    │  │                │ │  │             │  │
+│  │                      │  └────────────────┘ │  └─────────────┘  │
+│  └──────────────────────┘  ┌──────────────────┘  ┌────────────────┘
+│                            │                     │
+│                            └─────────────────────┘
+│                  Shared ContactManager
+│                  (via Arc<RwLock<>>)
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 **Design Philosophy:** Workspace separation enables:
 
 - **libs** crate: Core business logic (domain models, storage backends, sync policy) as a reusable library
 - **cli** crate: Command-line interface with `clap` binding to managers/stores from **libs**
-- Strategy pattern for pluggable storage backends enables runtime flexibility without coupling CLI to storage implementation. All backends satisfy the `ContactStore` trait, allowing seamless format migration and extensibility.
+- **api** crate: REST HTTP server with `Axum` and a **Service Layer** (ContactService) that abstracts business logic from HTTP handlers
+- **Strategy pattern** for pluggable storage backends enables runtime flexibility without coupling interfaces to storage implementation. All backends satisfy the `ContactStore` trait, allowing seamless format migration and extensibility.
+- **Service Layer Pattern** separates HTTP concerns (routing, status codes, validation) from business logic (sync, filtering, operations). ContactService provides unit-testable core logic reusable by CLI and API.
 
 ---
 
@@ -500,7 +508,7 @@ Ensures backward compatibility when new fields are added.
 
 ## Module Organization
 
-**Workspace Structure:** Two member crates with clean separation of concerns:
+**Workspace Structure:** Three member crates with clean separation of concerns:
 
 ### `libs/` Crate
 
@@ -522,11 +530,25 @@ Command-line interface consuming the `libs` crate:
 - `examples/` — Shell script examples demonstrating CLI workflows
 - `tests/` — Integration test suites (add.rs, delete.rs, edit_search.rs, import_export.rs, list.rs, sync.rs)
 
-**Three-Tier Architecture** (implemented within libs crate):
+### `api/` Crate
 
-1. **Storage Layer** (storage/) — Trait-based backends for JSON, CSV, TXT, HTTP
-2. **Domain Layer** (domain/) — ContactManager, Contact entity, validation, indexing, sync logic
-3. **CLI Layer** (cli/) — clap-based argument parsing and command dispatch
+REST HTTP server with service layer abstraction:
+
+- `src/main.rs` — Axum server startup, route setup, configuration
+- `src/service.rs` — **ContactService** layer (business logic, testing via unit tests in `#[cfg(test)]`)
+- `src/routes/contacts.rs` — HTTP handlers (GET, POST, PATCH, DELETE contact endpoints)
+- `src/config.rs` — Environment configuration
+- `src/state.rs` — ApiState with Arc<ContactService>
+- `src/validation.rs` — Request payload validation schemas
+- `src/error.rs` — HTTP error responses
+- `tests/integration.rs` — Integration tests covering HTTP endpoints and soft-delete edge cases
+
+**Four-Tier Architecture** (across workspace):
+
+1. **HTTP Layer** (api/routes) — Axum handlers, request routing, status codes
+2. **Service Layer** (api/service) — ContactService business logic, filtering, sync (unit tested)
+3. **Domain Layer** (libs/domain) — ContactManager, Contact entity, validation, indexing
+4. **Storage Layer** (libs/storage) — Trait-based backends for JSON, CSV, TXT, HTTP
 
 ---
 
@@ -594,15 +616,6 @@ Command-line interface consuming the `libs` crate:
 
 👉 **[Full CLI guide →][cli-readme]**
 
-### `api/` Crate
-
-REST API server consuming the `libs` crate:
-
-- `src/main.rs` — Axum server setup, route definitions
-- `src/config.rs` — Configuration from environment variables
-
-👉 **[Full API guide →][api-readme]**
-
 ---
 
 ## Testing & Code Quality
@@ -639,14 +652,15 @@ cargo test -- --nocapture                 # Print output during tests
 
 ## Further Reading
 
-| Topic           | Location                                | Purpose                                   |
-| --------------- | --------------------------------------- | ----------------------------------------- |
-| **CLI Usage**   | [cli/README.md][cli-readme]             | Commands, examples, troubleshooting       |
-| **Library API** | [libs/README.md][libs-readme]           | Integration guide, core concepts, modules |
-| **REST API**    | [api/README.md][api-readme]             | Endpoints, deployment, configuration      |
-| **Changelog**   | [CHANGELOG.md][changelog]               | Release history, version notes            |
-| **Performance** | [libs/docs/perf-notes.md][perf-notes]   | Benchmarks, analysis, optimization        |
-| **Walkthrough** | [libs/docs/WALKTHROUGH.md][walkthrough] | Implementation deep-dives                 |
+| Topic               | Location                                | Purpose                                           |
+| ------------------- | --------------------------------------- | ------------------------------------------------- |
+| **CLI Usage**       | [cli/README.md][cli-readme]             | Commands, examples, troubleshooting               |
+| **Library API**     | [libs/README.md][libs-readme]           | Integration guide, core concepts, modules         |
+| **REST API**        | [api/README.md][api-readme]             | Endpoints, service layer, deployment, config      |
+| **Changelog**       | [CHANGELOG.md][changelog]               | Release history, version notes                    |
+| **Performance**     | [libs/docs/perf-notes.md][perf-notes]   | Benchmarks, analysis, optimization                |
+| **Walkthrough**     | [libs/docs/WALKTHROUGH.md][walkthrough] | Implementation deep-dives                         |
+| **Service Pattern** | [api/src/service.rs][api-service]       | ContactService layer, unit tests, filtering logic |
 
 ---
 
@@ -677,3 +691,4 @@ cargo test -- --nocapture                 # Print output during tests
 [storage-file]: ./libs/src/storage/file.rs#L100
 [storage-remote]: ./libs/src/storage/remote.rs
 [errors-rs]: ./libs/src/errors.rs
+[api-service]: ./api/src/service.rs

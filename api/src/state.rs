@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::{config::Config, service::ContactService};
 use libs::domain::manager::ContactManager;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -9,14 +9,16 @@ use tokio::sync::RwLock;
 #[derive(Clone)]
 pub struct ApiState {
     pub config: Arc<Config>,
-    pub manager: Arc<RwLock<ContactManager>>,
+    pub service: Arc<ContactService>,
 }
 
 impl ApiState {
     pub async fn new(config: Config) -> anyhow::Result<Self> {
+        let manager = Arc::new(RwLock::new(ContactManager::new().await?));
+
         Ok(Self {
             config: Arc::new(config),
-            manager: Arc::new(RwLock::new(ContactManager::new().await?)),
+            service: Arc::new(ContactService::new(manager)),
         })
     }
 }
