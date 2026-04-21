@@ -82,32 +82,32 @@ This workspace uses a **three-level documentation strategy:**
 **TL;DR:** Workspace with three member crates: `libs` (domain logic + storage), `cli` (command-line interface), and `api` (REST HTTP server). Clean layered architecture with trait-based pluggable backends (JSON, CSV, TXT, HTTP) and service layer abstracting business logic.
 
 ```
-┌──────────────────────────── Workspace ──────────────────────────────┐
-│                                                                    │
+┌──────────────────────────── Workspace ────────────────────────────┐
+│                                                                   │
 │  ┌──────────────────────┐  ┌──────────────────┐  ┌─────────────┐  │
 │  │  libs/ (Library)     │  │  cli/ (CLI)      │  │  api/ (REST)│  │
 │  │                      │  │                  │  │             │  │
-│  │ ┌────────────────┐   │  │  ┌──────────────┐│  │ ┌────────┐ │  │
-│  │ │Storage Layer   │   │  │  │CLI Interface ││  │ │HTTP    │ │  │
-│  │ │(JSON/CSV/TXT/ │   │  │  │(clap, cmds)  ││  │ │Handlers│ │  │
-│  │ │HTTP)          │   │  │  └────────┬─────┘│  │ └───┬────┘ │  │
-│  │ └──────▲────────┘   │  │           │      │  │     │      │  │
-│  │        │            │  │      ┌────▼────┐ │  │  ┌──▼────┐ │  │
-│  │ ┌──────┴───────┐    │  │      │Service  │ │  │  │Service │ │  │
-│  │ │Domain Layer  │    │  │      │(Manager)│ │  │  │Layer   │ │  │
-│  │ │(Manager,     │◄───┼──┼──────┘(Arc<    │ │  │  │(business
-│  │ │validation,   │    │  │        RwLock>)│ │  │  │logic)  │ │  │
-│  │ │sync,         │    │  │                │ │  │  └────────┘ │  │
-│  │ │indexing)     │    │  │                │ │  │             │  │
-│  │ └──────────────┘    │  │                │ │  │             │  │
-│  │                      │  └────────────────┘ │  └─────────────┘  │
-│  └──────────────────────┘  ┌──────────────────┘  ┌────────────────┘
-│                            │                     │
-│                            └─────────────────────┘
-│                  Shared ContactManager
-│                  (via Arc<RwLock<>>)
-│                                                                    │
-└────────────────────────────────────────────────────────────────────┘
+│  │ ┌────────────────┐   │  │  ┌──────────────┐│  │ ┌────────┐  │  │
+│  │ │Storage Layer   │   │  │  │CLI Interface ││  │ │HTTP    │  │  │
+│  │ │(JSON/CSV/TXT/  │   │  │  │(clap, cmds)  ││  │ │Handlers│  │  │
+│  │ │HTTP)           │   │  │  └────────┬─────┘│  │ └───┬────┘  │  │
+│  │ └──────▲─────────┘   │  │           │      │  │     │       │  │
+│  │        │             │  │      ┌────▼────┐ │  │  ┌──▼──────┐│  │
+│  │ ┌──────┴───────┐     │  │      │Service  │ │  │  │Service  ││  │
+│  │ │Domain Layer  │     │  │      │(Manager)│ │  │  │Layer    ││  │
+│  │ │(Manager,     │◄────┼──┼──────│(Arc<    │ │  │  │(business││  │
+│  │ │validation,   │     │  │      │ RwLock>)│ │  │  │logic)   ││  │
+│  │ │sync,         │     │  │      └─────────┘ │  │  └───│─────┘│  │
+│  │ │indexing)     │     │  │                  │  │      │      │  │
+│  │ └─────▲────────┘     │  │                  │  │      │      │  │
+│  └───────│──────────────┘  └──────────────────┘  └──────│──────┘  │
+│          │                                              │         │
+│          │                                              │         │
+│          │                                              │         │
+│          └────── Shared ContactManager◄─────────────────┘         │
+│                  (via Arc<RwLock<>>)                              │
+│                                                                   │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 **Design Philosophy:** Workspace separation enables:
