@@ -13,7 +13,12 @@ use validator::Validate;
 pub fn create_router(state: ApiState) -> Router {
     Router::new()
         .route("/contacts", get(list_contacts).post(add_contact))
-        .route("/contacts/:id", get(get_contact_by_id).patch(edit_contact).delete(delete_contact))
+        .route(
+            "/contacts/:id",
+            get(get_contact_by_id)
+                .patch(edit_contact)
+                .delete(delete_contact),
+        )
         .with_state(state)
 }
 
@@ -26,11 +31,15 @@ pub fn create_router(state: ApiState) -> Router {
 )]
 async fn get_contact_by_id(
     Path(id): Path<Uuid>,
-    State(state): State<ApiState>
+    State(state): State<ApiState>,
 ) -> Result<impl IntoResponse, ApiError> {
     info!(contact_id=%id, "getting contact");
 
-    let contact = state.service.get_contact(id).await.map_err(|_| ApiError::NotFound)?;
+    let contact = state
+        .service
+        .get_contact(id)
+        .await
+        .map_err(|_| ApiError::NotFound)?;
     Ok((StatusCode::OK, Json(contact)))
 }
 #[instrument(
@@ -43,7 +52,7 @@ async fn get_contact_by_id(
 async fn list_contacts(State(state): State<ApiState>) -> Result<impl IntoResponse, ApiError> {
     let contact_list: Vec<Contact> = {
         info!("generating contact list");
-        
+
         let contacts = state.service.list_contacts().await?;
         debug!("read Lock Released");
         contacts
@@ -73,10 +82,10 @@ async fn add_contact(
     let email = payload.email.unwrap_or_default();
     let tag = payload.tag.unwrap_or_default();
 
-    let new_contact = 
-        state.service.add_contact(
-            Contact::new(payload.name, payload.phone, email, tag)
-        ).await?;
+    let new_contact = state
+        .service
+        .add_contact(Contact::new(payload.name, payload.phone, email, tag))
+        .await?;
 
     info!(user = ?new_contact, "created new contact");
     let body = Json(new_contact);
@@ -98,11 +107,10 @@ async fn edit_contact(
     info!("editing a contact");
     payload.validate()?;
 
-    let updated_contact = state.service.edit_contact(
-        id, payload.name,
-        payload.phone, payload.email,
-        payload.tag
-    ).await?;
+    let updated_contact = state
+        .service
+        .edit_contact(id, payload.name, payload.phone, payload.email, payload.tag)
+        .await?;
     info!(new_data = ?updated_contact, "editing complete");
     Ok((StatusCode::OK, Json(updated_contact)))
 }

@@ -1,18 +1,15 @@
-use std::sync::Arc;
-use tracing::{debug, info};
 use libs::{
-    domain::manager::{
-        LastWriteWinsPolicy, SyncPolicy
-    }, 
-    prelude::{Contact, ContactManager, uuid::Uuid}
+    domain::manager::{LastWriteWinsPolicy, SyncPolicy},
+    prelude::{Contact, ContactManager, uuid::Uuid},
 };
-use tokio::sync::{RwLock};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use tracing::{debug, info};
 
 use crate::error::ApiError;
 
-
 pub struct ContactService {
-    manager: Arc<RwLock<ContactManager>>
+    manager: Arc<RwLock<ContactManager>>,
 }
 
 impl ContactService {
@@ -25,7 +22,12 @@ impl ContactService {
         let manager = self.manager.read().await;
         debug!("read Lock acquired");
 
-        Ok(manager.mem.values().filter(|c| !c.deleted).cloned().collect())
+        Ok(manager
+            .mem
+            .values()
+            .filter(|c| !c.deleted)
+            .cloned()
+            .collect())
     }
 
     pub async fn get_contact(&self, id: Uuid) -> Result<Contact, ApiError> {
@@ -103,7 +105,9 @@ impl ContactService {
         self.sync(&mut manager).await?;
         debug!("synchronization complete");
 
-        let target_contact = manager.delete_contact(&id).map_err(|_| ApiError::NotFound)?;
+        let target_contact = manager
+            .delete_contact(&id)
+            .map_err(|_| ApiError::NotFound)?;
         manager.save().await?;
 
         debug!("write Lock Released");
@@ -112,12 +116,13 @@ impl ContactService {
 
     pub async fn sync(&self, manager: &mut ContactManager) -> Result<(), ApiError> {
         let mut base = manager.mem.clone();
-        manager.sync_from_contacts_map(
-            &mut base,
-            manager.storage.load().await?,
-            SyncPolicy::LastWriteWinsPolicy(LastWriteWinsPolicy),
-        )
-        .await?;
+        manager
+            .sync_from_contacts_map(
+                &mut base,
+                manager.storage.load().await?,
+                SyncPolicy::LastWriteWinsPolicy(LastWriteWinsPolicy),
+            )
+            .await?;
         Ok(())
     }
 }
