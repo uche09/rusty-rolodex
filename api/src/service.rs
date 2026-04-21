@@ -35,7 +35,7 @@ impl ContactService {
         let manager = self.manager.read().await;
         debug!("acquired Read Lock on manager state");
 
-        manager.mem.get(&id).cloned().ok_or(ApiError::NotFound)
+        manager.mem.get(&id).filter(|c| !c.deleted).cloned().ok_or(ApiError::NotFound)
     }
 
     pub async fn add_contact(&self, new_contact: Contact) -> Result<Contact, ApiError> {
