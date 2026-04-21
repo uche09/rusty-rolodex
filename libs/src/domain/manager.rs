@@ -239,7 +239,7 @@ impl ContactManager {
         email: Option<String>,
         tag: Option<String>,
     ) -> Result<(), AppError> {
-        match self.mem.get_mut(id) {
+        match self.mem.get_mut(id).filter(|c| !c.deleted) {
             Some(target_contact) => {
                 if let Some(name) = name {
                     // Update index with contact new data
@@ -280,14 +280,14 @@ impl ContactManager {
         }
     }
 
-    pub fn delete_contact(&mut self, id: &Uuid) -> Result<(), AppError> {
-        match self.mem.get_mut(id) {
+    pub fn delete_contact(&mut self, id: &Uuid) -> Result<Contact, AppError> {
+        match self.mem.get_mut(id).filter(|c| !c.deleted) {
             Some(deleted_contact) => {
                 deleted_contact.deleted = true;
                 deleted_contact.updated_at = Utc::now();
                 self.index
                     .update_both_indexes(deleted_contact, &IndexUpdateType::Remove);
-                Ok(())
+                Ok(deleted_contact.clone())
             }
             None => Err(AppError::NotFound("Contact".to_string())),
         }
@@ -434,17 +434,6 @@ impl ContactManager {
             }
         }
         Ok(())
-    }
-
-    pub async fn sync_from_own_storage(&mut self) -> Result<(), AppError> {
-        let mut base = self.mem.clone();
-        let remote_contacts = self.storage.load().await?;
-        self.sync_from_contacts_map(
-            &mut base,
-            remote_contacts,
-            SyncPolicy::LastWriteWinsPolicy(LastWriteWinsPolicy),
-        )
-        .await
     }
 
     pub fn create_name_search_index(&self) -> Result<HashMap<String, HashSet<Uuid>>, AppError> {

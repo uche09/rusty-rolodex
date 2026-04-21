@@ -6,7 +6,6 @@ use crate::{
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    routing::patch,
 };
 use tracing::{debug, info, instrument};
 use validator::Validate;
@@ -14,10 +13,26 @@ use validator::Validate;
 pub fn create_router(state: ApiState) -> Router {
     Router::new()
         .route("/contacts", get(list_contacts).post(add_contact))
-        .route("/contacts/:id", patch(edit_contact).delete(delete_contact))
+        .route("/contacts/:id", get(get_contact_by_id).patch(edit_contact).delete(delete_contact))
         .with_state(state)
 }
 
+#[instrument(
+    level = "debug",
+    skip(state),
+    fields(contact_id = %id),
+    err,
+    ret,
+)]
+async fn get_contact_by_id(
+    Path(id): Path<Uuid>,
+    State(state): State<ApiState>
+) -> Result<impl IntoResponse, ApiError> {
+    info!(contact_id=%id, "getting contact");
+
+    let contact = state.service.get_contact(id).await.map_err(|_| ApiError::NotFound)?;
+    Ok((StatusCode::OK, Json(contact)))
+}
 #[instrument(
     level = "debug",
     skip(state),
@@ -28,10 +43,8 @@ pub fn create_router(state: ApiState) -> Router {
 async fn list_contacts(State(state): State<ApiState>) -> Result<impl IntoResponse, ApiError> {
     let contact_list: Vec<Contact> = {
         info!("generating contact list");
-        debug!("acquring read Lock on manager state");
-        let manager = state.manager.read().await;
-        debug!("read Lock acquired");
-        let contacts = manager.mem.values().cloned().collect();
+        
+        let contacts = state.service.list_contacts().await?;
         debug!("read Lock Released");
         contacts
     };
@@ -60,27 +73,10 @@ async fn add_contact(
     let email = payload.email.unwrap_or_default();
     let tag = payload.tag.unwrap_or_default();
 
-    let new_contact = Contact::new(payload.name, payload.phone, email, tag);
-
-    {
-        debug!("acquiring Write Lock on manager state");
-        let mut manager = state.manager.write().await;
-        debug!("acquired write Lock on manager state");
-
-        debug!("synchronizing local data from storage");
-        // This function synchronizes latest data from its own storage incase other process (e.g cli)
-        // has updated the storage
-        manager.sync_from_own_storage().await?;
-        debug!("synchronization complete");
-
-        if new_contact.already_exist(&manager.contact_list()) {
-            info!(name=%new_contact.name, phone=%new_contact.phone, "rejected: contact already exists");
-            return Err(ApiError::BadRequest("Contact already exist".to_string()));
-        }
-        manager.add_contact(new_contact.clone());
-        manager.save().await?;
-        debug!("write Lock Released");
-    }
+    let new_contact = 
+        state.service.add_contact(
+            Contact::new(payload.name, payload.phone, email, tag)
+        ).await?;
 
     info!(user = ?new_contact, "created new contact");
     let body = Json(new_contact);
@@ -102,35 +98,13 @@ async fn edit_contact(
     info!("editing a contact");
     payload.validate()?;
 
-    let updated_contact = Json({
-        debug!("acquiring Write Lock on manager state");
-        let mut manager = state.manager.write().await;
-        debug!("acquired write Lock on manager state");
-
-        debug!("synchronizing local data from storage");
-        // This function synchronizes latest data from its own storage incase other process (e.g cli)
-        // has updated the storage
-        manager.sync_from_own_storage().await?;
-        debug!("synchronization complete");
-
-        let target = manager.mem.get(&id);
-        info!(initial_data = ?target, "editing target contact");
-
-        manager
-            .edit_contact(&id, payload.name, payload.phone, payload.email, payload.tag)
-            .map_err(|_| {
-                info!(contact_id=%id, "contact not found");
-                ApiError::NotFound
-            })?;
-
-        manager.save().await?;
-        let contact = manager.mem.get(&id).ok_or(ApiError::NotFound)?.clone();
-
-        debug!("write Lock Released");
-        contact
-    });
+    let updated_contact = state.service.edit_contact(
+        id, payload.name,
+        payload.phone, payload.email,
+        payload.tag
+    ).await?;
     info!(new_data = ?updated_contact, "editing complete");
-    Ok((StatusCode::OK, updated_contact))
+    Ok((StatusCode::OK, Json(updated_contact)))
 }
 
 #[instrument(
@@ -146,34 +120,8 @@ async fn delete_contact(
 ) -> Result<impl IntoResponse, ApiError> {
     info!("deleting a contact");
 
-    let deleted_contact = Json({
-        debug!("acquiring Write Lock on manager state");
-        let mut manager = state.manager.write().await;
-        debug!("acquired write Lock on manager state");
-
-        debug!("synchronizing local data from storage");
-        // This function synchronizes latest data from its own storage incase other process (e.g cli)
-        // has updated the storage
-        manager.sync_from_own_storage().await?;
-        debug!("synchronization complete");
-
-        let target_contact = manager
-            .mem
-            .get(&id)
-            .ok_or_else(|| {
-                info!(contact_id=%id, "contact not found");
-                ApiError::NotFound
-            })?
-            .clone();
-
-        info!(target_contact = ?target_contact, "deleting target contact");
-        manager.delete_contact(&id).ok();
-        manager.save().await?;
-
-        debug!("write Lock Released");
-        target_contact
-    });
+    let deleted_contact = state.service.delete_contact(id).await?;
 
     info!(?deleted_contact, "delete complete");
-    Ok((StatusCode::OK, deleted_contact))
+    Ok((StatusCode::OK, Json(deleted_contact)))
 }

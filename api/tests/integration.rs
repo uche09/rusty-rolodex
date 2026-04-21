@@ -1,4 +1,4 @@
-use api::{config::Config, routes, state::ApiState};
+use api::{config::Config, routes, service::ContactService, state::ApiState};
 use axum::http::StatusCode;
 use axum_test::TestServer;
 use libs::{
@@ -13,9 +13,10 @@ use tokio::sync::RwLock;
 async fn setup() -> (TestServer, TempDir) {
     let config = Config::from_env().unwrap();
     let (manager, dir) = create_mock_manager();
+    let manager = Arc::new(RwLock::new(manager));
     let state = ApiState {
         config: Arc::new(config),
-        manager: Arc::new(RwLock::new(manager)),
+        service: Arc::new(ContactService::new(manager)),
     };
     let router = routes::create_router(state);
     (TestServer::new(router).unwrap(), dir)
